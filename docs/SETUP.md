@@ -1,0 +1,185 @@
+# RoyaltyDesk Setup
+
+This project is currently testnet-only. The recommended Windows workflow is to run the Rust/NEAR toolchain inside WSL2 Ubuntu and keep Node.js commands in either WSL2 or PowerShell. Do not use mainnet accounts or real funds during development.
+
+## 1. Prerequisites
+
+- Node.js 24 (NEAR's current tutorials require Node 22.12+; this repository accepts Node 20.9+).
+- npm 11 and network access to npmjs.org, crates.io, GitHub, the NEAR RPC, and `cloud-api.near.ai`.
+- WSL2 Ubuntu on Windows. Native PowerShell is fine for Node-only checks, but WSL2 avoids Rust, sandbox, and keychain issues.
+
+If WSL2 is not installed, an administrator can run `wsl --install -d Ubuntu`, then restart Windows and open Ubuntu.
+
+### Hybrid Docker setup (Node on host, Rust in Docker)
+
+This is the recommended option when Node.js is already installed but Rust must not be installed on Windows. Keep all JavaScript commands on the host. Use Docker only for Rust, `cargo-near`, NEAR CLI, contract compilation, and contract tests. Install Docker Desktop with Linux containers enabled and make sure the Docker daemon is running. The repository does not yet include a checked-in Dockerfile or Compose stack, so the commands below use official images:
+
+```powershell
+# Node checks remain on the host
+npm install
+npm run check:offline
+npm run test:domain
+npm run test:server
+```
+
+For contract work, the repository wrapper now builds the Rust image automatically and runs the contract command inside it:
+
+```powershell
+npm run test:contract
+```
+
+The first run downloads the toolchain image and dependencies. Subsequent runs reuse the image and named Cargo cache volumes. To build the contract WASM through the same Docker path:
+
+```powershell
+npm run build
+```
+
+If you need to enter the container manually, use:
+
+```bash
+docker run --rm -it -v "$PWD:/workspace" -w /workspace rust:latest bash
+apt-get update && apt-get install -y pkg-config libssl-dev clang curl
+rustup target add wasm32-unknown-unknown
+cargo install cargo-near --version 0.21.1 --locked
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/near-cli-rs/releases/latest/download/near-cli-rs-installer.sh | sh
+cd /workspace/contracts/royaltydesk
+cargo test
+cargo near build non-reproducible-wasm
+```
+
+The mounted repository keeps the generated WASM under `contracts/royaltydesk/target`. Expose port `3030` when running the sandbox. Mount a persistent credentials directory if using the CLI, and pass `.env` values at runtime; never bake wallet keys or API keys into an image.
+
+The TypeScript workspace build steps intentionally run strict no-emit compilation because the worker and packages execute their `.ts` sources directly during this early phase. The web workspace still produces the Next.js production output, and the contract workspace produces the WASM artifact.
+
+## 2. Install JavaScript dependencies
+
+From the repository root:
+
+```powershell
+Copy-Item .env.example .env
+npm install
+```
+
+The first `npm install` creates the lockfile. Use `npm ci` for subsequent clean installs. Populate `.env` with local values only; never commit it.
+
+Run the currently available offline checks:
+
+```powershell
+npm run check:offline
+npm run test:domain
+npm run test:server
+```
+
+## 3. Install Rust and NEAR tooling (WSL2)
+
+Inside Ubuntu, from `/mnt/c/Users/abbas/Desktop/NEAR`:
+
+```bash
+sudo apt update
+sudo apt install -y build-essential pkg-config libssl-dev curl git clang
+
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+rustup target add wasm32-unknown-unknown
+
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/near/near-cli-rs/releases/latest/download/near-cli-rs-installer.sh | sh
+cargo install cargo-near --version 0.21.1 --locked
+
+near --version
+cargo near --version
+```
+
+These commands follow the NEAR smart-contract quickstart. The existing contract is already in `contracts/royaltydesk`; do not scaffold a second project over it.
+
+## 4. Build and test the contract
+
+```bash
+cd contracts/royaltydesk
+cargo test
+cargo near build non-reproducible-wasm
+find target/near -name '*.wasm' -maxdepth 1 -print
+cd ../..
+```
+
+`npm run test:contract` will become useful once Cargo is available. `npm run test:sandbox` is intentionally not implemented yet; the next contract phase will wire it to the sandbox integration tests.
+
+## 5. Run a local NEAR sandbox
+
+Use the official sandbox package in WSL2:
+
+```bash
+npx near-sandbox --home /tmp/near-sandbox init
+npx near-sandbox --home /tmp/near-sandbox run
+```
+
+Keep this process running. The local RPC is `http://127.0.0.1:3030`. The sandbox guide also documents importing its `test.near` key into `near-cli-rs` when CLI-driven local calls are needed.
+
+## 6. Create a testnet account and deploy
+
+Create one development account (and later separate owner/agent accounts as required by the contract):
+
+```bash
+near account create-account sponsor-by-faucet-service royaltydesk-dev.testnet \
+  autogenerate-new-keypair save-to-legacy-keychain \
+  network-config testnet create
+near account view-account-summary royaltydesk-dev.testnet network-config testnet now
+```
+
+Deploy the WASM produced in step 4. Replace the file path if the build printed a different filename:
+
+```bash
+near contract deploy royaltydesk-dev.testnet \
+  use-file ./contracts/royaltydesk/target/near/royaltydesk_contract.wasm \
+  without-init-call network-config testnet \
+  sign-with-legacy-keychain send
+```
+
+Initialize the current Phase 0 contract:
+
+```bash
+near contract call-function as-transaction royaltydesk-dev.testnet new \
+  json-args '{"network_id":"testnet","operator_id":"royaltydesk-dev.testnet"}' \
+  prepaid-gas '100 Tgas' attached-deposit '0 NEAR' \
+  sign-as royaltydesk-dev.testnet network-config testnet \
+  sign-with-legacy-keychain send
+near contract call-function as-read-only royaltydesk-dev.testnet health \
+  empty-args network-config testnet now
+```
+
+Record the account ID, WASM hash, and transaction hashes in `plans/evidence/PHASE_00.md`; never record private keys.
+
+## 7. Wallet and NEAR AI checks
+
+Start the web app after dependencies are installed:
+
+```powershell
+$env:NEXT_PUBLIC_CONTRACT_ID = "royaltydesk-dev.testnet"
+npm run dev:web
+```
+
+Open `http://localhost:3000` and run the testnet wallet signature probe with a wallet that supports NEP-413 message signing. The current probe checks wallet compatibility; server-side signature verification is a later phase.
+
+For the live NEAR AI probe, obtain a Cloud API key, select a model returned by `GET https://cloud-api.near.ai/v1/models`, then set:
+
+```powershell
+$env:NEAR_AI_BASE_URL = "https://cloud-api.near.ai/v1"
+$env:NEAR_AI_API_KEY = "replace-me"
+$env:NEAR_AI_MODEL = "replace-with-supported-model"
+npm run test:live
+```
+
+`npm run test:live` automatically loads the repository-root `.env` file on Node 20.6+. PowerShell variables override values from that file when both are present.
+
+Do not expose the API key with a `NEXT_PUBLIC_` variable.
+
+## 8. Full verification target
+
+After the Rust toolchain, npm registry access, testnet account, and NEAR AI credentials are available, run `npm run check`, `npm run build`, `npm run test:contract`, the sandbox tests, and `npm run test:live`. Update the phase evidence with exact command output and any skipped checks.
+
+### Official references
+
+- [NEAR smart-contract quickstart](https://docs.near.org/smart-contracts/quickstart)
+- [NEAR CLI reference](https://docs.near.org/tools/cli)
+- [Local sandbox guide](https://docs.near.org/web3-apps/tutorials/localnet/run)
+- [Wallet login and NEP-413 verification](https://docs.near.org/web3-apps/tutorials/wallet-login)

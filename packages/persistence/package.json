@@ -1,0 +1,12 @@
+{
+  "name": "@royaltydesk/persistence",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "build": "tsc --noEmit --pretty false",
+    "check": "tsc --noEmit --pretty false",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
+  }
+}

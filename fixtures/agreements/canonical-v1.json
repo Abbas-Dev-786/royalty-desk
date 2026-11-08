@@ -1,0 +1,32 @@
+{
+  "rules": {
+    "schemaVersion": "1",
+    "releaseId": "release-demo",
+    "recordingId": "ISRC-DEMO-001",
+    "participants": [
+      { "ownerId": "producer.testnet", "basisPoints": "2500" },
+      { "ownerId": "artist.testnet", "basisPoints": "6000" },
+      { "ownerId": "collaborator.testnet", "basisPoints": "1500" }
+    ],
+    "recoupment": {
+      "code": "advance-v1",
+      "beneficiaryId": "producer.testnet",
+      "capYocto": "2000000000000000000000000"
+    },
+    "effectivePeriod": "2026-10"
+  },
+  "renderedDocument": "# RoyaltyDesk Agreement\n\nRelease: release-demo\n",
+  "context": {
+    "networkId": "testnet",
+    "contractId": "royaltydesk.testnet",
+    "releaseId": "release-demo",
+    "agreementVersion": "1"
+  },
+  "expected": {
+    "rulesBytes": "{\"effectivePeriod\":\"2026-10\",\"participants\":[{\"basisPoints\":\"6000\",\"ownerId\":\"artist.testnet\"},{\"basisPoints\":\"1500\",\"ownerId\":\"collaborator.testnet\"},{\"basisPoints\":\"2500\",\"ownerId\":\"producer.testnet\"}],\"recordingId\":\"ISRC-DEMO-001\",\"recoupment\":{\"beneficiaryId\":\"producer.testnet\",\"capYocto\":\"2000000000000000000000000\",\"code\":\"advance-v1\"},\"releaseId\":\"release-demo\",\"schemaVersion\":\"1\"}",
+    "rulesHash": "6cf0b76e7f8050de47897f2335881e4ac59a534d2ecc7d2934cdb2b24471d583",
+    "documentHash": "2cc058d5916431b3426fee3cda6b9a48c5cda36a401b6db1cb8adbb8588e53de",
+    "approvalBytes": "{\"agreementVersion\":\"1\",\"application\":\"royaltydesk\",\"contractId\":\"royaltydesk.testnet\",\"documentHash\":\"2cc058d5916431b3426fee3cda6b9a48c5cda36a401b6db1cb8adbb8588e53de\",\"networkId\":\"testnet\",\"releaseId\":\"release-demo\",\"rulesHash\":\"6cf0b76e7f8050de47897f2335881e4ac59a534d2ecc7d2934cdb2b24471d583\",\"schema\":\"agreement-approval/v1\"}",
+    "approvalDigest": "8f1dd70fabca28ee9d70d2c29489f145d60504280e0f0cb1026f2acf1542da42"
+  }
+}

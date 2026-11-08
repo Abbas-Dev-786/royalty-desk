@@ -1,0 +1,28 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  background: #07130f;
+  color: #f4f7f5;
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; min-height: 100vh; }
+
+main { max-width: 52rem; margin: 0 auto; padding: 8rem 2rem; }
+
+.eyebrow { color: #7ce5b7; letter-spacing: 0.12em; text-transform: uppercase; }
+
+h1 { font-size: clamp(2.5rem, 7vw, 5rem); line-height: 0.98; margin: 1rem 0; }
+
+.lede { color: #bfd0c7; font-size: 1.25rem; line-height: 1.6; }
+
+section { margin-top: 4rem; border-top: 1px solid #315245; padding-top: 2rem; }
+
+li { margin: 0.75rem 0; }
+
+.wallet-probe { display: grid; gap: 0.75rem; margin-top: 2rem; }
+
+button { width: fit-content; border: 0; border-radius: 999px; padding: 0.8rem 1.2rem; background: #7ce5b7; color: #07130f; font: inherit; font-weight: 700; cursor: pointer; }
+
+button:disabled { cursor: wait; opacity: 0.65; }

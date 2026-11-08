@@ -1,0 +1,25 @@
+name: Contract toolchain image
+
+on:
+  push:
+    paths:
+      - "docker/contract-toolchain.Dockerfile"
+      - ".github/workflows/contract-toolchain.yml"
+  pull_request:
+    paths:
+      - "docker/contract-toolchain.Dockerfile"
+      - ".github/workflows/contract-toolchain.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Build toolchain image
+        run: docker build --file docker/contract-toolchain.Dockerfile --tag contract-toolchain:ci .
+      - name: Verify tool versions
+        run: >-
+          docker run --rm contract-toolchain:ci sh -c
+          'rustc +1.95.0 --version && cargo-near --version && near --version'

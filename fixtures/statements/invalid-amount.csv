@@ -1,0 +1,2 @@
+statement_id,line_id,period,recording_id,platform,row_type,amount,currency,deduction_code,evidence_ref
+stmt-003,rev-001,2026-11,ISRC-DEMO-001,Spotify,revenue,1e3,NEAR,,report-a

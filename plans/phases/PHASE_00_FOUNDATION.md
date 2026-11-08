@@ -1,6 +1,6 @@
 # Phase 00 — Foundation and Compatibility
 
-Status: in progress. Build and live NEAR AI inference are verified; sandbox access-key and browser-wallet execution evidence remain. Evidence: [Phase 00](../evidence/PHASE_00.md). Next: [Phase 01](PHASE_01_DOMAIN.md). Control: [master plan](../MASTER_IMPLEMENTATION_PLAN.md).
+Status: in progress. Build, live NEAR AI inference, and the sandbox access-key matrix are verified; browser-wallet execution evidence remains. Evidence: [Phase 00](../evidence/PHASE_00.md). Next: [Phase 01](PHASE_01_DOMAIN.md). Control: [master plan](../MASTER_IMPLEMENTATION_PLAN.md).
 
 ## Implementation status
 
@@ -8,9 +8,9 @@ Status: in progress. Build and live NEAR AI inference are verified; sandbox acce
 | --- | --- | --- |
 | P00-01 | Implemented | Decisions 0001 and 0002; technical design linked |
 | P00-02 | Partial | Workspace and command contract created; dependency install, lockfile, typecheck, Next build, and Rust build blocked |
-| P00-03 | Partial | NEAR Connect probe and contract probe methods created; real wallet/key/sandbox execution blocked |
+| P00-03 | Partial | Sandbox key/permission matrix verified; browser wallet probe still requires a real wallet interaction |
 | P00-04 | Implemented and live verified | Server-only gateway adapter, SQLite restart/lease checks, and a real structured NEAR AI response pass |
-| P00-05 | Partial | Offline and explicit-failure commands created; sandbox suite awaits Rust/sandbox tooling |
+| P00-05 | Implemented | Offline commands and disposable Docker-backed sandbox harness created; unavailable tooling fails explicitly |
 
 ## Outcome and source basis
 

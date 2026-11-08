@@ -102,11 +102,15 @@ find target/near -name '*.wasm' -maxdepth 1 -print
 cd ../..
 ```
 
-`npm run test:contract` will become useful once Cargo is available. `npm run test:sandbox` is intentionally not implemented yet; the next contract phase will wire it to the sandbox integration tests.
+`npm run test:contract` runs Cargo through the Docker wrapper. `npm run test:sandbox` starts a disposable official `near-sandbox` node, deploys the compiled probe contract, and exercises the restricted agent-key matrix. On Linux it invokes `near-sandbox` directly. On Windows, the harness runs NEAR's official Linux sandbox image inside Docker and exposes RPC at `127.0.0.1:3030`; Docker Desktop must be running.
+
+The Windows harness uses NEAR's official `nearprotocol/sandbox:2.13.1` image. The image contains the Linux sandbox binary directly; no Node runtime or Rust toolchain is needed inside the sandbox container. The RoyaltyDesk contract still executes as WASM inside that local NEAR node.
 
 ## 5. Run a local NEAR sandbox
 
-Use the official sandbox package in WSL2:
+The sandbox is a private local NEAR blockchain used to prove contract behavior without testnet funds. Phase 00 uses it to deploy the probe WASM and verify real access-key restrictions, predecessor identity, receiver/method allowlists, and transaction failures. It is not the production network and does not replace testnet verification.
+
+The automated harness uses the official sandbox package. To inspect or run the node manually on Linux/WSL:
 
 ```bash
 npx near-sandbox --home /tmp/near-sandbox init
@@ -114,6 +118,8 @@ npx near-sandbox --home /tmp/near-sandbox run
 ```
 
 Keep this process running. The local RPC is `http://127.0.0.1:3030`. The sandbox guide also documents importing its `test.near` key into `near-cli-rs` when CLI-driven local calls are needed.
+
+With the compiled WASM present at `contracts/royaltydesk/target/near/royaltydesk_contract.wasm`, run `npm run test:sandbox` from the repository root. The command creates temporary accounts and keys, prints only sanitized account/permission metadata, and removes the sandbox home after completion. On Windows this command is the recommended path; do not invoke `npx near-sandbox` directly because its native package currently rejects `Windows_NT-x64`.
 
 ## 6. Create a testnet account and deploy
 
@@ -159,6 +165,8 @@ npm run dev:web
 ```
 
 Open `http://localhost:3000` and run the testnet wallet signature probe with a wallet that supports NEP-413 message signing. The current probe checks wallet compatibility; server-side signature verification is a later phase.
+
+For Phase 00 evidence, record the wallet/network selected, whether the signing prompt appeared, and whether the request was approved or declined. Do not record the signed payload, cookies, or wallet keys. A source-level probe or mocked wallet is not browser evidence.
 
 For the live NEAR AI probe, obtain a Cloud API key, select a model returned by `GET https://cloud-api.near.ai/v1/models`, then set:
 

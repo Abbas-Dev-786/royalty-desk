@@ -25,7 +25,7 @@
     "test:domain": "node --experimental-strip-types --test packages/domain/tests/*.test.ts",
     "test:domain:core": "node --experimental-strip-types --test packages/domain/tests/money.test.ts packages/domain/tests/canonical.test.ts packages/domain/tests/schemas.test.ts packages/domain/tests/statement-normalization.test.ts packages/domain/tests/strict-parser.test.ts",
     "test:contract": "node scripts/run-contract.mjs test",
-    "test:sandbox": "node scripts/not-implemented.mjs test:sandbox",
+    "test:sandbox": "node scripts/test-sandbox.mjs",
     "test:server": "node --experimental-strip-types --test packages/persistence/tests/*.test.ts apps/worker/tests/*.test.ts",
     "test:agents": "node scripts/not-implemented.mjs test:agents",
     "test:recovery": "node scripts/not-implemented.mjs test:recovery",

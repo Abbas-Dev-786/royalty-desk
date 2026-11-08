@@ -52,7 +52,7 @@ Update this table during implementation. Allowed states: `not_started`, `in_prog
 
 | Phase | State | Evidence | Blocker / next task |
 | --- | --- | --- | --- |
-| 00 | in_progress | [Phase 00 evidence](evidence/PHASE_00.md) | Build, live NEAR AI, and sandbox access-key checks pass; browser-wallet evidence remains |
+| 00 | verified | [Phase 00 evidence](evidence/PHASE_00.md) | Build, live NEAR AI, sandbox access-key, and browser-wallet checks pass; optional model attestation remains |
 | 01 | verified | [Phase 01 evidence](evidence/PHASE_01.md) | 32 domain/parser tests pass; Rust parity remains Phase 02 |
 | 02 | not_started | Not recorded | Depends on 01 |
 | 03 | not_started | Not recorded | Depends on 02 |

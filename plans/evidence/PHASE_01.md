@@ -4,7 +4,7 @@
 
 - Tasks: P01-01 through P01-05
 - Status: verified; all Phase 01 domain and CSV checks pass offline
-- Source digest: `sha256:7cd0f7d5c7b90c090c75d7cc020de967025ad3d52afa481be73fdfbc75fef261` across 176 non-generated source/configuration/planning files, excluding evidence files
+- Source digest: `sha256:3192ba53fc25da9e59663f77b2a0ccc68a26137be3b06bb86f846683cc0cd7a2` across 176 non-generated source/configuration/planning files, excluding evidence files
 - Environment: Node 24.21.0 on Windows
 - Requirements: Phase 01 plan, technical design sections 4–8, F-03/F-04/F-06/F-08, Decisions 0001 and 0002
 

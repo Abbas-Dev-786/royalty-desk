@@ -1,6 +1,6 @@
 # Phase 04 — Native Transfers and Safe Reconciliation
 
-Status: not started. Depends on: [Phase 03](PHASE_03_SETTLEMENT_ACCOUNTING.md). Next: [Phase 05](PHASE_05_APPLICATION_FOUNDATION.md).
+Status: verified. Production and fault-injection WASM payout, failure/retry, refund, replay, recovery, and callback-liveness checks pass. Depends on: [Phase 03](PHASE_03_SETTLEMENT_ACCOUNTING.md). Next: [Phase 05](PHASE_05_APPLICATION_FOUNDATION.md).
 
 ## Outcome and source basis
 

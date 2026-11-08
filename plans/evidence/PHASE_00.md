@@ -5,7 +5,7 @@
 - Tasks: P00-01 through P00-05
 - Status: verified; live NEAR AI inference, the sandbox access-key matrix, and browser-wallet execution are verified
 - Git commit: unavailable because the workspace is not a Git repository
-- Source digest: `sha256:3192ba53fc25da9e59663f77b2a0ccc68a26137be3b06bb86f846683cc0cd7a2` across 176 non-generated source/configuration/planning files, excluding evidence files
+- Source digest: baseline `sha256:3192ba53fc25da9e59663f77b2a0ccc68a26137be3b06bb86f846683cc0cd7a2`; Phase 02–04 source changes require a new release digest
 - Environment: Microsoft Windows NT 10.0.26300.0; Node 24.21.0; npm 11.19.0
 - Remaining verification gaps: optional NEAR AI attestation/signature verification only; this is not a Phase 00 acceptance blocker
 - Sources: Decision 0001, Decision 0002, Phase 00 plan, Context7 Next.js 16.2.9/near-sdk-rs/better-sqlite3 documentation, and official NEAR documentation

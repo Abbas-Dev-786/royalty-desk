@@ -1,6 +1,6 @@
 # Phase 02 — Contract Identity, Agreements and Mandates
 
-Status: not started. Depends on: [Phase 01](PHASE_01_DOMAIN.md) and Phase 00's working sandbox/key path. Next: [Phase 03](PHASE_03_SETTLEMENT_ACCOUNTING.md).
+Status: verified. Rebuilt contract and expanded authority/rejection sandbox flow pass. Depends on: [Phase 01](PHASE_01_DOMAIN.md) and Phase 00's working sandbox/key path. Next: [Phase 03](PHASE_03_SETTLEMENT_ACCOUNTING.md).
 
 ## Outcome and source basis
 

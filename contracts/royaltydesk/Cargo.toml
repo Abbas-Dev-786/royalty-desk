@@ -7,6 +7,10 @@ publish = false
 [lib]
 crate-type = ["cdylib"]
 
+[features]
+default = []
+fault-injection = []
+
 [dependencies]
 near-sdk = "=5.30.1"
 

@@ -1,6 +1,6 @@
 # Phase 03 — Settlement State and Reserve Accounting
 
-Status: not started. Depends on: [Phase 02](PHASE_02_CONTRACT_AUTHORITY.md). Next: [Phase 04](PHASE_04_TRANSFERS.md).
+Status: verified. Rebuilt contract, funding, revision, cancellation, conservation, and finalization flow pass. Depends on: [Phase 02](PHASE_02_CONTRACT_AUTHORITY.md). Next: [Phase 04](PHASE_04_TRANSFERS.md).
 
 ## Outcome and source basis
 

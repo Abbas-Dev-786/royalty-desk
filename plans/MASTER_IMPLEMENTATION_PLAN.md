@@ -1,6 +1,6 @@
 # RoyaltyDesk — Master Implementation Plan
 
-Status: planned; implementation has not started. Baseline inspected: 2026-11-07.
+Status: Phase 02–04 implementation in progress; compiled-contract verification pending. Baseline inspected: 2026-11-07.
 
 This is the entry point for the coding harness. It translates the existing product documents into ordered, verifiable implementation work. Phases represent dependency milestones, not calendar commitments. Creating these plans does not implement or verify the product.
 
@@ -54,9 +54,9 @@ Update this table during implementation. Allowed states: `not_started`, `in_prog
 | --- | --- | --- | --- |
 | 00 | verified | [Phase 00 evidence](evidence/PHASE_00.md) | Build, live NEAR AI, sandbox access-key, and browser-wallet checks pass; optional model attestation remains |
 | 01 | verified | [Phase 01 evidence](evidence/PHASE_01.md) | 32 domain/parser tests pass; Rust parity remains Phase 02 |
-| 02 | not_started | Not recorded | Depends on 01 |
-| 03 | not_started | Not recorded | Depends on 02 |
-| 04 | not_started | Not recorded | Depends on 03 |
+| 02 | verified | [Phase 02 evidence](evidence/PHASE_02.md) | Rebuilt contract and expanded authority/rejection sandbox flow pass |
+| 03 | verified | [Phase 03 evidence](evidence/PHASE_03.md) | Rebuilt contract, funding, revision, cancellation, conservation, and finalization flow pass |
+| 04 | verified | [Phase 04 evidence](evidence/PHASE_04.md) | Production and separate fault-injection WASM pass payout, failure/retry, refund, replay, recovery, and callback-liveness checks |
 | 05 | not_started | Not recorded | Depends on 01, 02, 04 |
 | 06 | not_started | Not recorded | Depends on 03, 05 |
 | 07 | not_started | Not recorded | Depends on 04, 05, 06 |

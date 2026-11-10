@@ -5,6 +5,10 @@ export interface WorkerConfig {
   readonly contractId: string;
   readonly databasePath: string;
   readonly storageSecret: string | null;
+  readonly workerApiToken: string | null;
+  readonly nearAiBaseUrl: string;
+  readonly nearAiApiKey: string | null;
+  readonly nearAiModel: string | null;
 }
 
 export function readWorkerConfig(environment: NodeJS.ProcessEnv = process.env): WorkerConfig {
@@ -21,5 +25,7 @@ export function readWorkerConfig(environment: NodeJS.ProcessEnv = process.env): 
 
   const storageSecret = environment.ROYALTYDESK_STORAGE_SECRET ?? environment.ROYALTYDESK_ENCRYPTION_KEY ?? null;
   if (environment.NODE_ENV === "production" && (!storageSecret || storageSecret.length < 32)) throw new Error("ROYALTYDESK_STORAGE_SECRET must be configured with at least 32 characters in production");
-  return { host: environment.ROYALTYDESK_WORKER_HOST ?? "127.0.0.1", port, networkId, contractId, databasePath: environment.ROYALTYDESK_DB_PATH ?? environment.ROYALTYDESK_DATABASE_PATH ?? ".royaltydesk/royaltydesk.sqlite", storageSecret };
+  const workerApiToken = environment.ROYALTYDESK_WORKER_TOKEN ?? null;
+  if (environment.NODE_ENV === "production" && (!workerApiToken || workerApiToken.length < 32)) throw new Error("ROYALTYDESK_WORKER_TOKEN must be configured in production");
+  return { host: environment.ROYALTYDESK_WORKER_HOST ?? "127.0.0.1", port, networkId, contractId, databasePath: environment.ROYALTYDESK_DB_PATH ?? environment.ROYALTYDESK_DATABASE_PATH ?? ".royaltydesk/royaltydesk.sqlite", storageSecret, workerApiToken, nearAiBaseUrl: environment.NEAR_AI_BASE_URL ?? "https://cloud-api.near.ai/v1", nearAiApiKey: environment.NEAR_AI_API_KEY ?? null, nearAiModel: environment.NEAR_AI_MODEL ?? null };
 }

@@ -1,6 +1,6 @@
 # RoyaltyDesk — Master Implementation Plan
 
-Status: Phase 05–06 implemented and fully build-verified. Baseline inspected: 2026-11-10.
+Status: Phase 07–08 implemented and locally verified; final Docker contract rebuild and live inference evidence remain release-stage checks. Baseline inspected: 2026-11-10.
 
 This is the entry point for the coding harness. It translates the existing product documents into ordered, verifiable implementation work. Phases represent dependency milestones, not calendar commitments. Creating these plans does not implement or verify the product.
 
@@ -59,8 +59,8 @@ Update this table during implementation. Allowed states: `not_started`, `in_prog
 | 04 | verified | [Phase 04 evidence](evidence/PHASE_04.md) | Production and separate fault-injection WASM pass payout, failure/retry, refund, replay, recovery, and callback-liveness checks |
 | 05 | verified | [Phase 05 evidence](evidence/PHASE_05.md) | Auth/session, durable persistence, encrypted private files, leases, and operation reconciliation pass local checks; live wallet proof remains environment-specific |
 | 06 | verified | [Phase 06 evidence](evidence/PHASE_06.md) | Membership, immutable agreements, private statement revisions, settlement previews, and browser administration surface pass local checks |
-| 07 | not_started | Not recorded | Depends on 04, 05, 06 |
-| 08 | not_started | Not recorded | Depends on 04–07 |
+| 07 | verified | [Phase 07 evidence](evidence/PHASE_07.md) | Personal contexts, bounded NEAR AI/fixture orchestration, policy tools, worker API, and restricted dispatch pass local checks; live inference remains separately evidenced |
+| 08 | verified | [Phase 08 evidence](evidence/PHASE_08.md) | Integrated owner workspace, agent proxy, settlement state controls, receipt surface, and isolated e2e smoke pass local checks |
 | 09 | not_started | Not recorded | Depends on 00–08 |
 | 10 | deferred | Not recorded | Optional; branch-specific prerequisites |
 

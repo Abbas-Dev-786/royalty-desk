@@ -35,6 +35,12 @@ button:disabled { cursor: wait; opacity: 0.65; }
 .console-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .control-panel { display: grid; gap: 0.8rem; align-content: start; border: 1px solid #c5c9cd; background: #fbfaf7; padding: 1rem; }
 .control-panel.wide { grid-column: span 2; }
+.panel-title { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; color: #17202b; font-weight: 700; }
+.state-dot { color: #1e59a8; font-size: 0.75rem; font-weight: 400; }
+.field-note { color: #65707a; font-size: 0.85rem; line-height: 1.45; margin: 0; }
+select { width: 100%; border: 1px solid #aeb4ba; border-radius: 0.15rem; background: #fff; color: #17202b; padding: 0.7rem; font: inherit; }
+.inline-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
+.action-row { display: flex; flex-wrap: wrap; gap: 0.65rem; }
 label { display: grid; gap: 0.35rem; color: #4e5963; font-size: 0.9rem; }
 input, textarea { width: 100%; border: 1px solid #aeb4ba; border-radius: 0.15rem; background: #fff; color: #17202b; padding: 0.7rem; font: inherit; }
 textarea { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.8rem; line-height: 1.4; }

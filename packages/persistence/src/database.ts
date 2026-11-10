@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 export function openDatabase(path: string): DatabaseSync {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
@@ -174,6 +174,63 @@ export function openDatabase(path: string): DatabaseSync {
     if (!names.has("updated_at_ms")) database.exec("ALTER TABLE jobs ADD COLUMN updated_at_ms INTEGER NOT NULL DEFAULT 0;");
     database.exec("UPDATE jobs SET logical_key = release_id || ':' || input_digest WHERE logical_key = ''; UPDATE jobs SET updated_at_ms = created_at_ms WHERE updated_at_ms = 0;");
     database.exec("CREATE UNIQUE INDEX IF NOT EXISTS jobs_logical_key ON jobs(logical_key);");
+  }
+  if (version < 2) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS agent_sessions (
+        id TEXT PRIMARY KEY,
+        release_id TEXT NOT NULL,
+        owner_account_id TEXT NOT NULL,
+        mode TEXT NOT NULL CHECK(mode IN ('live','fixture')),
+        status TEXT NOT NULL CHECK(status IN ('negotiating','reviewing','awaiting_human','succeeded','failed','paused')),
+        round INTEGER NOT NULL CHECK(round >= 0),
+        max_rounds INTEGER NOT NULL CHECK(max_rounds BETWEEN 1 AND 3),
+        input_digest TEXT NOT NULL CHECK(length(input_digest) = 64),
+        created_at_ms INTEGER NOT NULL,
+        updated_at_ms INTEGER NOT NULL
+      ) STRICT;
+      CREATE INDEX IF NOT EXISTS agent_sessions_release ON agent_sessions(release_id, owner_account_id);
+      CREATE TABLE IF NOT EXISTS agent_budgets (
+        session_id TEXT PRIMARY KEY REFERENCES agent_sessions(id) ON DELETE CASCADE,
+        max_calls INTEGER NOT NULL CHECK(max_calls BETWEEN 1 AND 2),
+        calls_used INTEGER NOT NULL DEFAULT 0 CHECK(calls_used >= 0),
+        max_output_tokens INTEGER NOT NULL CHECK(max_output_tokens > 0),
+        output_tokens_used INTEGER NOT NULL DEFAULT 0 CHECK(output_tokens_used >= 0),
+        reserved_calls INTEGER NOT NULL DEFAULT 0 CHECK(reserved_calls >= 0)
+      ) STRICT;
+      CREATE TABLE IF NOT EXISTS agent_proposals (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
+        parent_id TEXT,
+        owner_account_id TEXT NOT NULL,
+        action_json TEXT NOT NULL,
+        rationale TEXT NOT NULL,
+        evidence_json TEXT NOT NULL,
+        input_digest TEXT NOT NULL CHECK(length(input_digest) = 64),
+        status TEXT NOT NULL CHECK(status IN ('proposed','validated','rejected','accepted','superseded')),
+        created_at_ms INTEGER NOT NULL
+      ) STRICT;
+      CREATE INDEX IF NOT EXISTS agent_proposals_session ON agent_proposals(session_id, created_at_ms);
+      CREATE TABLE IF NOT EXISTS agent_runs (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
+        attempt INTEGER NOT NULL CHECK(attempt BETWEEN 1 AND 2),
+        provider_mode TEXT NOT NULL CHECK(provider_mode IN ('live','fixture')),
+        model TEXT NOT NULL,
+        input_digest TEXT NOT NULL CHECK(length(input_digest) = 64),
+        output_digest TEXT,
+        status TEXT NOT NULL CHECK(status IN ('started','succeeded','failed','timed_out')),
+        usage_json TEXT,
+        error_code TEXT,
+        created_at_ms INTEGER NOT NULL
+      ) STRICT;
+      INSERT INTO schema_migrations(version, applied_at_ms) VALUES (2, strftime('%s','now') * 1000);
+    `);
+  }
+  if (version < 3) {
+    const projectionColumns = database.prepare("PRAGMA table_info(settlement_projections)").all() as readonly { name?: unknown }[];
+    if (!projectionColumns.some((column) => column.name === "allocation_preview_hash")) database.exec("ALTER TABLE settlement_projections ADD COLUMN allocation_preview_hash TEXT NOT NULL DEFAULT '';");
+    database.exec("INSERT INTO schema_migrations(version, applied_at_ms) VALUES (3, strftime('%s','now') * 1000);");
   }
   if (version > CURRENT_SCHEMA_VERSION) throw new Error("Database schema is newer than this application");
   return database;

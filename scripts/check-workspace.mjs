@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const roots = ["apps", "packages", "scripts"];
-const ignored = new Set(["node_modules", ".next", "dist", "target"]);
+const ignored = new Set(["node_modules", ".next", ".next-e2e", "dist", "target"]);
 const problems = [];
 
 function visit(directory) {

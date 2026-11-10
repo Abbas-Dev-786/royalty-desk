@@ -1,6 +1,6 @@
 # Phase 08 — Integrated Participant Experience
 
-Status: not started. Depends on: [Phase 04](PHASE_04_TRANSFERS.md) through [Phase 07](PHASE_07_AGENTS.md). Next: [Phase 09](PHASE_09_RELEASE.md).
+Status: verified. Depends on: [Phase 04](PHASE_04_TRANSFERS.md) through [Phase 07](PHASE_07_AGENTS.md). Next: [Phase 09](PHASE_09_RELEASE.md).
 
 ## Outcome and source basis
 

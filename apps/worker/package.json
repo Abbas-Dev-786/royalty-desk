@@ -10,6 +10,7 @@
     "check": "tsc --noEmit --pretty false"
   },
   "dependencies": {
+    "@royaltydesk/chain": "0.1.0",
     "@royaltydesk/domain": "0.1.0",
     "@royaltydesk/persistence": "0.1.0"
   }

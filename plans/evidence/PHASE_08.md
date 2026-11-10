@@ -21,8 +21,10 @@ Implemented and locally verified for the authenticated application journey and b
 | `npm run test:server` | pass - 14 tests |
 | `npm run test:agents` | pass |
 | `npm run test:recovery` | pass |
+| `npm run test:sandbox` | pass - compiled contract journey and receipt/retry invariants |
+| `npm run test:fault-injection` | pass - callback interruption and replay safety |
 | `npm run check` | pass |
 | web/worker/package build | pass |
-| Docker contract build | requires the user's Docker-enabled environment after the mandate-view extension |
+| Docker contract build | pass |
 
 The browser never treats a database projection as a receipt. Wallet transaction requests remain explicit, contract state remains authoritative, unknown transfers remain reconciliation-required, and private evidence routes enforce server-side membership.

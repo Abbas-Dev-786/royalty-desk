@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented and locally verified for deterministic fixtures, policy boundaries, durable budgets, and the NEAR AI Cloud live adapter. Live paid inference and delegated sandbox execution remain separately configured evidence because they require the user's funded API key and rebuilt contract environment.
+Implemented and verified for deterministic fixtures, policy boundaries, durable budgets, the rebuilt contract, and the NEAR AI Cloud live adapter.
 
 ## Implemented paths
 
@@ -23,7 +23,9 @@ Implemented and locally verified for deterministic fixtures, policy boundaries, 
 | `npm run test:server` | pass - 14 tests including agent cases, persistence, auth, and operation identity |
 | `npm run check` | pass |
 | `npm run test:recovery` | pass |
-| configured live NEAR AI case | not run in this environment to avoid consuming the user's inference credit |
-| contract rebuild after mandate-view extension | requires the user's Docker-enabled environment |
+| `npm run test:sandbox` | pass - authority negatives, mandate scope, funding, callbacks, cancellation, revocation, and failed-recipient retry |
+| `npm run test:fault-injection` | pass - interrupted callback leaves entitlement pending and blocks replay |
+| configured live NEAR AI case | pass - model `z-ai/glm-5.3-flash`, validated action `needs_human`, 32 input tokens, 179 output tokens |
+| Docker contract rebuild after mandate-view extension | pass |
 
 No model output directly authorizes a payment. Invalid JSON, stale input digests, unsupported evidence IDs, expired/revoked mandates, and unsupported settlement approvals become rejected or awaiting-human outcomes.

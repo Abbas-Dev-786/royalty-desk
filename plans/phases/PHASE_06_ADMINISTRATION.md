@@ -1,6 +1,6 @@
 # Phase 06 — Agreement, Statement and Settlement Workflows
 
-Status: not started. Depends on: [Phase 03](PHASE_03_SETTLEMENT_ACCOUNTING.md) and [Phase 05](PHASE_05_APPLICATION_FOUNDATION.md). Next: [Phase 07](PHASE_07_AGENTS.md).
+Status: verified. Depends on: [Phase 03](PHASE_03_SETTLEMENT_ACCOUNTING.md) and [Phase 05](PHASE_05_APPLICATION_FOUNDATION.md). Next: [Phase 07](PHASE_07_AGENTS.md).
 
 ## Outcome and source basis
 

@@ -1,3 +1,6 @@
+import { WalletProbe } from "../components/WalletProbe";
+import { ReleaseConsole } from "../components/ReleaseConsole";
+
 const foundations = [
   "Owner-approved agreement versions",
   "Release-scoped agent mandates",
@@ -14,14 +17,14 @@ export default function HomePage() {
         The implementation is being built around participant consent, deterministic accounting, and NEAR-enforced payouts.
       </p>
       <section aria-labelledby="foundation-heading">
-        <h2 id="foundation-heading">Foundation in progress</h2>
+        <h2 id="foundation-heading">The control surface</h2>
         <ul>
           {foundations.map((foundation) => <li key={foundation}>{foundation}</li>)}
         </ul>
         <WalletProbe />
       </section>
+      <ReleaseConsole />
     </main>
   );
 }
-import { WalletProbe } from "../components/WalletProbe";
 

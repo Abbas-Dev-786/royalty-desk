@@ -1,6 +1,6 @@
 # RoyaltyDesk — Master Implementation Plan
 
-Status: Phase 02–04 implementation in progress; compiled-contract verification pending. Baseline inspected: 2026-11-07.
+Status: Phase 05–06 implemented and fully build-verified. Baseline inspected: 2026-11-10.
 
 This is the entry point for the coding harness. It translates the existing product documents into ordered, verifiable implementation work. Phases represent dependency milestones, not calendar commitments. Creating these plans does not implement or verify the product.
 
@@ -57,8 +57,8 @@ Update this table during implementation. Allowed states: `not_started`, `in_prog
 | 02 | verified | [Phase 02 evidence](evidence/PHASE_02.md) | Rebuilt contract and expanded authority/rejection sandbox flow pass |
 | 03 | verified | [Phase 03 evidence](evidence/PHASE_03.md) | Rebuilt contract, funding, revision, cancellation, conservation, and finalization flow pass |
 | 04 | verified | [Phase 04 evidence](evidence/PHASE_04.md) | Production and separate fault-injection WASM pass payout, failure/retry, refund, replay, recovery, and callback-liveness checks |
-| 05 | not_started | Not recorded | Depends on 01, 02, 04 |
-| 06 | not_started | Not recorded | Depends on 03, 05 |
+| 05 | verified | [Phase 05 evidence](evidence/PHASE_05.md) | Auth/session, durable persistence, encrypted private files, leases, and operation reconciliation pass local checks; live wallet proof remains environment-specific |
+| 06 | verified | [Phase 06 evidence](evidence/PHASE_06.md) | Membership, immutable agreements, private statement revisions, settlement previews, and browser administration surface pass local checks |
 | 07 | not_started | Not recorded | Depends on 04, 05, 06 |
 | 08 | not_started | Not recorded | Depends on 04–07 |
 | 09 | not_started | Not recorded | Depends on 00–08 |

@@ -11,3 +11,4 @@ export function assertContractIdentity(identity: ContractIdentity): void {
 }
 
 export * from "./royaltydesk.ts";
+export * from "./restricted-signer.ts";

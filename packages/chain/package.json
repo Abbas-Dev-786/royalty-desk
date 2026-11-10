@@ -9,6 +9,7 @@
     "check": "tsc --noEmit --pretty false"
   },
   "dependencies": {
-    "near-api-js": "7.3.0"
+    "near-api-js": "7.3.0",
+    "@royaltydesk/persistence": "0.1.0"
   }
 }

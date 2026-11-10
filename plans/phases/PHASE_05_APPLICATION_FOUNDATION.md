@@ -1,6 +1,6 @@
 # Phase 05 — Application Identity, Persistence and Jobs
 
-Status: not started. Depends on: [Phase 01](PHASE_01_DOMAIN.md), [Phase 02](PHASE_02_CONTRACT_AUTHORITY.md), [Phase 04](PHASE_04_TRANSFERS.md). Next: [Phase 06](PHASE_06_ADMINISTRATION.md).
+Status: verified. Depends on: [Phase 01](PHASE_01_DOMAIN.md), [Phase 02](PHASE_02_CONTRACT_AUTHORITY.md), [Phase 04](PHASE_04_TRANSFERS.md). Next: [Phase 06](PHASE_06_ADMINISTRATION.md).
 
 ## Outcome and source basis
 

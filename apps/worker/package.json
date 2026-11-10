@@ -8,5 +8,9 @@
     "start": "node --experimental-strip-types src/main.ts",
     "build": "tsc --noEmit --pretty false",
     "check": "tsc --noEmit --pretty false"
+  },
+  "dependencies": {
+    "@royaltydesk/domain": "0.1.0",
+    "@royaltydesk/persistence": "0.1.0"
   }
 }

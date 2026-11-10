@@ -1,14 +1,20 @@
-import { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync } from "node:sqlite";
+import { openDatabase } from "./database.ts";
 
-export type JobState = "queued" | "leased" | "running" | "awaiting_human" | "succeeded" | "failed";
+export type JobState = "queued" | "leased" | "running" | "awaiting_human" | "succeeded" | "failed" | "cancelled";
 
 export interface NewJob {
   readonly id: string;
   readonly releaseId: string;
   readonly inputDigest: string;
+  readonly logicalKey?: string;
+  readonly participantId?: string;
 }
 
-export interface StoredJob extends NewJob {
+export interface StoredJob {
+  readonly id: string;
+  readonly releaseId: string;
+  readonly inputDigest: string;
   readonly state: JobState;
   readonly leaseOwner: string | null;
   readonly leaseExpiresAtMs: number | null;
@@ -20,6 +26,7 @@ function mapJob(row: unknown): StoredJob | undefined {
   const value = row as Readonly<Record<string, unknown>>;
   if (
     typeof value.id !== "string" ||
+    typeof value.logical_key !== "string" ||
     typeof value.release_id !== "string" ||
     typeof value.input_digest !== "string" ||
     typeof value.state !== "string" ||
@@ -40,31 +47,16 @@ export class JobStore {
   readonly #database: DatabaseSync;
 
   constructor(path: string) {
-    this.#database = new DatabaseSync(path, { timeout: 5_000 });
-    this.#database.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
-    this.#database.exec(`
-      CREATE TABLE IF NOT EXISTS jobs (
-        id TEXT PRIMARY KEY,
-        release_id TEXT NOT NULL,
-        input_digest TEXT NOT NULL CHECK(length(input_digest) = 64),
-        state TEXT NOT NULL CHECK(state IN ('queued','leased','running','awaiting_human','succeeded','failed')),
-        lease_owner TEXT,
-        lease_expires_at_ms INTEGER,
-        attempts INTEGER NOT NULL DEFAULT 0 CHECK(attempts >= 0),
-        created_at_ms INTEGER NOT NULL
-      ) STRICT;
-      CREATE UNIQUE INDEX IF NOT EXISTS jobs_logical_input
-      ON jobs(release_id, input_digest);
-    `);
+    this.#database = openDatabase(path);
   }
 
   enqueue(job: NewJob, nowMs = Date.now()): StoredJob {
     if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(job.id)) throw new Error("Invalid job id");
     if (!/^[a-f0-9]{64}$/.test(job.inputDigest)) throw new Error("Invalid input digest");
-    this.#database.prepare(`
-      INSERT INTO jobs (id, release_id, input_digest, state, created_at_ms)
-      VALUES (?, ?, ?, 'queued', ?)
-    `).run(job.id, job.releaseId, job.inputDigest, nowMs);
+    const logicalKey = job.logicalKey ?? `${job.releaseId}:${job.inputDigest}`;
+    this.#database.prepare(`INSERT INTO jobs (id, logical_key, release_id, participant_id, input_digest, state, created_at_ms, updated_at_ms) VALUES (?, ?, ?, ?, ?, 'queued', ?, ?)`)
+      .run(job.id, logicalKey, job.releaseId, job.participantId ?? null, job.inputDigest, nowMs, nowMs);
+    this.#recordHistory(job.id, null, "queued", "enqueue", nowMs);
     const stored = this.get(job.id);
     if (!stored) throw new Error("Job insert did not persist");
     return stored;
@@ -72,7 +64,7 @@ export class JobStore {
 
   get(id: string): StoredJob | undefined {
     return mapJob(this.#database.prepare(`
-      SELECT id, release_id, input_digest, state, lease_owner, lease_expires_at_ms, attempts
+      SELECT id, logical_key, release_id, participant_id, input_digest, state, lease_owner, lease_expires_at_ms, attempts, result_json, error_code
       FROM jobs WHERE id = ?
     `).get(id));
   }
@@ -83,16 +75,34 @@ export class JobStore {
     try {
       const result = this.#database.prepare(`
         UPDATE jobs
-        SET state = 'leased', lease_owner = ?, lease_expires_at_ms = ?, attempts = attempts + 1
+        SET state = 'leased', lease_owner = ?, lease_expires_at_ms = ?, attempts = attempts + 1, updated_at_ms = ?
         WHERE id = ?
-          AND (state = 'queued' OR (state = 'leased' AND lease_expires_at_ms <= ?))
-      `).run(owner, nowMs + durationMs, id, nowMs);
+          AND (state = 'queued' OR (state IN ('leased','running') AND lease_expires_at_ms <= ?))
+      `).run(owner, nowMs + durationMs, nowMs, id, nowMs);
       this.#database.exec("COMMIT");
-      return result.changes === 1 ? this.get(id) : undefined;
+      if (result.changes !== 1) return undefined;
+      this.#recordHistory(id, "queued", "leased", owner, nowMs);
+      return this.get(id);
     } catch (error) {
       if (this.#database.isTransaction) this.#database.exec("ROLLBACK");
       throw error;
     }
+  }
+
+  transition(id: string, owner: string, from: JobState, to: JobState, nowMs = Date.now(), resultJson?: string, errorCode?: string): StoredJob | undefined {
+    const result = this.#database.prepare(`UPDATE jobs SET state = ?, result_json = COALESCE(?, result_json), error_code = ?, updated_at_ms = ? WHERE id = ? AND state = ? AND lease_owner = ? AND (lease_expires_at_ms IS NULL OR lease_expires_at_ms > ?)`).run(to, resultJson ?? null, errorCode ?? null, nowMs, id, from, owner, nowMs);
+    if (result.changes !== 1) return undefined;
+    this.#recordHistory(id, from, to, owner, nowMs);
+    return this.get(id);
+  }
+
+  heartbeat(id: string, owner: string, nowMs: number, durationMs: number): boolean {
+    const result = this.#database.prepare(`UPDATE jobs SET lease_expires_at_ms = ?, updated_at_ms = ? WHERE id = ? AND lease_owner = ? AND state IN ('leased','running') AND lease_expires_at_ms > ?`).run(nowMs + durationMs, nowMs, id, owner, nowMs);
+    return result.changes === 1;
+  }
+
+  #recordHistory(jobId: string, fromState: JobState | null, toState: JobState, actor: string, nowMs: number): void {
+    this.#database.prepare(`INSERT INTO job_history(job_id, from_state, to_state, actor, created_at_ms) VALUES (?, ?, ?, ?, ?)`).run(jobId, fromState, toState, actor, nowMs);
   }
 
   close(): void {

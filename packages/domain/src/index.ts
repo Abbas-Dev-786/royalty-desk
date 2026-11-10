@@ -6,3 +6,4 @@ export * from "./schemas/index.ts";
 export * from "./serialization.ts";
 export * from "./statements/index.ts";
 export * from "./types.ts";
+export * from "./agreement-renderer.ts";

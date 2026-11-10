@@ -19,12 +19,22 @@ npm run check
 npm run build
 ```
 
-The contract build writes `contracts/royaltydesk/target/near/royaltydesk_contract.wasm`. After deploying to the configured testnet account, verify the live code, initializer, and final transaction receipt, then generate the manifest:
+The contract build writes `contracts/royaltydesk/target/near/royaltydesk_contract.wasm`. After an initial deployment to the configured testnet account, verify the live code, initializer, and final transaction receipt, then generate the manifest:
 
 ```powershell
 npm run verify:deployment -- <deployment-transaction-hash>
 npm run release:manifest
 ```
+
+For an existing contract, use a deployment without an init call so its state is preserved. Verify the upgrade transaction and regenerated manifest with:
+
+```powershell
+near contract deploy <contract-account.testnet> use-file contracts/royaltydesk/target/near/royaltydesk_contract.wasm without-init-call network-config testnet sign-with-keychain send
+npm run verify:deployment -- <upgrade-transaction-hash> --upgrade
+npm run release:manifest
+```
+
+The current testnet deployment is `sickhat6192.testnet`; its verified upgrade and preserved settlement state are recorded in `plans/evidence/TESTNET_UPGRADE_2026-11-10.md`. Set `NEXT_PUBLIC_CONTRACT_ID` to the account used in your own environment.
 
 The manifest marks deployment verified only when the live verification artifact matches its contract ID and WASM hash. Account-key custody remains with the operator.
 

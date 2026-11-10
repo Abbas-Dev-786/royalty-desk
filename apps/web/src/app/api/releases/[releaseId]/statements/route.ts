@@ -20,8 +20,7 @@ export async function POST(request: Request, context: { params: Promise<{ releas
     const contentType = request.headers.get("content-type") ?? "text/csv";
     if (!contentType.includes("csv") && !contentType.includes("text/plain")) return Response.json({ error: "ERR_CONTENT_TYPE" }, { status: 415 });
     const database = getAppDatabase();
-    const result = importStatement(database, { releaseId, csv: bytes, importedBy: accountId });
-    store().put(result.storageKey, bytes);
+    const result = importStatement(database, { releaseId, csv: bytes, importedBy: accountId, persistOriginal: (storageKey, original) => store().put(storageKey, original) });
     database.prepare(`INSERT OR IGNORE INTO documents(id, release_id, owner_account_id, storage_key, content_hash, content_type, size_bytes, created_at_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(`statement-${result.storageKey}`, releaseId, accountId, result.storageKey, result.rawHash, "text/csv", bytes.byteLength, Date.now());
     return Response.json({ releaseId, period: result.period, revision: result.revision, rawHash: result.rawHash, normalizedHash: result.normalizedHash, grossYocto: result.grossYocto, unsupportedClaimLineIds: result.unsupportedClaimLineIds, payable: result.payable }, { status: 201 });
   } catch (error) {
@@ -33,7 +32,7 @@ export async function POST(request: Request, context: { params: Promise<{ releas
 export async function GET(request: Request, context: { params: Promise<{ releaseId: string }> }): Promise<Response> {
   try {
     const { releaseId } = await context.params;
-    await requireMembership(releaseId, ["administrator"]);
+    await requireMembership(releaseId, ["administrator", "owner"]);
     const period = new URL(request.url).searchParams.get("period");
     const rows = getAppDatabase().prepare(`SELECT period, revision, statement_id, recording_id, raw_hash, normalized_hash, gross_yocto, validation_json, imported_by, created_at_ms FROM statement_imports WHERE release_id = ? AND (? IS NULL OR period = ?) ORDER BY period, CAST(revision AS INTEGER)`).all(releaseId, period, period) as readonly Record<string, unknown>[];
     return Response.json(rows.map((row) => ({ period: row.period, revision: row.revision, statementId: row.statement_id, recordingId: row.recording_id, rawHash: row.raw_hash, normalizedHash: row.normalized_hash, grossYocto: row.gross_yocto, validation: row.validation_json, importedBy: row.imported_by, createdAtMs: row.created_at_ms })));

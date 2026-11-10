@@ -31,6 +31,10 @@ async function request(url: string, init: RequestInit = {}): Promise<Result> {
       actions: [{ type: "FunctionCall", params: { methodName: transaction.methodName, args: transaction.args, gas: "100000000000000", deposit: transaction.depositYocto } }]
     });
     const failed = typeof outcome.status === "object" && outcome.status !== null && "Failure" in outcome.status;
+    if (!failed && transaction.methodName === "freeze_agreement" && typeof body.version === "string" && typeof transaction.args.release_id === "string") {
+      const confirmation = await request(`/api/releases/${encodeURIComponent(transaction.args.release_id)}/agreements/confirm`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ version: body.version }) });
+      if (confirmation.error) return { message: `Wallet transaction ${outcome.transaction.hash} needs chain confirmation: ${confirmation.message}`, error: true };
+    }
     return { message: JSON.stringify({ transactionHash: outcome.transaction.hash, status: failed ? "failed" : "submitted", request: body }, null, 2), error: failed };
   }
   return { message: JSON.stringify(body, null, 2) };
@@ -118,6 +122,7 @@ export function ReleaseConsole() {
           <label>Agreement rules (exact JSON)<textarea value={agreement} onChange={(event) => setAgreement(event.target.value)} rows={10} /></label>
           <label>Agreement version<input value={agreementVersion} onChange={(event) => setAgreementVersion(event.target.value)} /></label>
           <button disabled={busy} onClick={() => run(async () => { const output = await request(`/api/releases/${encodeURIComponent(releaseId)}/agreements`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ version: agreementVersion, rules: JSON.parse(agreement) }) }); if (!output.error) { const parsed = JSON.parse(output.message) as { request?: { approvalDigest?: string }; approvalDigest?: string }; const digest = parsed.request?.approvalDigest ?? parsed.approvalDigest; if (digest) setAgreementApprovalDigest(digest); } return output; })}>Freeze agreement version</button>
+          <button className="secondary" disabled={busy || !accountId} onClick={() => run(() => request(`/api/releases/${encodeURIComponent(releaseId)}/agreements/confirm`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ version: agreementVersion }) }))}>Confirm frozen version from contract</button>
           <label>Frozen agreement approval digest<input value={agreementApprovalDigest} onChange={(event) => setAgreementApprovalDigest(event.target.value)} /></label>
           <button className="secondary" disabled={busy || !accountId || !/^[a-f0-9]{64}$/.test(agreementApprovalDigest)} onClick={() => run(() => request(`/api/releases/${encodeURIComponent(releaseId)}/agreements/approve`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ version: agreementVersion, approvalDigest: agreementApprovalDigest }) }))}>Approve frozen agreement</button>
         </div>

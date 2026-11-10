@@ -106,8 +106,15 @@ export async function runScenario({ home, wasmPath }) {
     effective_period: "2026-01",
     document_hash: "document-hash-demo",
   };
+  assertIncludes(await rejectedCall(owner, "freeze_agreement", { release_id: releaseId, input: { ...agreementInput, effective_period: "2026-13" } }, contractId), "ERR_AGREEMENT_INPUT");
   await call(owner, "freeze_agreement", { release_id: releaseId, input: agreementInput }, contractId);
   await call(owner, "freeze_agreement", { release_id: releaseId, input: agreementInput }, contractId);
+  const lateReleaseId = `late-${suffix}`;
+  await call(owner, "create_release", { release_id: lateReleaseId, recording_id: "late-recording", funder_id: funderId, invited_owner_ids: [ownerId, ownerTwoId, ownerThreeId] }, contractId);
+  await call(owner, "accept_membership", { release_id: lateReleaseId }, contractId);
+  await call(ownerTwo, "accept_membership", { release_id: lateReleaseId }, contractId);
+  await call(owner, "freeze_agreement", { release_id: lateReleaseId, input: { recording_id: "late-recording", participants: [{ owner_id: ownerId, basis_points: "5000" }, { owner_id: ownerTwoId, basis_points: "5000" }], recoupment: null, effective_period: "2026-01", document_hash: "late-document" } }, contractId);
+  assertIncludes(await rejectedCall(ownerThree, "accept_membership", { release_id: lateReleaseId }, contractId), "ERR_MEMBERSHIP_FROZEN");
   const releaseAfterFreeze = await provider.callFunction({ contractId, method: "get_release", args: { release_id: releaseId } });
   const staleAgreement = releaseAfterFreeze.agreements[0];
   assert.equal(staleAgreement.superseded, true);
@@ -123,6 +130,7 @@ export async function runScenario({ home, wasmPath }) {
   const expiry = String(Date.now() * 1_000_000 + 3_600_000_000_000);
   await call(ownerTwo, "set_mandate", { release_id: releaseId, input: { agent_id: agentId, agreement_version: agreementVersion, actions: ["approve_settlement", "dispute_settlement"], max_gross_yocto: "2000000000000000000", expires_at_nanoseconds: expiry } }, contractId);
   const period = "2026-02";
+  assertIncludes(await rejectedCall(owner, "open_settlement", { release_id: releaseId, input: { period: "bad-date", agreement_version: agreementVersion, normalized_statement_hash: "statement-hash", gross_yocto: "1000000000000000000", deduction_evidence_hash: "evidence-hash", allocation_preview_hash: "preview-hash" } }, contractId), "ERR_SETTLEMENT_INPUT");
   await call(owner, "open_settlement", { release_id: releaseId, input: { period, agreement_version: agreementVersion, normalized_statement_hash: "statement-hash", gross_yocto: "1000000000000000000", deduction_evidence_hash: "evidence-hash", allocation_preview_hash: "preview-hash" } }, contractId);
   const settlementBeforeApproval = await provider.callFunction({ contractId, method: "get_settlement", args: { release_id: releaseId, period } });
   const settlementDigest = sha256Hex(`${period}|${settlementBeforeApproval.revision}|${settlementBeforeApproval.agreement_version}|${settlementBeforeApproval.normalized_statement_hash}|${settlementBeforeApproval.gross_yocto}|${settlementBeforeApproval.deduction_evidence_hash}|${settlementBeforeApproval.allocation_preview_hash}`);
@@ -136,6 +144,10 @@ export async function runScenario({ home, wasmPath }) {
   assertIncludes(replayedPayout, "ERR_PAYOUT_PENDING");
   await call(owner, "execute_payout", { release_id: releaseId, period, owner_id: ownerTwoId }, contractId);
   await call(owner, "execute_payout", { release_id: releaseId, period, owner_id: ownerThreeId }, contractId);
+  const paidBeforeRefund = await provider.callFunction({ contractId, method: "get_settlement", args: { release_id: releaseId, period } });
+  assert.equal(String(paidBeforeRefund.status), "Complete", "participant payouts complete with excess still refundable");
+  assert.equal(BigInt(paidBeforeRefund.refundable_yocto) > 0n, true);
+  assertLedger(paidBeforeRefund);
   await call(funder, "withdraw_refundable", { release_id: releaseId, period }, contractId);
   const settlementAfter = await provider.callFunction({ contractId, method: "get_settlement", args: { release_id: releaseId, period } });
   assert.equal(String(settlementAfter.status), "Complete", "primary settlement completion");

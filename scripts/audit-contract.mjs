@@ -19,6 +19,7 @@ source = source.replace('  return {\n    rpc: RPC_URL,', `
   await call(owner, "freeze_agreement", { release_id: releaseId, input: agreementInput }, contractId);
   const amendedRelease = await provider.callFunction({ contractId, method: "get_release", args: { release_id: releaseId } });
   const amendment = amendedRelease.agreements.at(-1);
+  assert.equal(amendedRelease.agreements.filter((entry) => entry.active).length, 1);
   assert.equal(amendment.recoupment.cap_yocto, "1000000000000000000");
   assert.equal(amendment.recoupment.consumed_yocto, "1000000000000000000");
   for (const participant of [owner, ownerTwo, ownerThree]) await call(participant, "approve_agreement", { release_id: releaseId, version: amendment.version, approval_digest: amendment.approval_digest }, contractId);

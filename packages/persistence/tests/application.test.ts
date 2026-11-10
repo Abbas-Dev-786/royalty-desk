@@ -47,13 +47,39 @@ test("P06-STATEMENT-01 duplicate semantic import is idempotent and corrections g
   database.close();
 });
 
+test("CSV-02 reformatted reimport retains the original bytes and hash", () => {
+  const database = openDatabase(databasePath());
+  const csv = "statement_id,line_id,period,recording_id,platform,row_type,amount,currency,deduction_code,evidence_ref\nstmt-1,line-1,2026-01,recording-1,synthetic,revenue,1,NEAR,,\n";
+  const stored = new Map<string, Uint8Array>();
+  const persistOriginal = (key: string, bytes: Uint8Array): void => { stored.set(key, bytes); };
+  const first = importStatement(database, { releaseId: "release-1", csv, importedBy: "owner.testnet", persistOriginal });
+  const second = importStatement(database, { releaseId: "release-1", csv: csv.replaceAll("\n", "\r\n"), importedBy: "owner.testnet", persistOriginal });
+  assert.equal(second.storageKey, first.storageKey);
+  assert.equal(second.rawHash, first.rawHash);
+  assert.equal(new TextDecoder().decode(stored.get(first.storageKey)), csv);
+  assert.equal(stored.size, 1);
+  database.close();
+});
+
+test("CSV-05 failed private-file write does not create a statement row", () => {
+  const database = openDatabase(databasePath());
+  const csv = "statement_id,line_id,period,recording_id,platform,row_type,amount,currency,deduction_code,evidence_ref\nstmt-1,line-1,2026-01,recording-1,synthetic,revenue,1,NEAR,,\n";
+  assert.throws(() => importStatement(database, { releaseId: "release-1", csv, importedBy: "owner.testnet", persistOriginal: () => { throw new Error("disk full"); } }), /disk full/);
+  const row = database.prepare("SELECT count(*) AS count FROM statement_imports WHERE release_id = ?").get("release-1") as { count: number };
+  assert.equal(row.count, 0);
+  database.close();
+});
+
 test("P06-AGREEMENT-01 frozen agreement records exact commitment", () => {
   const database = openDatabase(databasePath());
   const rules = parseAgreementRules({ schemaVersion: "1", releaseId: "release-1", recordingId: "recording-1", effectivePeriod: "2026-01", participants: [{ ownerId: "alice.testnet", basisPoints: "6000" }, { ownerId: "bob.testnet", basisPoints: "4000" }], recoupment: null });
   const agreement = freezeAgreement(database, { rules, version: "1", createdBy: "alice.testnet", networkId: "testnet", contractId: "contract.testnet" });
   assert.equal(agreement.version, "1");
   assert.equal(agreement.documentHash.length, 64);
-  assert.equal(database.prepare("SELECT status FROM agreement_drafts WHERE release_id = 'release-1' AND version = '1'").get()?.status, "frozen");
+  assert.equal(database.prepare("SELECT status FROM agreement_drafts WHERE release_id = 'release-1' AND version = '1'").get()?.status, "draft");
+  assert.equal(freezeAgreement(database, { rules, version: "1", createdBy: "alice.testnet", networkId: "testnet", contractId: "contract.testnet" }).approvalDigest, agreement.approvalDigest);
+  const changed = parseAgreementRules({ ...rules, participants: [{ ownerId: "alice.testnet", basisPoints: "5000" }, { ownerId: "bob.testnet", basisPoints: "5000" }] });
+  assert.throws(() => freezeAgreement(database, { rules: changed, version: "1", createdBy: "alice.testnet", networkId: "testnet", contractId: "contract.testnet" }), /ERR_AGREEMENT_VERSION_CONFLICT/);
   database.close();
 });
 

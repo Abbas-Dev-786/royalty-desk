@@ -138,6 +138,17 @@ near contract deploy $contractAccount use-file ./contracts/royaltydesk/target/ne
 near contract call-function as-read-only $contractAccount health base64-args e30= network-config testnet now
 ```
 
+To upgrade an initialized contract, build the new WASM, confirm its state layout is compatible, and deploy without an init call. The existing account ID stays in `NEXT_PUBLIC_CONTRACT_ID`:
+
+```powershell
+npm run verify:release
+near contract deploy $contractAccount use-file ./contracts/royaltydesk/target/near/royaltydesk_contract.wasm without-init-call network-config testnet sign-with-keychain send
+npm run verify:deployment -- <upgrade-transaction-hash> --upgrade
+npm run release:manifest
+```
+
+The upgrade verifier requires a finalized deployment transaction with no function call and an on-chain WASM hash matching the local build. Recheck representative releases and settlements after deployment.
+
 If the OS keychain is unavailable, the CLI supports `save-to-legacy-keychain` and `sign-with-legacy-keychain`; keep the resulting credential directory private. Save the account ID and the deployment transaction hash, then set `NEXT_PUBLIC_CONTRACT_ID` in the ignored root `.env` to the deployed account. The browser journey also needs three distinct owner wallet accounts, one funder wallet account (the administrator may also fund), and a separate agent account with a restricted function-call key for delegated action evidence. Never send wallet keys or NEAR AI API keys through chat.
 
 For Bash with the legacy keychain, the equivalent account creation and separate deploy/initialize sequence is:

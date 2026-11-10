@@ -5,6 +5,7 @@ import { JsonRpcProvider } from "near-api-js";
 
 const contractId = process.env.NEXT_PUBLIC_CONTRACT_ID;
 const txHash = process.argv[2] ?? process.env.RELEASE_DEPLOYMENT_TX_HASH;
+const upgrade = process.argv[3] === "--upgrade";
 const wasmPath = resolve("contracts/royaltydesk/target/near/royaltydesk_contract.wasm");
 const outputPath = resolve("plans/evidence/artifacts/testnet-deployment.json");
 
@@ -25,7 +26,9 @@ if (!health || typeof health !== "object" || !("application" in health) || healt
 
 const transaction = await provider.viewTransactionStatus({ txHash, accountId: contractId, waitUntil: "FINAL" });
 const actions = transaction.transaction.actions;
-if (transaction.final_execution_status !== "FINAL" || !("SuccessValue" in transaction.status) || transaction.transaction.signer_id !== contractId || transaction.transaction.receiver_id !== contractId || !actions.some((action) => "DeployContract" in action) || !actions.some((action) => "FunctionCall" in action && action.FunctionCall.method_name === "new")) {
+const hasInitializer = actions.some((action) => "FunctionCall" in action && action.FunctionCall.method_name === "new");
+const hasUnexpectedUpgradeCall = upgrade && actions.some((action) => "FunctionCall" in action);
+if (transaction.final_execution_status !== "FINAL" || !("SuccessValue" in transaction.status) || transaction.transaction.signer_id !== contractId || transaction.transaction.receiver_id !== contractId || !actions.some((action) => "DeployContract" in action) || (upgrade ? hasUnexpectedUpgradeCall : !hasInitializer)) {
   throw new Error("Deployment transaction did not finalize successfully for this account");
 }
 
@@ -33,6 +36,7 @@ const evidence = {
   schema: "royaltydesk-testnet-deployment/v1",
   verified: true,
   verifiedAt: new Date().toISOString(),
+  deploymentKind: upgrade ? "upgrade" : "initial",
   networkId: "testnet",
   contractId,
   transactionHash: txHash,

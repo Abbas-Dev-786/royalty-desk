@@ -48,7 +48,7 @@ export async function runFaultScenario({ home, wasmPath }) {
   const agreement = release.agreements[release.agreements.length - 1];
   const version = String(agreement.version);
   for (const account of [owner, ownerTwo]) await call(account, "approve_agreement", { release_id: releaseId, version, approval_digest: agreement.approval_digest }, contractId);
-  const period = "2026-fault";
+  const period = "2026-02";
   await call(owner, "open_settlement", { release_id: releaseId, input: { period, agreement_version: version, normalized_statement_hash: "fault-statement", gross_yocto: "1000000000000000000", deduction_evidence_hash: "fault-evidence", allocation_preview_hash: "fault-preview" } }, contractId);
   const settlement = await provider.callFunction({ contractId, method: "get_settlement", args: { release_id: releaseId, period } });
   const digest = sha256Hex(`${settlement.period}|${settlement.revision}|${settlement.agreement_version}|${settlement.normalized_statement_hash}|${settlement.gross_yocto}|${settlement.deduction_evidence_hash}|${settlement.allocation_preview_hash}`);

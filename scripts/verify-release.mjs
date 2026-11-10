@@ -10,6 +10,7 @@ const suites = [
   "build",
   "test:domain",
   "test:contract",
+  "test:contract-regressions",
   "test:server",
   "test:agents",
   "test:recovery",

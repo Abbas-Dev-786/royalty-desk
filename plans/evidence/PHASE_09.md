@@ -5,7 +5,7 @@
 - Status: in_progress
 - Source revision: working tree; no commit identifier is available.
 - Environment: Windows PowerShell, Node/npm workspace, Docker Desktop Linux containers for user-reported contract checks.
-- Network: NEAR testnet. Deployment and the synthetic CLI payout journey are recorded in `TESTNET_DEPLOYMENT_2026-11-10.md` and `LIVE_JOURNEY_2026-11-10.md`.
+- Network: NEAR testnet. Initial deployment, current upgrade, and the synthetic CLI payout journey are recorded in `TESTNET_DEPLOYMENT_2026-11-10.md`, `TESTNET_UPGRADE_2026-11-10.md`, and `LIVE_JOURNEY_2026-11-10.md`.
 - Release artifact manifest: `plans/evidence/artifacts/release-manifest.json`.
 
 ## Implemented release tooling
@@ -23,8 +23,8 @@
 | Contract authority/settlement | `npm run test:sandbox` | Pass; all reported checks passed, including mandate, funding, callbacks, revocation, and retry |
 | Fault recovery | `npm run test:fault-injection` | Pass; interrupted callback, pending entitlement, and replay protection passed |
 | Live inference | `npm run test:live` | Pass; `z-ai/glm-5.3-flash`, `needs_human`, 32 input tokens, 179 output tokens |
-| Offline release aggregator | `npm run verify:release` | Pass on 2026-11-10 after the live agent heartbeat change; `check`, build, domain, contract, server, agents, recovery, E2E, sandbox, and fault-injection all passed. The rebuilt WASM SHA-256 remained `0d4d72b7fdc2342262c5ee36d99ad29575744e6bbedbf216105754f0988d932e`. Report: `plans/evidence/artifacts/release-suite.json`. |
-| Testnet deployment | `npm run verify:deployment` | Pass; deployed code hash and initializer receipt match the build artifact. See `TESTNET_DEPLOYMENT_2026-11-10.md`. |
+| Offline release aggregator | `npm run verify:release` | Pass on 2026-11-10 before the upgrade; all 11 suites passed, including contract regressions. The deployed WASM SHA-256 is `c319324997714c43ba10712a00487cfb125bd5ee7e8d7e49e5154b61604b7a3f`. Report: `plans/evidence/artifacts/release-suite.json`. |
+| Testnet deployment | `npm run verify:deployment -- BRHdcjbqqD5GAk9aXkTuNmmiQTRf4JtcVGSY5tFUjPio --upgrade` | Pass; deployed code hash and upgrade receipt match the build artifact. Existing release and settlement state remained readable and unchanged in the sampled views. See `TESTNET_UPGRADE_2026-11-10.md`. |
 | Live CLI journey | `npm run test:live-journey -- prepare`, `npm run test:live-agent`, `npm run test:live-journey -- settle` | Pass after the recorded agent job recovery; three owners accepted and approved, restricted agent approved for owner 2, 0.1 NEAR was funded and fully paid. See `LIVE_JOURNEY_2026-11-10.md`. |
 
 ## Remaining handoff work

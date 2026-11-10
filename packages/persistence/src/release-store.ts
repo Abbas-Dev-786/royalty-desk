@@ -26,13 +26,14 @@ export function getMembership(database: DatabaseSync, releaseId: string, account
   return rows.map(mapMembership).find((membership) => membership && (!roles || roles.includes(membership.role)) && (!status || membership.status === status));
 }
 
-export function importStatement(database: DatabaseSync, input: { readonly releaseId: string; readonly csv: string | Uint8Array; readonly importedBy: string; readonly approvedRecoupmentCode?: string | null }): StoredStatement {
+export function importStatement(database: DatabaseSync, input: { readonly releaseId: string; readonly csv: string | Uint8Array; readonly importedBy: string; readonly approvedRecoupmentCode?: string | null; readonly persistOriginal?: (storageKey: string, bytes: Uint8Array) => void }): StoredStatement {
   const parsed = importStatementCsv(input.csv, input.approvedRecoupmentCode ?? null);
   const existing = database.prepare(`SELECT release_id, period, revision, statement_id, recording_id, raw_hash, normalized_hash, gross_yocto, validation_json, storage_key, imported_by FROM statement_imports WHERE release_id = ? AND period = ? AND normalized_hash = ?`).get(input.releaseId, parsed.period, parsed.normalizedHash) as Record<string, unknown> | undefined;
   if (existing) return deserializeStatement(existing);
   const revisionRow = database.prepare(`SELECT COALESCE(MAX(CAST(revision AS INTEGER)), 0) AS revision FROM statement_imports WHERE release_id = ? AND period = ?`).get(input.releaseId, parsed.period) as { revision?: number } | undefined;
   const revision = String((revisionRow?.revision ?? 0) + 1);
   const storageKey = randomBytes(24).toString("hex");
+  if (input.persistOriginal) input.persistOriginal(storageKey, typeof input.csv === "string" ? new TextEncoder().encode(input.csv) : input.csv);
   database.prepare(`INSERT INTO statement_imports(release_id, period, revision, statement_id, recording_id, raw_hash, normalized_hash, gross_yocto, validation_json, storage_key, imported_by, created_at_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(input.releaseId, parsed.period, revision, parsed.statementId, parsed.recordingId, parsed.rawHash, parsed.normalizedHash, parsed.grossYocto, JSON.stringify({ unsupportedClaimLineIds: parsed.unsupportedClaimLineIds, payable: parsed.payable, rows: parsed.rows }), storageKey, input.importedBy, Date.now());
   return { ...parsed, releaseId: input.releaseId, revision, storageKey, importedBy: input.importedBy };
 }
@@ -46,6 +47,11 @@ function deserializeStatement(row: Record<string, unknown>): StoredStatement {
 export function freezeAgreement(database: DatabaseSync, input: { readonly rules: AgreementRules; readonly version: string; readonly createdBy: string; readonly networkId: string; readonly contractId: string }): { readonly version: string; readonly rulesHash: string; readonly documentHash: string; readonly approvalDigest: string; readonly markdown: string } {
   const rendered = renderAgreementMarkdown(input.rules);
   const commitment = createAgreementCommitment(input.rules, rendered.bytes, { networkId: input.networkId, contractId: input.contractId, releaseId: input.rules.releaseId, agreementVersion: input.version });
-  database.prepare(`INSERT INTO agreement_drafts(release_id, version, rules_json, document_bytes, document_hash, rules_hash, approval_digest, status, created_by, created_at_ms) VALUES (?, ?, ?, ?, ?, ?, ?, 'frozen', ?, ?)`).run(input.rules.releaseId, input.version, canonicalJson(input.rules as never), Buffer.from(rendered.bytes), commitment.documentHash, commitment.rulesHash, commitment.approvalDigest, input.createdBy, Date.now());
+  const existing = database.prepare(`SELECT rules_hash, document_hash, approval_digest FROM agreement_drafts WHERE release_id = ? AND version = ?`).get(input.rules.releaseId, input.version) as { rules_hash: string; document_hash: string; approval_digest: string } | undefined;
+  if (existing) {
+    if (existing.rules_hash !== commitment.rulesHash || existing.document_hash !== commitment.documentHash || existing.approval_digest !== commitment.approvalDigest) throw new Error("ERR_AGREEMENT_VERSION_CONFLICT");
+  } else {
+    database.prepare(`INSERT INTO agreement_drafts(release_id, version, rules_json, document_bytes, document_hash, rules_hash, approval_digest, status, created_by, created_at_ms) VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)`).run(input.rules.releaseId, input.version, canonicalJson(input.rules as never), Buffer.from(rendered.bytes), commitment.documentHash, commitment.rulesHash, commitment.approvalDigest, input.createdBy, Date.now());
+  }
   return { version: input.version, rulesHash: commitment.rulesHash, documentHash: commitment.documentHash, approvalDigest: commitment.approvalDigest, markdown: rendered.markdown };
 }

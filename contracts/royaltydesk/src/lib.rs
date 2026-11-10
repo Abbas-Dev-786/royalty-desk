@@ -12,6 +12,7 @@ const MAX_PARTICIPANTS: usize = 5;
 const MAX_ACTIONS: usize = 3;
 const MAX_AGREEMENTS: usize = 8;
 const MAX_SETTLEMENTS: usize = 64;
+const MAX_RELEASES: usize = 32;
 const CALLBACK_GAS: Gas = Gas::from_tgas(10);
 
 #[near(contract_state)]
@@ -38,13 +39,13 @@ impl RoyaltyDeskContract {
     pub fn create_release(&mut self, release_id: String, recording_id: String, funder_id: AccountId, invited_owner_ids: Vec<AccountId>) {
         self.require_zero_deposit();
         let creator = env::predecessor_account_id();
-        if release_id.is_empty() || release_id.len() > 128 || recording_id.is_empty() { fail("ERR_RELEASE_INPUT"); }
+        if release_id.is_empty() || release_id.len() > 128 || recording_id.is_empty() || recording_id.len() > 128 || self.releases.len() >= MAX_RELEASES { fail("ERR_RELEASE_INPUT"); }
         if invited_owner_ids.is_empty() || invited_owner_ids.len() > MAX_INVITED { fail("ERR_INVITATIONS_BOUNDS"); }
         for (i, id) in invited_owner_ids.iter().enumerate() { if invited_owner_ids[..i].contains(id) { fail("ERR_DUPLICATE_OWNER"); } }
         if self.releases.iter().any(|r| r.release_id == release_id) { fail("ERR_RELEASE_EXISTS"); }
         self.releases.push(ReleaseState { release_id, recording_id, administrator_id: creator, funder_id, invited_owner_ids, accepted_owner_ids: Vec::new(), next_agreement_version: 1, active_agreement_version: None, agreements: Vec::new(), mandates: Vec::new(), settlements: Vec::new() });
     }
-    pub fn accept_membership(&mut self, release_id: String) { self.require_zero_deposit(); let caller = env::predecessor_account_id(); let release = self.release_mut(&release_id); if !release.invited_owner_ids.contains(&caller) { fail("ERR_NOT_INVITED"); } if release.accepted_owner_ids.contains(&caller) { fail("ERR_DUPLICATE_ACCEPTANCE"); } if release.accepted_owner_ids.len() >= MAX_PARTICIPANTS { fail("ERR_PARTICIPANTS_BOUNDS"); } release.accepted_owner_ids.push(caller); }
+    pub fn accept_membership(&mut self, release_id: String) { self.require_zero_deposit(); let caller = env::predecessor_account_id(); let release = self.release_mut(&release_id); if !release.invited_owner_ids.contains(&caller) { fail("ERR_NOT_INVITED"); } if release.accepted_owner_ids.contains(&caller) { fail("ERR_DUPLICATE_ACCEPTANCE"); } if !release.agreements.is_empty() { fail("ERR_MEMBERSHIP_FROZEN"); } if release.accepted_owner_ids.len() >= MAX_PARTICIPANTS { fail("ERR_PARTICIPANTS_BOUNDS"); } release.accepted_owner_ids.push(caller); }
 
     pub fn freeze_agreement(&mut self, release_id: String, input: AgreementInput) -> U64 {
         self.require_zero_deposit();
@@ -52,15 +53,16 @@ impl RoyaltyDeskContract {
         let release = self.release_mut(&release_id);
         if release.administrator_id != admin { fail("ERR_ADMIN_CALLER"); }
         if input.recording_id != release.recording_id { fail("ERR_RECORDING_SCOPE"); }
+        if !valid_period(&input.effective_period) || input.document_hash.is_empty() || input.document_hash.len() > 128 { fail("ERR_AGREEMENT_INPUT"); }
         if release.accepted_owner_ids.len() < 2 || input.participants.len() != release.accepted_owner_ids.len() || input.participants.len() > MAX_PARTICIPANTS { fail("ERR_PARTICIPANTS"); }
         if release.active_agreement_version.is_some() && release.settlements.iter().any(|s| matches!(s.status, SettlementStatus::Review | SettlementStatus::Held | SettlementStatus::Finalized | SettlementStatus::Paying)) { fail("ERR_LIVE_SETTLEMENT"); }
         if release.agreements.len() >= MAX_AGREEMENTS { fail("ERR_AGREEMENT_BOUNDS"); }
         for proposal in release.agreements.iter_mut() { if !proposal.active { proposal.superseded = true; } }
         let mut participants = input.participants.iter().map(|p| ParticipantShare { owner_id: p.owner_id.clone(), basis_points: p.basis_points.parse::<u16>().unwrap_or_else(|_| fail("ERR_BASIS_POINTS")) }).collect::<Vec<_>>();
         participants.sort_by(|a,b| a.owner_id.cmp(&b.owner_id));
-        if participants.iter().any(|p| p.basis_points == 0) || participants.iter().map(|p| u32::from(p.basis_points)).sum::<u32>() != 10_000 { fail("ERR_BASIS_POINTS"); }
+        if participants.iter().map(|p| u32::from(p.basis_points)).sum::<u32>() != 10_000 { fail("ERR_BASIS_POINTS"); }
         if participants.iter().any(|p| !release.accepted_owner_ids.contains(&p.owner_id)) || participants.windows(2).any(|w| w[0].owner_id == w[1].owner_id) { fail("ERR_PARTICIPANTS"); }
-        let mut recoupment = input.recoupment.map(|r| { if r.cap_yocto.0 == 0 || !participants.iter().any(|p| p.owner_id == r.beneficiary_id) { fail("ERR_RECOUPMENT"); } RecoupmentState { code: r.code, beneficiary_id: r.beneficiary_id, cap_yocto: r.cap_yocto.0, consumed_yocto: 0 } });
+        let mut recoupment = input.recoupment.map(|r| { if r.cap_yocto.0 == 0 || r.code.is_empty() || r.code.len() > 64 || !participants.iter().any(|p| p.owner_id == r.beneficiary_id) { fail("ERR_RECOUPMENT"); } RecoupmentState { code: r.code, beneficiary_id: r.beneficiary_id, cap_yocto: r.cap_yocto.0, consumed_yocto: 0 } });
         if let Some(active_version) = release.active_agreement_version {
             let active = release.agreements.iter().find(|a| a.version == active_version).unwrap_or_else(|| fail("ERR_AGREEMENT_VERSION"));
             if let (Some(old), Some(new)) = (active.recoupment.as_ref(), recoupment.as_mut()) {
@@ -88,7 +90,7 @@ impl RoyaltyDeskContract {
             agreement.approvals.push(ApprovalRecord { owner_id: caller.clone(), actor_id: caller, revision: version.0, digest: approval_digest, epoch: 0 });
             agreement.approvals.len() == owner_count
         };
-        if activates { release.agreements.iter_mut().find(|a| a.version == version.0).unwrap_or_else(|| fail("ERR_AGREEMENT_VERSION")).active = true; release.active_agreement_version = Some(version.0); }
+        if activates { for agreement in release.agreements.iter_mut() { agreement.active = agreement.version == version.0; } release.active_agreement_version = Some(version.0); }
     }
 
     pub fn set_mandate(&mut self, release_id: String, input: MandateInput) {
@@ -107,7 +109,7 @@ impl RoyaltyDeskContract {
     pub fn open_settlement(&mut self, release_id: String, input: SettlementInput) {
         self.require_zero_deposit(); let admin = env::predecessor_account_id(); let release = self.release_mut(&release_id);
         if release.administrator_id != admin { fail("ERR_ADMIN_CALLER"); }
-        if input.gross_yocto.0 == 0 || release.active_agreement_version != Some(input.agreement_version.0) { fail("ERR_SETTLEMENT_INPUT"); }
+        if input.gross_yocto.0 == 0 || !valid_period(&input.period) || !bounded_commitment(&input.normalized_statement_hash) || !bounded_commitment(&input.deduction_evidence_hash) || !bounded_commitment(&input.allocation_preview_hash) || release.active_agreement_version != Some(input.agreement_version.0) { fail("ERR_SETTLEMENT_INPUT"); }
         let agreement = release.agreements.iter().find(|a| Some(a.version) == release.active_agreement_version).unwrap_or_else(|| fail("ERR_AGREEMENT_VERSION"));
         if input.period < agreement.effective_period || release.settlements.iter().any(|s| matches!(s.status, SettlementStatus::Finalized | SettlementStatus::Paying | SettlementStatus::Complete) && s.period >= input.period) { fail("ERR_PERIOD_ORDER"); }
         if release.settlements.len() >= MAX_SETTLEMENTS { fail("ERR_SETTLEMENT_BOUNDS"); }
@@ -117,7 +119,7 @@ impl RoyaltyDeskContract {
     }
     pub fn revise_settlement(&mut self, release_id: String, input: SettlementInput) {
         self.require_zero_deposit(); let admin = env::predecessor_account_id(); let release = self.release_mut(&release_id); if release.administrator_id != admin { fail("ERR_ADMIN_CALLER"); }
-        let settlement = current_settlement_mut(release, &input.period); if !matches!(settlement.status, SettlementStatus::Review | SettlementStatus::Held) || settlement.agreement_version != input.agreement_version.0 || input.gross_yocto.0 == 0 { fail("ERR_REVISION_STATE"); }
+        let settlement = current_settlement_mut(release, &input.period); if !matches!(settlement.status, SettlementStatus::Review | SettlementStatus::Held) || settlement.agreement_version != input.agreement_version.0 || input.gross_yocto.0 == 0 || !bounded_commitment(&input.normalized_statement_hash) || !bounded_commitment(&input.deduction_evidence_hash) || !bounded_commitment(&input.allocation_preview_hash) { fail("ERR_REVISION_STATE"); }
         settlement.revision = checked_add_u64(settlement.revision, 1); settlement.normalized_statement_hash = input.normalized_statement_hash; settlement.gross_yocto = input.gross_yocto.0; settlement.deduction_evidence_hash = input.deduction_evidence_hash; settlement.allocation_preview_hash = input.allocation_preview_hash; settlement.approvals.clear(); settlement.cancellation_votes.clear();
     }
     pub fn approve_settlement(&mut self, release_id: String, period: String, digest: String) {
@@ -198,15 +200,17 @@ pub struct SettlementView { pub period: String, pub revision: U64, pub agreement
 pub struct EntitlementView { pub owner_id: AccountId, pub amount_yocto: near_sdk::json_types::U128, pub status: EntitlementStatus, pub attempt_id: U64 }
 
 fn checked_add(a: u128, b: u128) -> u128 { a.checked_add(b).unwrap_or_else(|| fail("ERR_OVERFLOW")) }
+fn bounded_commitment(value: &str) -> bool { !value.is_empty() && value.len() <= 128 && value.is_ascii() }
+fn valid_period(period: &str) -> bool { let bytes = period.as_bytes(); bytes.len() == 7 && bytes[0..4].iter().all(u8::is_ascii_digit) && bytes[4] == b'-' && matches!(&bytes[5..7], b"01" | b"02" | b"03" | b"04" | b"05" | b"06" | b"07" | b"08" | b"09" | b"10" | b"11" | b"12") }
 fn checked_add_u64(a: u64, b: u64) -> u64 { a.checked_add(b).unwrap_or_else(|| fail("ERR_OVERFLOW")) }
 fn new_settlement(input: SettlementInput) -> SettlementState { SettlementState { period: input.period, revision: 1, agreement_version: input.agreement_version.0, normalized_statement_hash: input.normalized_statement_hash, gross_yocto: input.gross_yocto.0, deduction_evidence_hash: input.deduction_evidence_hash, allocation_preview_hash: input.allocation_preview_hash, status: SettlementStatus::Review, total_deposited_yocto: 0, unallocated_yocto: 0, refundable_yocto: 0, unpaid_entitlements_yocto: 0, in_flight_yocto: 0, successful_payouts_yocto: 0, successful_refunds_yocto: 0, approvals: Vec::new(), disputes: Vec::new(), cancellation_votes: Vec::new(), entitlements: Vec::new(), next_attempt_id: 1, refund_attempt: None } }
 fn current_settlement<'a>(release: &'a ReleaseState, period: &str) -> &'a SettlementState { release.settlements.iter().find(|s| s.period == period).unwrap_or_else(|| fail("ERR_PERIOD_NOT_FOUND")) }
 fn current_settlement_mut<'a>(release: &'a mut ReleaseState, period: &str) -> &'a mut SettlementState { release.settlements.iter_mut().find(|s| s.period == period).unwrap_or_else(|| fail("ERR_PERIOD_NOT_FOUND")) }
 fn resolve_actor(release: &ReleaseState, version: u64, gross: u128, action: &str, caller: &AccountId) -> (AccountId, u64) { if release.accepted_owner_ids.contains(caller) { return (caller.clone(), 0); } let mandate = release.mandates.iter().find(|m| m.agent_id == *caller && m.agreement_version == version && !m.revoked && m.expires_at_nanoseconds > env::block_timestamp() && m.max_gross_yocto >= gross && m.actions.iter().any(|a| a == action)).unwrap_or_else(|| fail("ERR_MANDATE_AUTH")); (mandate.owner_id.clone(), mandate.epoch) }
 fn approval_is_valid(release: &ReleaseState, version: u64, gross: u128, approval: &ApprovalRecord) -> bool { if approval.actor_id == approval.owner_id { return release.accepted_owner_ids.contains(&approval.owner_id); } release.mandates.iter().any(|m| m.owner_id == approval.owner_id && m.agent_id == approval.actor_id && m.agreement_version == version && !m.revoked && m.epoch == approval.epoch && m.expires_at_nanoseconds > env::block_timestamp() && m.max_gross_yocto >= gross && m.actions.iter().any(|a| a == "approve_settlement")) }
-fn maybe_complete(s: &mut SettlementState) { if !matches!(s.status, SettlementStatus::Finalized | SettlementStatus::Paying) { return; } if s.unpaid_entitlements_yocto == 0 && s.in_flight_yocto == 0 && s.refundable_yocto == 0 && s.refund_attempt.is_none() && s.entitlements.iter().all(|e| e.status == EntitlementStatus::Paid) { s.status = SettlementStatus::Complete; } }
+fn maybe_complete(s: &mut SettlementState) { if !matches!(s.status, SettlementStatus::Finalized | SettlementStatus::Paying) { return; } if s.unpaid_entitlements_yocto == 0 && s.entitlements.iter().all(|e| e.status == EntitlementStatus::Paid) { s.status = SettlementStatus::Complete; } }
 fn settlement_digest(s: &SettlementState) -> String { hash_hex(format!("{}|{}|{}|{}|{}|{}|{}", s.period, s.revision, s.agreement_version, s.normalized_statement_hash, s.gross_yocto, s.deduction_evidence_hash, s.allocation_preview_hash).as_bytes()) }
-fn canonical_rules(release_id: &str, recording_id: &str, participants: &[ParticipantShare], recoupment: Option<&RecoupmentState>, effective_period: &str) -> String { let participants = participants.iter().map(|p| format!(r#"{{"basisPoints":"{}","ownerId":"{}"}}"#, p.basis_points, p.owner_id)).collect::<Vec<_>>().join(","); let recoupment = recoupment.map(|r| format!(r#"{{"beneficiaryId":"{}","capYocto":"{}","code":"{}"}}"#, r.beneficiary_id, r.cap_yocto, r.code)).unwrap_or_else(|| "null".to_string()); format!(r#"{{"effectivePeriod":"{}","participants":[{}],"recordingId":"{}","recoupment":{},"releaseId":"{}","schemaVersion":"1"}}"#, effective_period, participants, recording_id, recoupment, release_id) }
+fn canonical_rules(release_id: &str, recording_id: &str, participants: &[ParticipantShare], recoupment: Option<&RecoupmentState>, effective_period: &str) -> String { let participants = participants.iter().map(|p| format!(r#"{{"basisPoints":"{}","ownerId":"{}"}}"#, p.basis_points, p.owner_id)).collect::<Vec<_>>().join(","); let recoupment = recoupment.map(|r| format!(r#"{{"beneficiaryId":"{}","capYocto":"{}","code":{}}}"#, r.beneficiary_id, r.cap_yocto, near_sdk::serde_json::to_string(&r.code).unwrap_or_else(|_| fail("ERR_RECOUPMENT")))).unwrap_or_else(|| "null".to_string()); format!(r#"{{"effectivePeriod":"{}","participants":[{}],"recordingId":"{}","recoupment":{},"releaseId":"{}","schemaVersion":"1"}}"#, effective_period, participants, recording_id, recoupment, release_id) }
 fn canonical_approval(contract_id: &AccountId, release_id: &str, version: u64, rules_hash: &str, document_hash: &str) -> String { format!(r#"{{"agreementVersion":"{}","application":"royaltydesk","contractId":"{}","documentHash":"{}","networkId":"testnet","releaseId":"{}","rulesHash":"{}","schema":"agreement-approval/v1"}}"#, version, contract_id, document_hash, release_id, rules_hash) }
 fn hash_hex(bytes: impl AsRef<[u8]>) -> String { env::sha256(bytes.as_ref()).iter().map(|b| format!("{:02x}", b)).collect() }
 fn release_view(release: &ReleaseState) -> ReleaseView { ReleaseView { release_id: release.release_id.clone(), recording_id: release.recording_id.clone(), administrator_id: release.administrator_id.clone(), funder_id: release.funder_id.clone(), invited_owner_ids: release.invited_owner_ids.clone(), accepted_owner_ids: release.accepted_owner_ids.clone(), active_agreement_version: release.active_agreement_version.map(U64), agreements: release.agreements.iter().map(|a| AgreementView { version: U64(a.version), recording_id: a.recording_id.clone(), rules_hash: a.rules_hash.clone(), approval_digest: a.approval_digest.clone(), document_hash: a.document_hash.clone(), active: a.active, superseded: a.superseded, participants: a.participants.clone(), recoupment: a.recoupment.as_ref().map(|r| RecoupmentView { code: r.code.clone(), beneficiary_id: r.beneficiary_id.clone(), cap_yocto: near_sdk::json_types::U128(r.cap_yocto), consumed_yocto: near_sdk::json_types::U128(r.consumed_yocto) }) }).collect(), mandates: release.mandates.iter().map(|m| MandateView { owner_id: m.owner_id.clone(), agent_id: m.agent_id.clone(), agreement_version: U64(m.agreement_version), actions: m.actions.clone(), max_gross_yocto: near_sdk::json_types::U128(m.max_gross_yocto), expires_at_nanoseconds: U64(m.expires_at_nanoseconds), epoch: U64(m.epoch), revoked: m.revoked }).collect() } }

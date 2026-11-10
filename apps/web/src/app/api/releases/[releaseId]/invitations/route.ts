@@ -23,7 +23,7 @@ export async function PUT(request: Request, context: { params: Promise<{ release
     const { releaseId } = await context.params;
     const user = await currentUser();
     if (!user) return Response.json({ error: "ERR_UNAUTHORIZED" }, { status: 401 });
-    const existing = getMembership(getAppDatabase(), releaseId, user.accountId);
+    const existing = getMembership(getAppDatabase(), releaseId, user.accountId, ["owner", "funder"], "invited");
     if (!existing || existing.status !== "invited") return Response.json({ error: "ERR_INVITATION" }, { status: 403 });
     return Response.json({ accountId: user.accountId, transactionRequest: { networkId: "testnet", receiverId: process.env.NEXT_PUBLIC_CONTRACT_ID ?? "", methodName: "accept_membership", args: { release_id: releaseId }, depositYocto: "0" } });
   } catch (error) {

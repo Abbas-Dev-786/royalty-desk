@@ -18,7 +18,7 @@ export function createNearAiAgentModel(config: { readonly baseUrl: string; reado
         method: "POST",
         headers: { authorization: `Bearer ${config.apiKey}`, "content-type": "application/json" },
         body: JSON.stringify({ model: config.model, temperature: 0, max_tokens: request.maxOutputTokens, response_format: { type: "json_object" }, messages: [{ role: "system", content: request.system }, { role: "user", content: request.user }] }),
-        signal: AbortSignal.timeout(config.timeoutMs ?? 20_000)
+        signal: AbortSignal.timeout(config.timeoutMs ?? 120_000)
       });
       if (!response.ok) throw new Error(`ERR_NEAR_AI_HTTP_${response.status}`);
       const payload = await response.json() as GatewayResponse;

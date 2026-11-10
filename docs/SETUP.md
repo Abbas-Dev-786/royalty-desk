@@ -4,7 +4,7 @@ This project is currently testnet-only. The recommended Windows workflow is to r
 
 ## 1. Prerequisites
 
-- Node.js 24 (NEAR's current tutorials require Node 22.12+; this repository accepts Node 20.9+).
+- Node.js 24 or newer. The repository uses built-in SQLite and direct TypeScript execution.
 - npm 11 and network access to npmjs.org, crates.io, GitHub, the NEAR RPC, and `cloud-api.near.ai`.
 - WSL2 Ubuntu on Windows. Native PowerShell is fine for Node-only checks, but WSL2 avoids Rust, sandbox, and keychain issues.
 
@@ -12,7 +12,7 @@ If WSL2 is not installed, an administrator can run `wsl --install -d Ubuntu`, th
 
 ### Hybrid Docker setup (Node on host, Rust in Docker)
 
-This is the recommended option when Node.js is already installed but Rust must not be installed on Windows. Keep all JavaScript commands on the host. Use Docker only for Rust, `cargo-near`, NEAR CLI, contract compilation, and contract tests. Install Docker Desktop with Linux containers enabled and make sure the Docker daemon is running. The repository does not yet include a checked-in Dockerfile or Compose stack, so the commands below use official images:
+This is the recommended option when Node.js is already installed but Rust must not be installed on Windows. Keep all JavaScript commands on the host. Use Docker only for Rust, `cargo-near`, NEAR CLI, contract compilation, and contract tests. Install Docker Desktop with Linux containers enabled and make sure the Docker daemon is running. The repository includes `docker/contract-toolchain.Dockerfile` for Rust builds; the sandbox uses an official image:
 
 ```powershell
 # Node checks remain on the host
@@ -123,7 +123,24 @@ With the compiled WASM present at `contracts/royaltydesk/target/near/royaltydesk
 
 ## 6. Create a testnet account and deploy
 
-Create one development account (and later separate owner/agent accounts as required by the contract):
+The live run needs a unique contract account ending in `.testnet`, controlled by your local NEAR CLI keychain. Keep its key on your machine. The contract's `operator_id` is that same account for this prototype. The compiled artifact is `contracts/royaltydesk/target/near/royaltydesk_contract.wasm`; run `npm run build` first.
+
+If the account already exists but NEAR CLI reports no local access key, use the interactive `near account import-account using-seed-phrase` or `using-private-key` flow in your own terminal, select `testnet`, and save to the OS keychain. Enter the secret only at the CLI prompt, never in chat, a command argument, or a committed file. Confirm the imported public key appears in `near account list-keys <account.testnet> network-config testnet now` before deploying. The default CLI web-wallet login currently points to MyNearWallet, which may reject new app connections; do not assume its printed login URL authorized a key.
+
+On Windows PowerShell, after installing the current NEAR CLI, replace the account name and run:
+
+```powershell
+$contractAccount = "your-unique-royaltydesk.testnet"
+near account create-account sponsor-by-faucet-service $contractAccount autogenerate-new-keypair save-to-keychain network-config testnet create
+near account view-account-summary $contractAccount network-config testnet now
+$initArgs = '{"network_id":"testnet","operator_id":"' + $contractAccount + '"}'
+near contract deploy $contractAccount use-file ./contracts/royaltydesk/target/near/royaltydesk_contract.wasm with-init-call new json-args $initArgs prepaid-gas '100 Tgas' attached-deposit '0 NEAR' network-config testnet sign-with-keychain send
+near contract call-function as-read-only $contractAccount health base64-args e30= network-config testnet now
+```
+
+If the OS keychain is unavailable, the CLI supports `save-to-legacy-keychain` and `sign-with-legacy-keychain`; keep the resulting credential directory private. Save the account ID and the deployment transaction hash, then set `NEXT_PUBLIC_CONTRACT_ID` in the ignored root `.env` to the deployed account. The browser journey also needs three distinct owner wallet accounts, one funder wallet account (the administrator may also fund), and a separate agent account with a restricted function-call key for delegated action evidence. Never send wallet keys or NEAR AI API keys through chat.
+
+For Bash with the legacy keychain, the equivalent account creation and separate deploy/initialize sequence is:
 
 ```bash
 near account create-account sponsor-by-faucet-service royaltydesk-dev.testnet \
@@ -141,7 +158,7 @@ near contract deploy royaltydesk-dev.testnet \
   sign-with-legacy-keychain send
 ```
 
-Initialize the current Phase 0 contract:
+Initialize the current RoyaltyDesk contract:
 
 ```bash
 near contract call-function as-transaction royaltydesk-dev.testnet new \
@@ -150,7 +167,7 @@ near contract call-function as-transaction royaltydesk-dev.testnet new \
   sign-as royaltydesk-dev.testnet network-config testnet \
   sign-with-legacy-keychain send
 near contract call-function as-read-only royaltydesk-dev.testnet health \
-  empty-args network-config testnet now
+  base64-args e30= network-config testnet now
 ```
 
 Record the account ID, WASM hash, and transaction hashes in `plans/evidence/PHASE_00.md`; never record private keys.
@@ -164,7 +181,7 @@ $env:NEXT_PUBLIC_CONTRACT_ID = "royaltydesk-dev.testnet"
 npm run dev:web
 ```
 
-Open `http://localhost:3000` and run the testnet wallet signature probe with a wallet that supports NEP-413 message signing. The current probe checks wallet compatibility; server-side signature verification is a later phase.
+Open `http://localhost:3000` and run the testnet wallet signature probe with a wallet that supports NEP-413 message signing. The wallet probe signs a challenge that the server verifies before creating an application session.
 
 For Phase 00 evidence, record the wallet/network selected, whether the signing prompt appeared, and whether the request was approved or declined. Do not record the signed payload, cookies, or wallet keys. A source-level probe or mocked wallet is not browser evidence.
 

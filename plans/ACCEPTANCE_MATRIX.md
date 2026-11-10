@@ -10,6 +10,7 @@ The case IDs below are stable targets for test names and evidence reports. Imple
 - [Phase 01 evidence](evidence/PHASE_01.md): AGR-01, MONEY-04, and CSV/parser normalization cases are verified with 32 passing domain tests. Rust parity remains a Phase 02 requirement.
 - [Phase 05 evidence](evidence/PHASE_05.md), [Phase 06 evidence](evidence/PHASE_06.md), [Phase 07 evidence](evidence/PHASE_07.md), and [Phase 08 evidence](evidence/PHASE_08.md): authenticated boundaries, encrypted private files, agreement/statement workflows, bounded agents, browser integration, rebuilt contract, sandbox, fault-injection, and live NEAR AI evidence are recorded.
 - [Phase 09 release artifacts](evidence/PHASE_09.md): release aggregator, artifact manifest, reproducibility instructions, and deployment/live-journey handoff are being finalized.
+- [Live testnet journey](evidence/LIVE_JOURNEY_2026-11-10.md): CLI account membership, owner approvals, a model-driven delegated approval, funding, finalization, and three confirmed native payouts. Browser wallet acceptance remains open.
 
 ## Concrete verification map
 

@@ -5,7 +5,7 @@
   "type": "module",
   "packageManager": "npm@11.19.0",
   "engines": {
-    "node": ">=20.9.0"
+    "node": ">=24.0.0"
   },
   "workspaces": [
     "apps/*",
@@ -33,7 +33,11 @@
     "test:e2e": "node scripts/test-e2e.mjs",
     "test:live": "node --env-file-if-exists=.env --experimental-strip-types apps/worker/src/near-ai/probe.ts",
     "verify:release": "node --env-file-if-exists=.env scripts/verify-release.mjs",
-    "release:manifest": "node --env-file-if-exists=.env scripts/release-manifest.mjs"
+    "release:manifest": "node --env-file-if-exists=.env scripts/release-manifest.mjs",
+    "verify:deployment": "node --env-file-if-exists=.env scripts/verify-testnet-deployment.mjs",
+    "test:live-journey": "node --env-file-if-exists=.env --experimental-strip-types scripts/live/journey.mjs",
+    "test:live-agent": "node --env-file-if-exists=.env --experimental-strip-types scripts/live/agent.mjs",
+    "test:contract-regressions": "node scripts/audit-contract.mjs"
   },
   "allowScripts": {
     "sharp@0.34.5": true

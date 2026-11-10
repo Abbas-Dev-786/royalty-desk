@@ -1,7 +1,7 @@
 "use client";
 
-import { NearConnector } from "@hot-labs/near-connect";
-import { useRef, useState } from "react";
+import { useState } from "react";
+import { notifyWalletSession, walletConnector } from "./wallet-session";
 
 type ProbeState = "idle" | "opening" | "requested" | "failed";
 
@@ -9,17 +9,12 @@ export function WalletProbe() {
   const [state, setState] = useState<ProbeState>("idle");
   const [accountId, setAccountId] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
-  const connectorRef = useRef<NearConnector | null>(null);
 
   async function requestSignedChallenge(): Promise<void> {
     setState("opening");
     setErrorMessage("");
     try {
-      const connector = connectorRef.current ?? new NearConnector({
-        network: "testnet",
-        autoConnect: false
-      });
-      connectorRef.current = connector;
+      const connector = walletConnector();
       await connector.whenManifestLoaded;
       if (connector.availableWallets.length === 0) {
         throw new Error("No testnet wallets were loaded. Check browser network access to the NEAR wallet manifest.");
@@ -44,6 +39,7 @@ export function WalletProbe() {
       if (!verifyResponse.ok) throw new Error(verification.error ?? "Server rejected the wallet signature.");
       setAccountId(signedMessage.accountId);
       setState("requested");
+      notifyWalletSession();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Wallet connection failed.");
       setState("failed");

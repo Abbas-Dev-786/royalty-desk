@@ -1,5 +1,6 @@
 import type { Account } from "near-api-js";
-import { actions } from "near-api-js";
+import { createHash } from "node:crypto";
+import { actions, baseEncode } from "near-api-js";
 import { createChainOperation, getChainOperation, updateChainOperation } from "@royaltydesk/persistence";
 import type { DatabaseSync } from "node:sqlite";
 
@@ -27,10 +28,17 @@ export class RestrictedSigner {
     await previous;
     try {
       const existing = getChainOperation(this.#options.database, input.operationId);
-      if (existing?.transactionHash) return { operationId: input.operationId, transactionHash: existing.transactionHash, status: existing.status === "success" ? "success" : existing.status === "failure" ? "failure" : "unknown" };
-      if (!existing) createChainOperation(this.#options.database, { id: input.operationId, logicalKey: input.logicalKey, releaseId: input.releaseId, operationType: input.methodName, intentJson: JSON.stringify(input.args) });
-      const response = await this.#options.account.signAndSendTransaction({ receiverId: this.#options.contractId, actions: [actions.functionCall(input.methodName, input.args, 100_000_000_000_000n, depositYocto)], waitUntil: "FINAL" });
-      const transactionHash = response.transaction?.hash ?? null;
+      if (existing) {
+        if (existing.logicalKey !== input.logicalKey || existing.releaseId !== input.releaseId || existing.operationType !== input.methodName || existing.intentJson !== JSON.stringify(input.args)) throw new Error("ERR_OPERATION_ID_REUSE");
+        return { operationId: input.operationId, transactionHash: existing.transactionHash, status: existing.status === "success" ? "success" : existing.status === "failure" ? "failure" : "unknown" };
+      }
+      createChainOperation(this.#options.database, { id: input.operationId, logicalKey: input.logicalKey, releaseId: input.releaseId, operationType: input.methodName, intentJson: JSON.stringify(input.args) });
+      const signer = this.#options.account.getSigner();
+      if (!signer) throw new Error("ERR_AGENT_SIGNER");
+      const signed = await this.#options.account.createSignedTransaction({ receiverId: this.#options.contractId, actions: [actions.functionCall(input.methodName, input.args, 100_000_000_000_000n, depositYocto)], signer });
+      const transactionHash = baseEncode(createHash("sha256").update(signed.transaction.encode()).digest());
+      updateChainOperation(this.#options.database, input.operationId, { status: "signed", signedIdentity: Buffer.from(signed.encode()).toString("base64"), transactionHash });
+      const response = await this.#options.account.provider.sendTransactionUntil(signed, "FINAL");
       const failed = typeof response.status === "object" && response.status !== null && "Failure" in response.status;
       updateChainOperation(this.#options.database, input.operationId, { status: failed ? "failure" : "success", transactionHash });
       return { operationId: input.operationId, transactionHash, status: failed ? "failure" : "success" };

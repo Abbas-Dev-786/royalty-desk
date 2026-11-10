@@ -5,6 +5,8 @@ import { join } from "node:path";
 import test from "node:test";
 import { openDatabase } from "@royaltydesk/persistence";
 import { AgentOrchestrator, buildAgentPrompt, createFixtureAgentModel } from "../src/agents/index.ts";
+import { WorkerAgentService } from "../src/agents/service.ts";
+import type { WorkerConfig } from "../src/config.ts";
 import type { PersonalAgentContext } from "../src/agents/types.ts";
 
 const digest = "a".repeat(64);
@@ -30,6 +32,19 @@ test("P07-AGENT-01 personal prompt is deterministic and contains private prefere
   assert.equal(first.inputDigest, second.inputDigest);
   assert.match(first.user, /Prefer clear evidence/);
   assert.match(first.user, /untrusted/);
+});
+
+test("P07-AGENT-04 fixture job result survives worker restart without a second model call", async () => {
+  const databasePath = join(mkdtempSync(join(tmpdir(), "royaltydesk-agent-job-")), "agent.sqlite");
+  const config: WorkerConfig = { host: "127.0.0.1", port: 3101, networkId: "testnet", contractId: "contract.testnet", databasePath, storageSecret: null, workerApiToken: null, nearAiBaseUrl: "https://cloud-api.near.ai/v1", nearAiApiKey: null, nearAiModel: null, agentKeystorePath: null };
+  const service = new WorkerAgentService(openDatabase(databasePath), config);
+  const { sessionId } = service.createSession({ releaseId: context.releaseId, ownerAccountId: context.ownerAccountId, mode: "fixture", context });
+  const first = await service.run(sessionId, context, "fixture");
+  service.close();
+  const restarted = new WorkerAgentService(openDatabase(databasePath), config);
+  const second = await restarted.run(sessionId, context, "fixture");
+  assert.deepEqual(second, first);
+  restarted.close();
 });
 
 test("P07-AGENT-02 fixture action is validated and policy can produce a bounded dispute request", async () => {

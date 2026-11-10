@@ -4,7 +4,7 @@ RoyaltyDesk is an evidence-backed royalty administration prototype for NEAR test
 
 ## Requirements
 
-- Node.js 20.9 or newer and npm 11.
+- Node.js 24 or newer and npm 11.
 - Docker Desktop using Linux containers for Rust/contract builds and sandbox tests. Rust is not required on the host.
 - A NEAR testnet wallet for browser authentication and owner actions.
 - A funded NEAR AI Cloud API key only for the live inference check.
@@ -19,13 +19,14 @@ npm run check
 npm run build
 ```
 
-The contract build writes `contracts/royaltydesk/target/near/royaltydesk_contract.wasm`. Record its checksum with:
+The contract build writes `contracts/royaltydesk/target/near/royaltydesk_contract.wasm`. After deploying to the configured testnet account, verify the live code, initializer, and final transaction receipt, then generate the manifest:
 
 ```powershell
+npm run verify:deployment -- <deployment-transaction-hash>
 npm run release:manifest
 ```
 
-The manifest is intentionally labeled as an artifact record, not proof of deployment. Deployment and account-key custody remain explicit operator actions.
+The manifest marks deployment verified only when the live verification artifact matches its contract ID and WASM hash. Account-key custody remains with the operator.
 
 ## Development
 
@@ -35,6 +36,10 @@ Run the web app and worker in separate terminals:
 npm run dev:web
 npm run dev:worker
 ```
+
+Delegated agent actions require `ROYALTYDESK_AGENT_KEYSTORE_PATH` and a private `ROYALTYDESK_WORKER_TOKEN` of at least 32 characters. The keystore directory must contain one private JSON file per delegated account, named `<agent-account-id>.json`, with `public_key` and `private_key` or `secret_key` fields. Each key must be a function-call key restricted on NEAR to this contract and the intended agent methods. Keep this directory outside the repository and verify its permissions before starting the worker. Without a configured keystore, live model recommendations return for human review without signing.
+
+The worker saves signed transaction bytes and hash before broadcast. An ambiguous outcome remains pending reconciliation and is never sent again under the same operation ID. The worker checks pending transaction identities at startup and every 15 seconds.
 
 Open the web URL, connect a testnet wallet, and use the owner workspace. The worker accepts only loopback agent requests protected by `ROYALTYDESK_WORKER_TOKEN` when configured.
 

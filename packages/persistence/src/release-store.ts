@@ -14,14 +14,17 @@ function mapMembership(row: unknown): Membership | undefined {
 }
 
 export function upsertMembership(database: DatabaseSync, membership: Membership, nowMs = Date.now()): Membership {
-  database.prepare(`INSERT INTO release_memberships(release_id, account_id, role, status, created_at_ms) VALUES (?, ?, ?, ?, ?) ON CONFLICT(release_id, account_id) DO UPDATE SET role = excluded.role, status = excluded.status`).run(membership.releaseId, membership.accountId, membership.role, membership.status, nowMs);
-  const row = database.prepare(`SELECT release_id, account_id, role, status FROM release_memberships WHERE release_id = ? AND account_id = ?`).get(membership.releaseId, membership.accountId);
+  database.prepare(`INSERT INTO release_memberships(release_id, account_id, role, status, created_at_ms) VALUES (?, ?, ?, ?, ?) ON CONFLICT(release_id, account_id, role) DO UPDATE SET status = excluded.status`).run(membership.releaseId, membership.accountId, membership.role, membership.status, nowMs);
+  const row = database.prepare(`SELECT release_id, account_id, role, status FROM release_memberships WHERE release_id = ? AND account_id = ? AND role = ?`).get(membership.releaseId, membership.accountId, membership.role);
   const result = mapMembership(row);
   if (!result) throw new Error("Membership was not persisted");
   return result;
 }
 
-export function getMembership(database: DatabaseSync, releaseId: string, accountId: string): Membership | undefined { return mapMembership(database.prepare(`SELECT release_id, account_id, role, status FROM release_memberships WHERE release_id = ? AND account_id = ?`).get(releaseId, accountId)); }
+export function getMembership(database: DatabaseSync, releaseId: string, accountId: string, roles?: readonly Membership["role"][], status?: Membership["status"]): Membership | undefined {
+  const rows = database.prepare(`SELECT release_id, account_id, role, status FROM release_memberships WHERE release_id = ? AND account_id = ? ORDER BY CASE status WHEN 'accepted' THEN 0 WHEN 'invited' THEN 1 ELSE 2 END`).all(releaseId, accountId);
+  return rows.map(mapMembership).find((membership) => membership && (!roles || roles.includes(membership.role)) && (!status || membership.status === status));
+}
 
 export function importStatement(database: DatabaseSync, input: { readonly releaseId: string; readonly csv: string | Uint8Array; readonly importedBy: string; readonly approvedRecoupmentCode?: string | null }): StoredStatement {
   const parsed = importStatementCsv(input.csv, input.approvedRecoupmentCode ?? null);

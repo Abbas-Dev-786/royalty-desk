@@ -1,11 +1,12 @@
 import { EncryptedFileStore, importStatement } from "@royaltydesk/persistence";
+import { resolve } from "node:path";
 import { requireMembership } from "@/server/authorization";
 import { getAppDatabase, requireOrigin } from "@/server/runtime";
 
 function store(): EncryptedFileStore {
   const secret = process.env.ROYALTYDESK_STORAGE_SECRET ?? process.env.ROYALTYDESK_ENCRYPTION_KEY;
   if (!secret) throw new Error("ERR_STORAGE_CONFIG");
-  return new EncryptedFileStore(process.env.ROYALTYDESK_FILES_PATH ?? process.env.ROYALTYDESK_PRIVATE_FILES_PATH ?? ".royaltydesk/private", secret);
+  return new EncryptedFileStore(resolve(/* turbopackIgnore: true */ process.cwd(), "../..", process.env.ROYALTYDESK_FILES_PATH ?? process.env.ROYALTYDESK_PRIVATE_FILES_PATH ?? ".royaltydesk/private"), secret);
 }
 
 export async function POST(request: Request, context: { params: Promise<{ releaseId: string }> }): Promise<Response> {

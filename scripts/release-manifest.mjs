@@ -7,6 +7,7 @@ const networkId = process.env.NEXT_PUBLIC_NEAR_NETWORK ?? "testnet";
 const contractId = process.env.NEXT_PUBLIC_CONTRACT_ID;
 const wasmPath = resolve(process.env.ROYALTYDESK_WASM_PATH ?? "contracts/royaltydesk/target/near/royaltydesk_contract.wasm");
 const outputPath = resolve(process.env.RELEASE_MANIFEST_PATH ?? "plans/evidence/artifacts/release-manifest.json");
+const deploymentEvidencePath = resolve(process.env.RELEASE_DEPLOYMENT_EVIDENCE_PATH ?? "plans/evidence/artifacts/testnet-deployment.json");
 
 function sourceRevision() {
   try {
@@ -26,10 +27,20 @@ try {
   console.error(`Release artifact not found: ${wasmPath}. Run npm run build first.`);
   process.exit(2);
 }
+const wasmSha256 = createHash("sha256").update(bytes).digest("hex");
+let deployment = { verified: false, transactionHash: null, recordedBy: null };
+try {
+  const evidence = JSON.parse(readFileSync(deploymentEvidencePath, "utf8"));
+  if (evidence.verified === true && evidence.networkId === networkId && evidence.contractId === contractId && evidence.wasmSha256 === wasmSha256 && typeof evidence.transactionHash === "string") {
+    deployment = { verified: true, transactionHash: evidence.transactionHash, recordedBy: "verify:deployment" };
+  }
+} catch (error) {
+  if (error?.code !== "ENOENT") throw error;
+}
 
 const manifest = {
   schema: "royaltydesk-release-manifest/v1",
-  status: "artifact-recorded-not-deployment-proof",
+  status: deployment.verified ? "deployment-verified" : "artifact-recorded-not-deployment-proof",
   generatedAt: new Date().toISOString(),
   sourceRevision: sourceRevision(),
   networkId,
@@ -37,7 +48,7 @@ const manifest = {
   wasm: {
     path: wasmPath,
     bytes: statSync(wasmPath).size,
-    sha256: createHash("sha256").update(bytes).digest("hex")
+    sha256: wasmSha256
   },
   supportedMethods: [
     "health",
@@ -60,11 +71,7 @@ const manifest = {
     "approve_cancellation",
     "withdraw_refundable"
   ],
-  deployment: {
-    verified: false,
-    transactionHash: null,
-    recordedBy: null
-  }
+  deployment
 };
 
 mkdirSync(dirname(outputPath), { recursive: true });

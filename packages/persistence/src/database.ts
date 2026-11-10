@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 export function openDatabase(path: string): DatabaseSync {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
@@ -231,6 +231,26 @@ export function openDatabase(path: string): DatabaseSync {
     const projectionColumns = database.prepare("PRAGMA table_info(settlement_projections)").all() as readonly { name?: unknown }[];
     if (!projectionColumns.some((column) => column.name === "allocation_preview_hash")) database.exec("ALTER TABLE settlement_projections ADD COLUMN allocation_preview_hash TEXT NOT NULL DEFAULT '';");
     database.exec("INSERT INTO schema_migrations(version, applied_at_ms) VALUES (3, strftime('%s','now') * 1000);");
+  }
+  if (version < 4) {
+    database.exec(`
+      BEGIN IMMEDIATE;
+      CREATE TABLE release_memberships_v4 (
+        release_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('administrator','owner','funder')),
+        status TEXT NOT NULL CHECK(status IN ('invited','accepted','revoked')),
+        created_at_ms INTEGER NOT NULL,
+        accepted_at_ms INTEGER,
+        PRIMARY KEY(release_id, account_id, role)
+      ) STRICT;
+      INSERT INTO release_memberships_v4 SELECT * FROM release_memberships;
+      DROP TABLE release_memberships;
+      ALTER TABLE release_memberships_v4 RENAME TO release_memberships;
+      CREATE INDEX release_memberships_account ON release_memberships(release_id, account_id, status);
+      INSERT INTO schema_migrations(version, applied_at_ms) VALUES (4, strftime('%s','now') * 1000);
+      COMMIT;
+    `);
   }
   if (version > CURRENT_SCHEMA_VERSION) throw new Error("Database schema is newer than this application");
   return database;

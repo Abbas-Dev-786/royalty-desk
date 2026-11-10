@@ -13,7 +13,7 @@ export async function POST(request: Request, context: { params: Promise<{ releas
     const rules = parseAgreementRules(body.rules);
     if (rules.releaseId !== releaseId) return Response.json({ error: "ERR_RELEASE_MISMATCH" }, { status: 400 });
     const result = freezeAgreement(getAppDatabase(), { rules, version: body.version, createdBy: accountId, networkId: "testnet", contractId: process.env.NEXT_PUBLIC_CONTRACT_ID ?? "" });
-    return Response.json(result, { status: 201 });
+    return Response.json({ ...result, transactionRequest: { networkId: "testnet", receiverId: process.env.NEXT_PUBLIC_CONTRACT_ID ?? "", methodName: "freeze_agreement", args: { release_id: releaseId, input: { recording_id: rules.recordingId, participants: rules.participants.map((participant) => ({ owner_id: participant.ownerId, basis_points: participant.basisPoints })), recoupment: rules.recoupment ? { code: rules.recoupment.code, beneficiary_id: rules.recoupment.beneficiaryId, cap_yocto: rules.recoupment.capYocto } : null, effective_period: rules.effectivePeriod, document_hash: result.documentHash } }, depositYocto: "0" } }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "agreement_failed";
     return Response.json({ error: message }, { status: message === "ERR_UNAUTHORIZED" ? 401 : message === "ERR_FORBIDDEN" ? 403 : 400 });

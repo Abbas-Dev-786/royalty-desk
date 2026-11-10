@@ -10,7 +10,7 @@ let database: ReturnType<typeof openDatabase> | undefined;
 export function getAppDatabase(): ReturnType<typeof openDatabase> {
   if (!database) {
     // The database location is intentionally runtime-configurable and is never bundled as an asset.
-    const path = resolve(/* turbopackIgnore: true */ process.env.ROYALTYDESK_DB_PATH ?? process.env.ROYALTYDESK_DATABASE_PATH ?? ".royaltydesk/royaltydesk.sqlite");
+    const path = resolve(/* turbopackIgnore: true */ process.cwd(), "../..", process.env.ROYALTYDESK_DB_PATH ?? process.env.ROYALTYDESK_DATABASE_PATH ?? ".royaltydesk/royaltydesk.sqlite");
     mkdirSync(dirname(path), { recursive: true });
     database = openDatabase(path);
   }

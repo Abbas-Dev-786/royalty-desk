@@ -22,7 +22,7 @@ export interface PersonalAgentContext {
 export interface AgentModelRequest { readonly system: string; readonly user: string; readonly inputDigest: string; readonly maxOutputTokens: number; }
 export interface AgentModelResult { readonly model: string; readonly content: string; readonly inputTokens?: number; readonly outputTokens?: number; readonly responseId?: string; }
 export interface AgentModel { readonly mode: AgentMode; readonly complete: (request: AgentModelRequest) => Promise<AgentModelResult>; }
-export interface AgentRunResult { readonly sessionId: string; readonly status: AgentSessionStatus; readonly action?: AgentAction; readonly proposalId?: string; readonly reason?: string; readonly model: string; readonly mode: AgentMode; }
+export interface AgentRunResult { readonly sessionId: string; readonly status: AgentSessionStatus; readonly action?: AgentAction; readonly proposalId?: string; readonly reason?: string; readonly model: string; readonly mode: AgentMode; readonly chainOperation?: { readonly operationId: string; readonly transactionHash: string | null; readonly status: "success" | "failure" | "unknown" }; }
 
 export interface AgentToolRequest {
   readonly methodName: "approve_settlement" | "dispute_settlement";

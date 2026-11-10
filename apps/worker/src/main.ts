@@ -2,17 +2,29 @@ import { readWorkerConfig } from "./config.ts";
 import { createWorkerHealthServer } from "./health-server.ts";
 import { openDatabase } from "@royaltydesk/persistence";
 import { WorkerAgentService } from "./agents/service.ts";
+import { reconcileSignedOperations } from "./reconciliation/signed-operations.ts";
 
 const config = readWorkerConfig();
 const database = openDatabase(config.databasePath);
 const agentService = new WorkerAgentService(database, config);
 const server = createWorkerHealthServer(config, agentService);
+let reconciling = false;
+async function reconcile(): Promise<void> {
+  if (reconciling) return;
+  reconciling = true;
+  try { await reconcileSignedOperations(database, process.env.NEAR_RPC_URL ?? "https://test.rpc.fastnear.com"); }
+  catch (error) { console.error("Chain reconciliation failed", error instanceof Error ? error.message : String(error)); }
+  finally { reconciling = false; }
+}
+const reconciliationTimer = setInterval(() => { void reconcile(); }, 15_000);
+void reconcile();
 
 server.listen(config.port, config.host, () => {
   console.log(`RoyaltyDesk worker listening on http://${config.host}:${config.port}`);
 });
 
 function shutdown(signal: string): void {
+  clearInterval(reconciliationTimer);
   console.log(`Received ${signal}; closing worker health server`);
   server.close((error) => {
     agentService.close();

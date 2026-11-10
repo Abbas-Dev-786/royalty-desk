@@ -1,6 +1,6 @@
 # RoyaltyDesk — Acceptance and Evidence Matrix
 
-Status: planned coverage; no implementation evidence recorded. See [master plan](MASTER_IMPLEMENTATION_PLAN.md).
+Status: Phase 00–08 evidence recorded; Phase 09 release handoff in progress. See [master plan](MASTER_IMPLEMENTATION_PLAN.md).
 
 The case IDs below are stable targets for test names and evidence reports. Implementation must cover every acceptance bullet in [FEATURES](../docs/FEATURES.md), including cases grouped in one row below. Add concrete test-file paths and phase evidence links when those files exist.
 
@@ -8,6 +8,24 @@ The case IDs below are stable targets for test names and evidence reports. Imple
 
 - [Phase 00 evidence](evidence/PHASE_00.md): offline worker and persistence foundation passes; external compatibility gates remain open.
 - [Phase 01 evidence](evidence/PHASE_01.md): AGR-01, MONEY-04, and CSV/parser normalization cases are verified with 32 passing domain tests. Rust parity remains a Phase 02 requirement.
+- [Phase 05 evidence](evidence/PHASE_05.md), [Phase 06 evidence](evidence/PHASE_06.md), [Phase 07 evidence](evidence/PHASE_07.md), and [Phase 08 evidence](evidence/PHASE_08.md): authenticated boundaries, encrypted private files, agreement/statement workflows, bounded agents, browser integration, rebuilt contract, sandbox, fault-injection, and live NEAR AI evidence are recorded.
+- [Phase 09 release artifacts](evidence/PHASE_09.md): release aggregator, artifact manifest, reproducibility instructions, and deployment/live-journey handoff are being finalized.
+
+## Concrete verification map
+
+| Acceptance area | Concrete implementation and evidence |
+| --- | --- |
+| F-01 identity and membership | `packages/persistence/tests/application.test.ts`, `apps/web/src/app/api/auth/*`, `scripts/test-sandbox.mjs`, [Phase 05](evidence/PHASE_05.md) |
+| F-02 personal agents | `apps/worker/tests/agents.test.ts`, `apps/worker/src/agents/*`, live NEAR AI result in [Phase 07](evidence/PHASE_07.md) |
+| F-03 negotiation/action bounds | `packages/domain/tests/schemas.test.ts`, durable agent proposal/session tables, [Phase 07](evidence/PHASE_07.md) |
+| F-04 agreements | `packages/domain/tests/canonical.test.ts`, `packages/persistence/tests/application.test.ts`, sandbox agreement unanimity/rejection checks |
+| F-05 mandates | contract authority suite in `scripts/sandbox/scenario.mjs`, mandate policy tests, revoked/expired/replaced checks in [Phase 07](evidence/PHASE_07.md) |
+| F-06 statements | `packages/domain/tests/statement-normalization.test.ts`, `packages/domain/tests/strict-parser.test.ts`, private statement route, [Phase 06](evidence/PHASE_06.md) |
+| F-07 settlement review | contract sandbox dispute/revision checks, settlement action route, browser owner workspace, [Phase 08](evidence/PHASE_08.md) |
+| F-08 funding/accounting | `packages/domain/tests/money.test.ts`, contract funding/finalization/refund checks, [Phase 03](evidence/PHASE_03.md) |
+| F-09 payouts/recovery | `scripts/test-sandbox.mjs`, `scripts/test-fault-injection.mjs`, `scripts/test-recovery.ts`, [Phase 04](evidence/PHASE_04.md) |
+| F-10 operational visibility | `apps/web/src/app/api/chain/operations/*`, `apps/web/src/components/ReleaseConsole.tsx`, `scripts/test-e2e.mjs` |
+| F-11 reproducible demo | `scripts/verify-release.mjs`, `README.md`, `plans/evidence/artifacts/release-manifest.json`, [Phase 09](evidence/PHASE_09.md) |
 
 | Feature | Implementation phase | Required verification cases | Evidence needed |
 | --- | --- | --- | --- |

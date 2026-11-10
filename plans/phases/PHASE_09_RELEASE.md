@@ -1,6 +1,8 @@
 # Phase 09 — Release Verification and Implementation Handoff
 
-Status: not started. Depends on: all required [Phases 00–08](../MASTER_IMPLEMENTATION_PLAN.md). Optional next: [Phase 10](PHASE_10_CONDITIONAL.md).
+Status: in_progress. Depends on: all required [Phases 00–08](../MASTER_IMPLEMENTATION_PLAN.md). Optional next: [Phase 10](PHASE_10_CONDITIONAL.md).
+
+Execution update: Phase 09 is in progress. Release tooling and evidence have been added; fresh-environment reproduction and live testnet receipts remain.
 
 ## Outcome and source basis
 

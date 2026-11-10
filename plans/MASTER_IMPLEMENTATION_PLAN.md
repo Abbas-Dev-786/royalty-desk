@@ -1,6 +1,6 @@
 # RoyaltyDesk — Master Implementation Plan
 
-Status: Phase 07–08 implemented and fully verified, including Docker contract, sandbox, fault-injection, and live NEAR AI evidence. Baseline inspected: 2026-11-10.
+Status: Phase 07–08 fully verified; Phase 09 release verification and handoff is in progress. Baseline inspected: 2026-11-10.
 
 This is the entry point for the coding harness. It translates the existing product documents into ordered, verifiable implementation work. Phases represent dependency milestones, not calendar commitments. Creating these plans does not implement or verify the product.
 
@@ -61,7 +61,7 @@ Update this table during implementation. Allowed states: `not_started`, `in_prog
 | 06 | verified | [Phase 06 evidence](evidence/PHASE_06.md) | Membership, immutable agreements, private statement revisions, settlement previews, and browser administration surface pass local checks |
 | 07 | verified | [Phase 07 evidence](evidence/PHASE_07.md) | Personal contexts, bounded NEAR AI/fixture orchestration, policy tools, worker API, and restricted dispatch pass local checks; live inference remains separately evidenced |
 | 08 | verified | [Phase 08 evidence](evidence/PHASE_08.md) | Integrated owner workspace, agent proxy, settlement state controls, receipt surface, and isolated e2e smoke pass local checks |
-| 09 | not_started | Not recorded | Depends on 00–08 |
+| 09 | in_progress | [Phase 09 evidence](evidence/PHASE_09.md) | Full release aggregator and artifact manifest pass; fresh-environment reproduction, deployment identity, and live testnet receipt evidence remain |
 | 10 | deferred | Not recorded | Optional; branch-specific prerequisites |
 
 ## Required architecture and file ownership

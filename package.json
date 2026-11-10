@@ -32,7 +32,8 @@
     "test:recovery": "node --experimental-strip-types scripts/test-recovery.ts",
     "test:e2e": "node scripts/test-e2e.mjs",
     "test:live": "node --env-file-if-exists=.env --experimental-strip-types apps/worker/src/near-ai/probe.ts",
-    "verify:release": "node scripts/not-implemented.mjs verify:release"
+    "verify:release": "node --env-file-if-exists=.env scripts/verify-release.mjs",
+    "release:manifest": "node --env-file-if-exists=.env scripts/release-manifest.mjs"
   },
   "allowScripts": {
     "sharp@0.34.5": true

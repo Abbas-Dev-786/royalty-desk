@@ -40,6 +40,8 @@ The manifest marks deployment verified only when the live verification artifact 
 
 ## Development
 
+The web workspace uses shadcn/ui with Tailwind CSS v4. Its configuration is in `apps/web/components.json`; generated components live in `apps/web/src/components/ui`. Add another component from that workspace with `npx shadcn@latest add <component>`.
+
 Run the web app and worker in separate terminals:
 
 ```powershell

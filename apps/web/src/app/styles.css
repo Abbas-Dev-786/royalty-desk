@@ -7,7 +7,7 @@
 
 * { box-sizing: border-box; }
 
-body { margin: 0; min-height: 100vh; }
+body { margin: 0; min-height: 100vh; background: #f5f2eb; }
 
 main { max-width: 78rem; margin: 0 auto; padding: 5rem 2rem 8rem; }
 
@@ -23,9 +23,9 @@ li { margin: 0.75rem 0; }
 
 .wallet-probe { display: grid; gap: 0.75rem; margin-top: 2rem; }
 
-button { width: fit-content; border: 1px solid #174b8e; border-radius: 0.25rem; padding: 0.75rem 1rem; background: #174b8e; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+button:not([data-slot]) { width: fit-content; border: 1px solid #174b8e; border-radius: 0.25rem; padding: 0.75rem 1rem; background: #174b8e; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
 
-button:disabled { cursor: wait; opacity: 0.65; }
+button:not([data-slot]):disabled { cursor: wait; opacity: 0.65; }
 
 .console { margin-top: 5rem; }
 .console-heading { display: flex; justify-content: space-between; gap: 2rem; align-items: end; margin-bottom: 1.5rem; }
@@ -41,9 +41,9 @@ button:disabled { cursor: wait; opacity: 0.65; }
 select { width: 100%; border: 1px solid #aeb4ba; border-radius: 0.15rem; background: #fff; color: #17202b; padding: 0.7rem; font: inherit; }
 .inline-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
 .action-row { display: flex; flex-wrap: wrap; gap: 0.65rem; }
-label { display: grid; gap: 0.35rem; color: #4e5963; font-size: 0.9rem; }
-input, textarea { width: 100%; border: 1px solid #aeb4ba; border-radius: 0.15rem; background: #fff; color: #17202b; padding: 0.7rem; font: inherit; }
-textarea { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.8rem; line-height: 1.4; }
+label:not([data-slot]) { display: grid; gap: 0.35rem; color: #4e5963; font-size: 0.9rem; }
+input:not([data-slot]), textarea:not([data-slot]) { width: 100%; border: 1px solid #aeb4ba; border-radius: 0.15rem; background: #fff; color: #17202b; padding: 0.7rem; font: inherit; }
+textarea:not([data-slot]) { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.8rem; line-height: 1.4; }
 .secondary { background: transparent; color: #174b8e; }
 .result { min-height: 5rem; margin: 1rem 0 0; padding: 1rem; overflow: auto; background: #17202b; color: #dce7f2; font-size: 0.78rem; line-height: 1.45; }
 .result.error { color: #ffb4a9; }

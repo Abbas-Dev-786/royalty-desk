@@ -44,8 +44,7 @@ export function ReleaseConsole() {
   const [releaseId, setReleaseId] = useState("release-demo");
   const [funderId, setFunderId] = useState("funder.testnet");
   const [recordingId, setRecordingId] = useState("recording-demo");
-  const [ownerIds, setOwnerIds] = useState("alice.testnet,bob.testnet,carol.testnet");
-  const [inviteId, setInviteId] = useState("collaborator.testnet");
+  const [ownerIds, setOwnerIds] = useState("");
   const [agreement, setAgreement] = useState(sampleAgreement);
   const [statement, setStatement] = useState(sampleCsv);
   const [result, setResult] = useState<Result>({ message: "Connect a wallet, then choose an owner action." });
@@ -109,13 +108,12 @@ export function ReleaseConsole() {
           <label>Release identifier<input value={releaseId} onChange={(event) => setReleaseId(event.target.value)} /></label>
           <label>Registered funder<input value={funderId} onChange={(event) => setFunderId(event.target.value)} /></label>
           <label>Recording identifier<input value={recordingId} onChange={(event) => setRecordingId(event.target.value)} /></label>
-          <label>Owner account IDs, comma separated<input value={ownerIds} onChange={(event) => setOwnerIds(event.target.value)} /></label>
+          <label>Owner account IDs, comma separated<input value={ownerIds} onChange={(event) => setOwnerIds(event.target.value)} placeholder="owner-one.testnet,owner-two.testnet" /></label>
+          <p>Enter 2–5 real owner accounts before creation. Include your connected account if you are also an owner; the administrator may be separate. The on-chain owner list cannot be changed later.</p>
           <button disabled={busy || !accountId} onClick={() => run(async () => { const submitted = await request("/api/releases", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ releaseId, recordingId, funderId, invitedOwnerIds: ownerIds.split(",").map((id) => id.trim()).filter(Boolean) }) }); if (submitted.error) return submitted; return request("/api/releases/confirm", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ releaseId }) }); })}>Create release on testnet</button>
           <button className="secondary" disabled={busy || !accountId} onClick={() => run(() => request("/api/releases/confirm", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ releaseId }) }))}>Confirm existing on-chain release</button>
           <button className="secondary" disabled={busy || !accountId} onClick={() => run(refreshChainRelease)}>Read release from contract</button>
-          <label>Invite an owner<input value={inviteId} onChange={(event) => setInviteId(event.target.value)} /></label>
-          <button className="secondary" disabled={busy} onClick={() => run(() => request(`/api/releases/${encodeURIComponent(releaseId)}/invitations`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ accountId: inviteId, role: "owner" }) }))}>Invite collaborator</button>
-          <button className="secondary" disabled={busy || !accountId} onClick={() => run(() => request(`/api/releases/${encodeURIComponent(releaseId)}/invitations`, { method: "PUT" }))}>Accept my invitation on testnet</button>
+          <button className="secondary" disabled={busy || !accountId} onClick={() => run(() => request(`/api/releases/${encodeURIComponent(releaseId)}/invitations`, { method: "PUT" }))}>Accept my owner invitation on testnet</button>
           <button className="secondary" disabled={busy || !accountId} onClick={() => run(() => request(`/api/releases/${encodeURIComponent(releaseId)}/invitations/confirm`, { method: "POST" }))}>Confirm my membership</button>
         </div>
         <div className="control-panel wide">

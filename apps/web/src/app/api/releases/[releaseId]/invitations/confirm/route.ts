@@ -10,7 +10,7 @@ export async function POST(request: Request, context: { params: Promise<{ releas
     const { releaseId } = await context.params;
     const user = await currentUser();
     if (!user) return Response.json({ error: "ERR_UNAUTHORIZED" }, { status: 401 });
-    const local = getMembership(getAppDatabase(), releaseId, user.accountId, ["owner", "funder"], "invited");
+    const local = getMembership(getAppDatabase(), releaseId, user.accountId, ["owner"], "invited");
     if (!local || local.status !== "invited") return Response.json({ error: "ERR_INVITATION" }, { status: 403 });
     const contractId = process.env.NEXT_PUBLIC_CONTRACT_ID;
     if (!contractId || !contractId.endsWith(".testnet")) return Response.json({ error: "ERR_CHAIN_CONFIG" }, { status: 503 });

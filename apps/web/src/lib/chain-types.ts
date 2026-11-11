@@ -40,6 +40,7 @@ export interface ChainSettlement {
   readonly allocation_preview_hash: string;
   readonly status: string;
   readonly total_deposited_yocto: string;
+  readonly unallocated_yocto: string;
   readonly refundable_yocto: string;
   readonly unpaid_entitlements_yocto: string;
   readonly in_flight_yocto: string;

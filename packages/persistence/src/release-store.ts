@@ -26,8 +26,8 @@ export function getMembership(database: DatabaseSync, releaseId: string, account
   return rows.map(mapMembership).find((membership) => membership && (!roles || roles.includes(membership.role)) && (!status || membership.status === status));
 }
 
-export function importStatement(database: DatabaseSync, input: { readonly releaseId: string; readonly csv: string | Uint8Array; readonly importedBy: string; readonly approvedRecoupmentCode?: string | null; readonly persistOriginal?: (storageKey: string, bytes: Uint8Array) => void }): StoredStatement {
-  const parsed = importStatementCsv(input.csv, input.approvedRecoupmentCode ?? null);
+export function importStatement(database: DatabaseSync, input: { readonly releaseId: string; readonly csv: string | Uint8Array; readonly importedBy: string; readonly approvedRecoupmentCode?: string | null; readonly remainingRecoupmentYocto?: bigint | null; readonly persistOriginal?: (storageKey: string, bytes: Uint8Array) => void }): StoredStatement {
+  const parsed = importStatementCsv(input.csv, input.approvedRecoupmentCode ?? null, input.remainingRecoupmentYocto ?? null);
   const existing = database.prepare(`SELECT release_id, period, revision, statement_id, recording_id, raw_hash, normalized_hash, gross_yocto, validation_json, storage_key, imported_by FROM statement_imports WHERE release_id = ? AND period = ? AND normalized_hash = ?`).get(input.releaseId, parsed.period, parsed.normalizedHash) as Record<string, unknown> | undefined;
   if (existing) return deserializeStatement(existing);
   const revisionRow = database.prepare(`SELECT COALESCE(MAX(CAST(revision AS INTEGER)), 0) AS revision FROM statement_imports WHERE release_id = ? AND period = ?`).get(input.releaseId, parsed.period) as { revision?: number } | undefined;

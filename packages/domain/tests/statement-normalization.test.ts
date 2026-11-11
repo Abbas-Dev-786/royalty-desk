@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { DomainError } from "../src/errors.ts";
 import { escapeSpreadsheetCell, normalizeStatementRecords, STATEMENT_HEADERS } from "../src/statements/normalize.ts";
+import { U128_MAX, YOCTO_PER_NEAR } from "../src/limits.ts";
 
 function simpleFixtureRecords(name: string): { readonly records: readonly (readonly string[])[]; readonly bytes: Uint8Array } {
   const bytes = readFileSync(new URL(`../../../fixtures/statements/${name}`, import.meta.url));
@@ -35,12 +36,32 @@ test("CSV-03 duplicate lines and invalid amount records are rejected", () => {
   }
 });
 
+test("CSV-03 aggregate revenue cannot exceed u128 even when each row is valid", () => {
+  const maximum = `${U128_MAX / YOCTO_PER_NEAR}.${String(U128_MAX % YOCTO_PER_NEAR).padStart(24, "0")}`;
+  const records = [STATEMENT_HEADERS, ["stmt", "a", "2026-10", "recording", "platform", "revenue", maximum, "NEAR", "", ""], ["stmt", "b", "2026-10", "recording", "platform", "revenue", "0.000000000000000000000001", "NEAR", "", ""]];
+  assert.throws(() => normalizeStatementRecords(records, new Uint8Array()), { code: "ERR_AMOUNT_OVERFLOW" });
+});
+
 test("CSV-04 unsupported deduction remains evidence and blocks payable status", () => {
   const source = simpleFixtureRecords("unsupported-claim.csv");
   const result = normalizeStatementRecords(source.records, source.bytes, "advance-v1");
   assert.equal(result.grossYocto, "10000000000000000000000000");
   assert.deepEqual(result.unsupportedClaimLineIds, ["ded-001"]);
   assert.equal(result.payable, false);
+});
+
+test("CSV-04 an approved recoupment claim must match the deterministic remaining amount", () => {
+  const source = simpleFixtureRecords("unsupported-claim.csv");
+  const claim = source.records.find((row) => row[5] === "deduction_claim");
+  assert.ok(claim);
+  const code = claim[8] ?? "";
+  const amount = claim[6] ?? "";
+  const [whole, fraction = ""] = amount.split(".");
+  const expected = BigInt(whole ?? "0") * YOCTO_PER_NEAR + BigInt(fraction.padEnd(24, "0"));
+  const supported = normalizeStatementRecords(source.records, source.bytes, code, expected);
+  assert.equal(supported.payable, true);
+  assert.equal(normalizeStatementRecords(source.records, source.bytes, code, expected + 1n).payable, false);
+  assert.equal(normalizeStatementRecords(source.records, source.bytes, code).payable, false);
 });
 
 test("CSV-05 strict headers and row bounds are enforced", () => {

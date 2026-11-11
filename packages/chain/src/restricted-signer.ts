@@ -40,11 +40,12 @@ export class RestrictedSigner {
       updateChainOperation(this.#options.database, input.operationId, { status: "signed", signedIdentity: Buffer.from(signed.encode()).toString("base64"), transactionHash });
       const response = await this.#options.account.provider.sendTransactionUntil(signed, "FINAL");
       const failed = typeof response.status === "object" && response.status !== null && "Failure" in response.status;
-      updateChainOperation(this.#options.database, input.operationId, { status: failed ? "failure" : "success", transactionHash });
-      return { operationId: input.operationId, transactionHash, status: failed ? "failure" : "success" };
+      const transfer = input.methodName === "execute_payout" || input.methodName === "withdraw_refundable";
+      updateChainOperation(this.#options.database, input.operationId, { status: transfer ? "reconciling" : failed ? "failure" : "success", transactionHash });
+      return { operationId: input.operationId, transactionHash, status: transfer ? "unknown" : failed ? "failure" : "success" };
     } catch (error) {
       updateChainOperation(this.#options.database, input.operationId, { status: "unknown", lastError: error instanceof Error ? error.message.slice(0, 256) : "ERR_RPC_UNKNOWN" });
-      return { operationId: input.operationId, transactionHash: null, status: "unknown" };
+      return { operationId: input.operationId, transactionHash: getChainOperation(this.#options.database, input.operationId)?.transactionHash ?? null, status: "unknown" };
     } finally {
       releaseQueue();
       if (queues.get(this.#options.keyId) === queued) queues.delete(this.#options.keyId);

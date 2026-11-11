@@ -17,8 +17,9 @@ function decodeCsv(input: string | Uint8Array): { readonly text: string; readonl
 
 export function importStatementCsv(
   input: string | Uint8Array,
-  approvedRecoupmentCode: string | null = null
+  approvedRecoupmentCode: string | null = null,
+  remainingRecoupmentYocto: bigint | null = null
 ): StatementImportResult {
   const { text, bytes } = decodeCsv(input);
-  return normalizeStatementRecords(parseStrictCsv(text), bytes, approvedRecoupmentCode);
+  return normalizeStatementRecords(parseStrictCsv(text), bytes, approvedRecoupmentCode, remainingRecoupmentYocto);
 }

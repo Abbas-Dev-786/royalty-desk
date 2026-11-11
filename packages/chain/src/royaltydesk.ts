@@ -1,5 +1,6 @@
 import type { Account, Provider } from "near-api-js";
 import { actions, getTransactionLastResult } from "near-api-js";
+import { interpretTransfer, type TransferEvidence } from "./transfer-outcome.ts";
 
 export type YoctoAmount = string;
 export type ChainTransactionResponse = Awaited<ReturnType<Account["signAndSendTransaction"]>>;
@@ -62,7 +63,9 @@ export class RoyaltyDeskClient {
   }
 }
 
-export function interpretReceipt(operation: ChainOperationDescriptor, response: ChainTransactionResponse, callbackCompleted: boolean): ChainReceiptInterpretation {
+export function interpretReceipt(operation: ChainOperationDescriptor, response: ChainTransactionResponse, evidence: Omit<TransferEvidence, "transactionHash" | "transactionIncluded" | "transactionFailed">): ChainReceiptInterpretation {
   const failed = typeof response.status === "object" && response.status !== null && "Failure" in response.status;
-  return { operationId: operation.operationId, transactionHash: response.transaction?.hash ?? null, included: true, callbackCompleted, succeeded: !failed && callbackCompleted, reconciliationRequired: !failed && !callbackCompleted, error: failed ? JSON.stringify(response.status) : null };
+  const kind = operation.action === "withdraw_refundable" ? "refund" : "payout";
+  const result = interpretTransfer({ ...evidence, transactionHash: response.transaction?.hash ?? null, transactionIncluded: true, transactionFailed: failed }, kind);
+  return { operationId: operation.operationId, transactionHash: result.transactionHash, included: result.included, callbackCompleted: result.callbackCompleted, succeeded: result.status === "paid" || result.status === "refunded", reconciliationRequired: result.status === "reconciliation_required", error: result.status === "failed" ? (failed ? JSON.stringify(response.status) : "Transfer failed; contract restored the obligation") : null };
 }

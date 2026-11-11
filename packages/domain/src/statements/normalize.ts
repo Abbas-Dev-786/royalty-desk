@@ -1,5 +1,6 @@
 import { DomainError } from "../errors.ts";
 import { DOMAIN_LIMITS } from "../limits.ts";
+import { U128_MAX } from "../limits.ts";
 import { canonicalJson } from "../canonical/canonical-json.ts";
 import { sha256Hex } from "../canonical/commitments.ts";
 import { parseStatementRow } from "../schemas/statement.ts";
@@ -24,7 +25,8 @@ export interface StatementImportResult {
 export function normalizeStatementRecords(
   records: readonly (readonly string[])[],
   rawBytes: Uint8Array,
-  approvedRecoupmentCode: string | null = null
+  approvedRecoupmentCode: string | null = null,
+  remainingRecoupmentYocto: bigint | null = null
 ): StatementImportResult {
   if (records.length < 2) throw new DomainError("ERR_CSV_ROWS", "Statement needs a header and at least one row", "$statement");
   const header = records[0];
@@ -49,9 +51,12 @@ export function normalizeStatementRecords(
   }
   const normalizedRows = [...rows].sort((left, right) => left.lineId < right.lineId ? -1 : left.lineId > right.lineId ? 1 : 0);
   const grossYocto = normalizedRows.filter((row) => row.rowType === "revenue").reduce((sum, row) => sum + BigInt(row.amountYocto), 0n);
-  const unsupportedClaimLineIds = normalizedRows
-    .filter((row) => row.rowType === "deduction_claim" && row.deductionCode !== approvedRecoupmentCode)
-    .map((row) => row.lineId);
+  if (grossYocto > U128_MAX) throw new DomainError("ERR_AMOUNT_OVERFLOW", "Total revenue exceeds the contract amount limit", "$statement.gross");
+  const claims = normalizedRows.filter((row) => row.rowType === "deduction_claim");
+  const expectedClaim = remainingRecoupmentYocto === null ? null : grossYocto < remainingRecoupmentYocto ? grossYocto : remainingRecoupmentYocto;
+  const claimedYocto = claims.reduce((sum, row) => sum + BigInt(row.amountYocto), 0n);
+  const validClaim = claims.length === 0 || (approvedRecoupmentCode !== null && expectedClaim !== null && claimedYocto === expectedClaim && claims.every((row) => row.deductionCode === approvedRecoupmentCode));
+  const unsupportedClaimLineIds = validClaim ? [] : claims.map((row) => row.lineId);
   const normalizedValue = {
     schema: "statement/v1",
     statementId: first.statementId,

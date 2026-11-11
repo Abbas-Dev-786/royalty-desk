@@ -2,6 +2,20 @@ import { requireOrigin } from "@/server/runtime";
 import { currentUser, getAppDatabase } from "@/server/runtime";
 import { parseReleaseDefinition } from "@royaltydesk/domain";
 
+export async function GET(): Promise<Response> {
+  const user = await currentUser();
+  if (!user) return Response.json({ error: "ERR_UNAUTHORIZED" }, { status: 401 });
+  const rows = getAppDatabase().prepare("SELECT release_id, role, status FROM release_memberships WHERE account_id = ? AND status != 'revoked' ORDER BY release_id, role").all(user.accountId) as unknown as readonly { release_id: string; role: string; status: string }[];
+  const releases = new Map<string, { releaseId: string; roles: string[]; invited: boolean }>();
+  for (const row of rows) {
+    const entry = releases.get(row.release_id) ?? { releaseId: row.release_id, roles: [], invited: false };
+    entry.roles.push(row.role);
+    entry.invited ||= row.status === "invited" && row.role === "owner";
+    releases.set(row.release_id, entry);
+  }
+  return Response.json([...releases.values()]);
+}
+
 export async function POST(request: Request): Promise<Response> {
   try {
     requireOrigin(request);

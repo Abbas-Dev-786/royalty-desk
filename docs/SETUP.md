@@ -192,7 +192,7 @@ $env:NEXT_PUBLIC_CONTRACT_ID = "royaltydesk-dev.testnet"
 npm run dev:web
 ```
 
-Open `http://localhost:3000` and run the testnet wallet signature probe with a wallet that supports NEP-413 message signing. The wallet probe signs a challenge that the server verifies before creating an application session.
+Open `http://localhost:3000` and choose **Connect wallet** with a wallet that supports NEP-413 message signing. The app signs a login challenge that the server verifies before creating an application session. The home page lists releases linked to that wallet; use **Create a release** to begin a new one, then follow the Overview, Agreement, Statements, Payments, and My agent pages.
 
 For Phase 00 evidence, record the wallet/network selected, whether the signing prompt appeared, and whether the request was approved or declined. Do not record the signed payload, cookies, or wallet keys. A source-level probe or mocked wallet is not browser evidence.
 

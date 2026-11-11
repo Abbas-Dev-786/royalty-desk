@@ -53,7 +53,7 @@ Delegated agent actions require `ROYALTYDESK_AGENT_KEYSTORE_PATH` and a private 
 
 The worker saves signed transaction bytes and hash before broadcast. An ambiguous outcome remains pending reconciliation and is never sent again under the same operation ID. The worker checks pending transaction identities at startup and every 15 seconds.
 
-Open the web URL, connect a testnet wallet, and use the owner workspace. The worker accepts only loopback agent requests protected by `ROYALTYDESK_WORKER_TOKEN` when configured.
+Open the web URL and connect a testnet wallet. The workspace separates release creation, owner invitations, agreements, statements, payments, and agent permissions into guided pages. The worker accepts only loopback agent requests protected by `ROYALTYDESK_WORKER_TOKEN` when configured.
 
 ## Verification
 

@@ -22,8 +22,7 @@ export async function POST(request: Request): Promise<Response> {
       const existing = database.prepare("SELECT account_id FROM release_memberships WHERE release_id = ? AND role = 'administrator' LIMIT 1").get(body.releaseId) as { account_id?: string } | undefined;
       if (existing && existing.account_id !== user.accountId) throw new Error("ERR_RELEASE_EXISTS");
       upsertMembership(database, { releaseId: body.releaseId, accountId: user.accountId, role: "administrator", status: "accepted" });
-      const funderAccepted = release.funder_id === user.accountId || getMembership(database, body.releaseId, release.funder_id, ["funder"], "accepted") !== undefined;
-      upsertMembership(database, { releaseId: body.releaseId, accountId: release.funder_id, role: "funder", status: funderAccepted ? "accepted" : "invited" });
+      upsertMembership(database, { releaseId: body.releaseId, accountId: release.funder_id, role: "funder", status: "accepted" });
       for (const ownerId of release.invited_owner_ids) {
         const ownerAccepted = getMembership(database, body.releaseId, ownerId, ["owner"], "accepted") !== undefined;
         upsertMembership(database, { releaseId: body.releaseId, accountId: ownerId, role: "owner", status: ownerAccepted ? "accepted" : "invited" });

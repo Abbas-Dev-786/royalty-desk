@@ -114,6 +114,14 @@ export function addStudioPublication(database: DatabaseSync, input: { readonly w
   database.prepare("INSERT INTO studio_publications(work_id, work_version, chain_commitment, policy_version, published_at_ms) VALUES (?, ?, ?, ?, ?)").run(input.workId, input.workVersion, input.chainCommitment, input.policyVersion, nowMs);
 }
 
+export function recordStudioPublicationReceipt(database: DatabaseSync, input: { readonly workId: string; readonly workVersion: number; readonly chainCommitment: string; readonly transactionHash: string; readonly signerAccountId: string }): void {
+  if (!/^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(input.transactionHash)) throw new Error("Invalid publication transaction hash");
+  requireAccountId(input.signerAccountId);
+  const publication = database.prepare("SELECT chain_commitment, chain_tx_hash FROM studio_publications WHERE work_id = ? AND work_version = ?").get(input.workId, input.workVersion) as { chain_commitment: string; chain_tx_hash: string | null } | undefined;
+  if (!publication || publication.chain_commitment !== input.chainCommitment || (publication.chain_tx_hash && publication.chain_tx_hash !== input.transactionHash)) throw new Error("Publication receipt mismatch");
+  database.prepare("UPDATE studio_publications SET chain_tx_hash = ?, published_by_account_id = ? WHERE work_id = ? AND work_version = ?").run(input.transactionHash, input.signerAccountId, input.workId, input.workVersion);
+}
+
 export function addStudioEntitlement(database: DatabaseSync, input: { readonly revenueId: string; readonly agentId: string; readonly amountYocto: string }): void {
   parseYocto(input.amountYocto);
   const match = database.prepare("SELECT 1 FROM studio_revenue_events r JOIN studio_works w ON w.id = r.work_id JOIN studio_agents a ON a.studio_id = w.studio_id WHERE r.id = ? AND r.state = 'finalized' AND a.id = ?").get(input.revenueId, input.agentId);

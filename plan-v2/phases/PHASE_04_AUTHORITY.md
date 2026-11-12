@@ -1,6 +1,6 @@
 # Phase 04 — NEAR authority and publication commitments
 
-Depends on: 01–03. Status: not_started. Outcome: contract-enforced identity, approval policy and immutable release commitments.
+Depends on: 01–03. Status: verified. Outcome: contract-enforced identity, approval policy and immutable release commitments. See [Phase 04 evidence](../evidence/PHASE_04.md).
 
 ## Tasks
 

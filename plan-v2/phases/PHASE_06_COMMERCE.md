@@ -1,6 +1,6 @@
 # Phase 06 — purchases, tips and refunds
 
-Depends on: 04–05. Status: not_started. Outcome: real listener payments create exactly one recognized revenue event each.
+Depends on: 04–05. Status: real catalogue purchases and tips passed on live testnet; owner browser checkout observations pending. Outcome: real listener payments create exactly one recognized revenue event each. See [Phase 06 evidence](../evidence/PHASE_06.md).
 
 ## Tasks
 

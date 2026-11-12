@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
-export const CURRENT_SCHEMA_VERSION = 11;
+export const CURRENT_SCHEMA_VERSION = 13;
 
 export function openDatabase(path: string): DatabaseSync {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
@@ -464,6 +464,37 @@ export function openDatabase(path: string): DatabaseSync {
         cleared_at_ms INTEGER
       ) STRICT;
       INSERT INTO schema_migrations(version, applied_at_ms) VALUES (11, strftime('%s','now') * 1000);
+      COMMIT;
+    `);
+  }
+  if (version < 12) {
+    database.exec(`
+      BEGIN IMMEDIATE;
+      CREATE TABLE studio_orders (
+        payment_id TEXT PRIMARY KEY,
+        work_id TEXT NOT NULL,
+        work_version INTEGER NOT NULL,
+        buyer_account_id TEXT NOT NULL,
+        kind TEXT NOT NULL CHECK(kind IN ('purchase','tip')),
+        amount_yocto TEXT NOT NULL,
+        commitment TEXT NOT NULL CHECK(length(commitment) = 64),
+        quote_expires_at_ms INTEGER NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('requested','submitted','unknown','finalized','refunded','failed','expired')),
+        transaction_hash TEXT,
+        created_at_ms INTEGER NOT NULL,
+        updated_at_ms INTEGER NOT NULL
+      ) STRICT;
+      CREATE INDEX studio_orders_buyer_active ON studio_orders(buyer_account_id, work_id, work_version, kind, status);
+      INSERT INTO schema_migrations(version, applied_at_ms) VALUES (12, strftime('%s','now') * 1000);
+      COMMIT;
+    `);
+  }
+  if (version < 13) {
+    database.exec(`
+      BEGIN IMMEDIATE;
+      ALTER TABLE studio_publications ADD COLUMN chain_tx_hash TEXT;
+      ALTER TABLE studio_publications ADD COLUMN published_by_account_id TEXT;
+      INSERT INTO schema_migrations(version, applied_at_ms) VALUES (13, strftime('%s','now') * 1000);
       COMMIT;
     `);
   }

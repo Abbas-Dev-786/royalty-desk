@@ -17,7 +17,7 @@ const agentPublicKey = "ed25519:FrguQGMteswgLqMKLuDgusM2sNQL61kFWvR5VMNbhp9r";
 const grossYocto = "100000000000000000000000";
 const recoupmentCapYocto = "20000000000000000000000";
 const journalPath = resolve("plans/evidence/artifacts/live-testnet-journey.json");
-const provider = new JsonRpcProvider({ url: process.env.NEAR_RPC_URL ?? "https://test.rpc.fastnear.com" });
+const provider = new JsonRpcProvider({ url: process.env.NEAR_RPC_URL ?? "https://testnet-rpc.intea.rs" });
 
 const rules = parseAgreementRules({
   schemaVersion: "1", releaseId, recordingId, effectivePeriod: period,

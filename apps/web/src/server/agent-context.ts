@@ -57,7 +57,7 @@ export async function buildAuthorizedAgentContext(database: ReturnType<typeof im
   let mandate: Mandate | undefined;
   let chainSettlement: SettlementView | undefined;
   if (contractId && contractId.endsWith(".testnet")) {
-    const provider = new JsonRpcProvider({ url: process.env.NEAR_RPC_URL ?? "https://test.rpc.fastnear.com" });
+    const provider = new JsonRpcProvider({ url: process.env.NEAR_RPC_URL ?? "https://testnet-rpc.intea.rs" });
     const release = await provider.callFunction<ReleaseView>({ contractId, method: "get_release", args: { release_id: releaseId } });
     mandate = release?.mandates?.find((entry) => entry.owner_id === ownerAccountId && !entry.revoked);
     if (period && projection) chainSettlement = await provider.callFunction<SettlementView>({ contractId, method: "get_settlement", args: { release_id: releaseId, period } });

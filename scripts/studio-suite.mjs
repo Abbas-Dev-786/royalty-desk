@@ -8,7 +8,7 @@ const paths = {
   agents: ["apps/worker/tests/studio-agents.test.ts"],
   media: ["apps/worker/tests/studio-media.test.ts"],
   sandbox: ["tests/studio/sandbox"],
-  server: ["tests/studio/server"],
+  server: ["apps/web/tests/studio-web.test.ts", "tests/studio/server"],
   e2e: ["tests/studio/e2e"]
 };
 if (!Object.hasOwn(paths, suite)) throw new Error(`Unknown studio suite: ${suite}`);

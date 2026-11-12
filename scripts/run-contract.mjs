@@ -3,9 +3,11 @@ import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
 const operation = process.argv[2] ?? "test";
+const contractName = process.argv[3] ?? "royaltydesk";
 const root = process.cwd();
 const image = process.env.ROYALTYDESK_CONTRACT_IMAGE ?? "royaltydesk-contract-toolchain:dev";
-const lockfile = resolve(root, "contracts/royaltydesk/Cargo.lock");
+if (!new Set(["royaltydesk", "studio"]).has(contractName)) throw new Error("Unsupported contract name");
+const lockfile = resolve(root, `contracts/${contractName}/Cargo.lock`);
 
 if (!new Set(["test", "build"]).has(operation)) {
   console.error(`Unsupported contract operation: ${operation}. Use test or build.`);
@@ -63,7 +65,7 @@ const result = run("docker", [
   "--mount",
   "type=volume,source=royaltydesk-cargo-git,target=/usr/local/cargo/git",
   "--workdir",
-  "/workspace/contracts/royaltydesk",
+  `/workspace/contracts/${contractName}`,
   "--env",
   "CARGO_TERM_COLOR=always",
   image,

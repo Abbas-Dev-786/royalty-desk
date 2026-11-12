@@ -1,6 +1,6 @@
 # Agent-led music studio: master implementation plan v2
 
-Status: implementation underway; Phases 00–02 are verified at the working-tree revision. Created 2026-11-11 from the owner's stated vision. The earlier `plans/` phase checkmarks apply to a different royalty-administration prototype. This folder is the execution source for the new product; [product vision](../docs/PRODUCT_VISION_ALIGNMENT.md), [NEAR strategy](../docs/NEAR_INTEGRATION_STRATEGY.md), and [creative stack decision](../docs/CREATIVE_AGENT_AND_AUDIO_STACK.md) supply context. User instructions take precedence.
+Status: implementation underway; Phases 00–04 are verified at the working-tree revision. Created 2026-11-11 from the owner's stated vision. The earlier `plans/` phase checkmarks apply to a different royalty-administration prototype. This folder is the execution source for the new product; [product vision](../docs/PRODUCT_VISION_ALIGNMENT.md), [NEAR strategy](../docs/NEAR_INTEGRATION_STRATEGY.md), and [creative stack decision](../docs/CREATIVE_AGENT_AND_AUDIO_STACK.md) supply context. User instructions take precedence.
 
 ## Product outcome
 
@@ -8,7 +8,7 @@ At least two distinct AI agents collaborate to create two playable songs, assemb
 
 ## Decisions and release gates
 
-- **Music rights and vocals:** ElevenLabs Music v2.5 is the selected full-song generator for the demo because it produced two owner-approved sung songs. The owner attests written permission for testnet catalogue playback, purchases, tips and downloads; the agreement document was not inspected in this workspace. [ElevenLabs Music Terms](https://elevenlabs.io/music-terms) require express written authorization for a Starter music library. Keep the assets private until the publication workflow verifies the rights reference and its scope. Stability AI Stable Audio 3 remains an optional instrumental generator.
+- **Music rights and vocals:** ElevenLabs Music v2.5 produced two owner-approved sung songs. The owner confirmed private permission for testnet catalogue playback, purchases, tips and downloads, recorded under `owner-confirmed-private-permission`; the agreement document was not inspected in this workspace. The two songs and album are published on testnet. Stability AI Stable Audio 3 remains an optional instrumental generator.
 - **Reasoning and orchestration:** NEAR AI Cloud is the proposed reasoning provider; LangGraph.js is the proposed creative-workflow engine inside `apps/worker`. Validate current APIs in Phase 00. The application/contract, not an LLM, enforce authority and money rules.
 - **Economic source:** Native testnet NEAR purchase and tip payments are the first complete path. Prices, fees, refund rules, album allocation and agent recipient custody must be decided and versioned in Phase 00. Mainnet use requires a separate treasury/security decision.
 - **Storage:** Media remains off-chain in durable private/public storage as appropriate; the contract stores only bounded commitments and financial state. See [NEAR storage guidance](https://docs.near.org/smart-contracts/anatomy/storage).
@@ -78,10 +78,10 @@ States: `not_started`, `in_progress`, `blocked`, `verified`. This table describe
 | 00 | verified | [Phase 00 evidence](evidence/PHASE_00.md) | Provider decision updated in [decision 0004](../docs/decisions/0004-stability-audio.md) |
 | 01 | verified | [Phase 01 evidence](evidence/PHASE_01.md) | V2-02-01 |
 | 02 | verified | [Phase 02 evidence](evidence/PHASE_02.md) | V2-03-01 |
-| 03 | verified | [Phase 03 evidence](evidence/PHASE_03.md) | Two live sung songs and private accepted album; Phase 05 must verify the written rights reference before public catalogue release |
-| 04 | not_started | None | V2-04-01 |
-| 05 | not_started | None | V2-05-01 |
-| 06 | not_started | None | V2-06-01 |
+| 03 | verified | [Phase 03 evidence](evidence/PHASE_03.md) | Two live sung songs and accepted album; owner-confirmed testnet publication completed in Phase 05 |
+| 04 | verified | [Phase 04 evidence](evidence/PHASE_04.md) | Isolated studio contract, sandbox authority matrix and live scoped agent keys passed |
+| 05 | in_progress | [Phase 05 evidence](evidence/PHASE_05.md) | Real two-song album published on testnet; catalogue and range-media HTTP checks passed; owner browser playback/mobile checks pending |
+| 06 | in_progress | [Phase 06 evidence](evidence/PHASE_06.md) | Real album/song purchases and tips finalized on testnet; owner reports web song purchase/tip work; album and remaining browser checks pending |
 | 07 | not_started | None | V2-07-01 |
 | 08 | not_started | None | V2-08-01 |
 | 09 | not_started | None | V2-09-01 |

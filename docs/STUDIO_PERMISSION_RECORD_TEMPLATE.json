@@ -1,0 +1,15 @@
+{
+  "basis": "owner-confirmed-private-permission",
+  "reference": "owner-confirmation-YYYY-MM-DD",
+  "studioAccountId": "REPLACE_WITH_STUDIO_CONTRACT_ACCOUNT_ID",
+  "confirmedAtUtc": "REPLACE_WITH_CONFIRMATION_DATE_UTC",
+  "testnetOnly": true,
+  "coveredUses": {
+    "musicLibrary": true,
+    "musicStreamingDistribution": true,
+    "publicPlayback": true,
+    "paidPurchases": true,
+    "tips": true,
+    "downloads": true
+  }
+}

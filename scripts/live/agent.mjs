@@ -26,7 +26,7 @@ const rules = parseAgreementRules({
   ],
   recoupment: { code: "advance-live", beneficiaryId: owner1, capYocto: "20000000000000000000000" }
 });
-const provider = new JsonRpcProvider({ url: process.env.NEAR_RPC_URL ?? "https://test.rpc.fastnear.com" });
+const provider = new JsonRpcProvider({ url: process.env.NEAR_RPC_URL ?? "https://testnet-rpc.intea.rs" });
 const [chainRelease, chainSettlement] = await Promise.all([
   provider.callFunction({ contractId: journal.contractId, method: "get_release", args: { release_id: journal.releaseId }, finality: "final" }),
   provider.callFunction({ contractId: journal.contractId, method: "get_settlement", args: { release_id: journal.releaseId, period: journal.period }, finality: "final" })

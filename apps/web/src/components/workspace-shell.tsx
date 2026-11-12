@@ -11,7 +11,7 @@ export function WorkspaceShell({ children }: Readonly<{ children: React.ReactNod
       </header>
       <div className="app-body">
         <aside className="app-sidebar" aria-label="Main navigation">
-          <div className="sidebar-group"><p className="sidebar-caption">Workspace</p><Link href="/" className="sidebar-link">All releases</Link><Link href="/releases/new" className="sidebar-link">Create a release <ArrowUpRight size={14} /></Link></div>
+          <div className="sidebar-group"><p className="sidebar-caption">Music studio</p><Link href="/studio" className="sidebar-link">Explore music</Link><p className="sidebar-caption">Royalty workspace</p><Link href="/" className="sidebar-link">All releases</Link><Link href="/releases/new" className="sidebar-link">Create a release <ArrowUpRight size={14} /></Link></div>
           <div className="sidebar-help"><strong>New to RoyaltyDesk?</strong><p>Start with a release. Owners then accept an invitation, agree on shares, and review each payment period.</p></div>
         </aside>
         <main className="app-main" id="main-content">{children}</main>

@@ -1,6 +1,6 @@
 # Phase 05 — catalogue, albums and playback
 
-Depends on: 03–04. Status: not_started. Outcome: a visitor can discover and play published songs and a two-track album.
+Depends on: 03–04. Status: published on testnet; owner browser observations pending. Outcome: a visitor can discover and play published songs and a two-track album. See [Phase 05 evidence](../evidence/PHASE_05.md).
 
 ## Tasks
 

@@ -2,6 +2,8 @@
 
 Status: v0.1 product scope. Date: 2026-11-07.
 
+**Scope update (2026-11-11):** this file specifies the existing royalty-administration prototype. The project owner's target is an [agent-led music studio](PRODUCT_VISION_ALIGNMENT.md) with autonomous creative agents, an in-app catalogue, paid purchases and tips, and an administrator-selectable human approval mode. See its separate [implementation plan](../plans/AGENT_MUSIC_STUDIO_IMPLEMENTATION_PLAN.md). The older acceptance criteria below do not prove the new product.
+
 ## Outcome
 
 Deliver one complete recording-revenue administration flow for three collaborators: negotiate, approve, delegate, import, dispute, correct, fund, finalize, and pay. NEAR must enforce the agreement, each agent's authority, and the money movements.

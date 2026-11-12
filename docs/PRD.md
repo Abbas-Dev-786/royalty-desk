@@ -2,6 +2,8 @@
 
 Status: implementation baseline v0.1; not an implemented product. Date: 2026-11-07.
 
+**Scope update (2026-11-11):** this PRD describes the earlier royalty-administration prototype. The project owner's current [agent-led music studio vision](PRODUCT_VISION_ALIGNMENT.md) requires a new product journey and [implementation plan](../plans/AGENT_MUSIC_STUDIO_IMPLEMENTATION_PLAN.md).
+
 ## Document map
 
 - [Current scope](CURRENT_SCOPE.md): current product boundary and acceptance criteria.

@@ -1,0 +1,214 @@
+import assert from "node:assert/strict";
+import { mkdtempSync, copyFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import test from "node:test";
+import { acceptStudioSplit, addAlbumTracks, addStudioAgent, addStudioAsset, addStudioContribution, addStudioEntitlement, addStudioExternalOperation, addStudioPayout, addStudioPolicy, addStudioPublication, addStudioRefund, addStudioTask, addWorkVersion, attestStudioAssetRights, createRevenueEvent, createStudio, createStudioProject, createStudioWork, CURRENT_SCHEMA_VERSION, listStudioProjects, openDatabase, quarantineStudioAsset, recordStudioProviderPermission, reviewStudioAsset, StudioMediaStore } from "../src/index.ts";
+
+function path(): string { return join(mkdtempSync(join(tmpdir(), "studio-test-")), "db.sqlite"); }
+const work = { workId: "song-a", studioId: "studio-a", version: 1, kind: "song" as const, state: "draft" as const, title: "First", assetHash: "a".repeat(64), metadataHash: "b".repeat(64), priceYocto: "100", split: [{ agentId: "agent-a", basisPoints: 10000 }] };
+
+test("DOM-01/04 migrates, persists versions, rejects stale and duplicate IDs", () => {
+  const db = openDatabase(path());
+  createStudio(db, "studio-a", "admin.testnet");
+  addStudioPolicy(db, { studioId: "studio-a", version: 1, mode: "human_review", maxGenerationCalls: 10, maxPayoutYocto: "100", paused: false });
+  assert.throws(() => addStudioPolicy(db, { studioId: "studio-a", version: 3, mode: "autonomous", maxGenerationCalls: 10, maxPayoutYocto: "100", paused: false }));
+  addStudioAgent(db, { id: "agent-a", studioId: "studio-a", accountId: "agent-a.testnet", controllerAccountId: "admin.testnet", role: "producer", active: true });
+  createStudioProject(db, { id: "project-a", studioId: "studio-a", title: "Album" });
+  assert.equal(listStudioProjects(db, "studio-a", 1).length, 1);
+  assert.throws(() => listStudioProjects(db, "studio-a", 101));
+  createStudioWork(db, { id: "song-a", studioId: "studio-a", projectId: "project-a", kind: "song" });
+  addWorkVersion(db, work);
+  assert.throws(() => addWorkVersion(db, work));
+  addWorkVersion(db, { ...work, version: 2, title: "Second" });
+  assert.throws(() => addWorkVersion(db, { ...work, version: 2 }));
+  assert.throws(() => addWorkVersion(db, { ...work, version: 3, split: [{ agentId: "stranger", basisPoints: 10000 }] }));
+  const event = { id: "order-a", workId: "song-a", workVersion: 1, kind: "purchase" as const, buyerAccountId: "buyer.testnet", grossYocto: "100", feeYocto: "0", refundableYocto: "0", state: "requested" as const };
+  createRevenueEvent(db, event);
+  assert.throws(() => createRevenueEvent(db, event));
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM studio_revenue_events").get() as { n: number }).n, 1);
+  db.close();
+});
+
+test("DOM-02 album track references cannot cross projects", () => {
+  const db = openDatabase(path());
+  createStudio(db, "studio-a", "admin.testnet");
+  addStudioAgent(db, { id: "agent-a", studioId: "studio-a", accountId: "agent-a.testnet", controllerAccountId: "admin.testnet", role: "producer", active: true });
+  createStudioProject(db, { id: "project-a", studioId: "studio-a", title: "Album" });
+  createStudioProject(db, { id: "project-b", studioId: "studio-a", title: "Other" });
+  createStudioWork(db, { id: "song-a", studioId: "studio-a", projectId: "project-a", kind: "song" });
+  createStudioWork(db, { id: "album-a", studioId: "studio-a", projectId: "project-a", kind: "album" });
+  createStudioWork(db, { id: "song-b", studioId: "studio-a", projectId: "project-b", kind: "song" });
+  addWorkVersion(db, work);
+  addWorkVersion(db, { ...work, workId: "song-b" });
+  addWorkVersion(db, { ...work, workId: "album-a", kind: "album" });
+  assert.throws(() => addAlbumTracks(db, "album-a", 1, [{ songId: "song-a", songVersion: 1, basisPoints: 5000 }, { songId: "song-b", songVersion: 1, basisPoints: 5000 }]));
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM studio_album_tracks").get() as { n: number }).n, 0);
+  addAlbumTracks(db, "album-a", 1, [{ songId: "song-a", songVersion: 1, basisPoints: 10000 }]);
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM studio_album_tracks").get() as { n: number }).n, 1);
+  db.close();
+});
+
+test("DOM-05 backup and restore preserves legacy and studio records", () => {
+  const source = path();
+  const db = openDatabase(source);
+  createStudio(db, "studio-a", "admin.testnet");
+  db.prepare("INSERT INTO release_memberships(release_id, account_id, role, status, created_at_ms) VALUES (?, ?, ?, ?, ?)").run("legacy", "owner.testnet", "owner", "accepted", 1);
+  db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  db.close();
+  const target = path();
+  copyFileSync(source, target);
+  const restored = openDatabase(target);
+  assert.equal((restored.prepare("SELECT COUNT(*) AS n FROM studios").get() as { n: number }).n, 1);
+  assert.equal((restored.prepare("SELECT COUNT(*) AS n FROM release_memberships").get() as { n: number }).n, 1);
+  restored.close();
+});
+
+test("DOM-02 studio records reject cross-agent acceptance and duplicate operations", () => {
+  const db = openDatabase(path());
+  createStudio(db, "studio-a", "admin.testnet");
+  addStudioPolicy(db, { studioId: "studio-a", version: 1, mode: "human_review", maxGenerationCalls: 10, maxPayoutYocto: "100", paused: false });
+  addStudioAgent(db, { id: "agent-a", studioId: "studio-a", accountId: "agent-a.testnet", controllerAccountId: "admin.testnet", role: "producer", active: true });
+  createStudioProject(db, { id: "project-a", studioId: "studio-a", title: "Album" });
+  addStudioTask(db, { id: "task-a", projectId: "project-a", agentId: "agent-a", kind: "lyrics", payloadJson: "{}" });
+  createStudioWork(db, { id: "song-a", studioId: "studio-a", projectId: "project-a", kind: "song" });
+  addWorkVersion(db, { ...work, state: "accepted" });
+  addStudioAsset(db, { hash: "a".repeat(64), provider: "test", model: "test", licenseRef: "permission-test", storageKey: "asset-a", mimeType: "audio/mpeg", sizeBytes: 100, durationMs: 1000 });
+  addStudioContribution(db, { id: "contrib-a", workId: "song-a", workVersion: 1, agentId: "agent-a", kind: "lyrics", contentHash: "b".repeat(64) });
+  assert.throws(() => acceptStudioSplit(db, { ...work, state: "accepted" }, "agent-a", "stranger.testnet"));
+  const digest = acceptStudioSplit(db, { ...work, state: "accepted" }, "agent-a", "agent-a.testnet");
+  assert.equal(digest.length, 64);
+  assert.throws(() => addStudioPublication(db, { workId: "song-a", workVersion: 1, chainCommitment: "c".repeat(64), policyVersion: 1 }), /public rights/);
+  attestStudioAssetRights(db, { assetHash: "a".repeat(64), studioId: "studio-a", adminAccountId: "admin.testnet", licenseRef: "permission-test", publicPlayback: true, paidPurchase: true, tips: true, downloads: true });
+  reviewStudioAsset(db, { assetHash: "a".repeat(64), studioId: "studio-a", reviewerAgentId: "agent-a", decision: "accept", notesHash: "d".repeat(64) });
+  addStudioPublication(db, { workId: "song-a", workVersion: 1, chainCommitment: "c".repeat(64), policyVersion: 1 });
+  addStudioExternalOperation(db, { id: "op-a", logicalKey: "audio:work-a:1", operationType: "audio" });
+  assert.throws(() => addStudioExternalOperation(db, { id: "op-b", logicalKey: "audio:work-a:1", operationType: "audio" }));
+  const event = { id: "order-a", workId: "song-a", workVersion: 1, kind: "purchase" as const, buyerAccountId: "buyer.testnet", grossYocto: "100", feeYocto: "0", refundableYocto: "0", state: "finalized" as const };
+  createRevenueEvent(db, event);
+  addStudioEntitlement(db, { revenueId: "order-a", agentId: "agent-a", amountYocto: "100" });
+  addStudioPayout(db, { id: "payout-a", revenueId: "order-a", agentId: "agent-a", amountYocto: "100", recipientAccountId: "agent-a.testnet" });
+  assert.throws(() => addStudioPayout(db, { id: "payout-b", revenueId: "order-a", agentId: "agent-a", amountYocto: "100", recipientAccountId: "stranger.testnet" }));
+  addStudioRefund(db, { id: "refund-a", revenueId: "order-a", amountYocto: "100", reason: "test correction" });
+  assert.throws(() => addStudioRefund(db, { id: "refund-b", revenueId: "order-a", amountYocto: "101", reason: "exceeds payment" }));
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM studio_entitlements").get() as { n: number }).n, 1);
+  db.close();
+});
+
+test("MED-05 public asset rights require the studio admin and every covered use", () => {
+  const db = openDatabase(path());
+  createStudio(db, "studio-rights", "admin.testnet");
+  addStudioPolicy(db, { studioId: "studio-rights", version: 1, mode: "human_review", maxGenerationCalls: 2, maxPayoutYocto: "0", paused: false });
+  addStudioAgent(db, { id: "rights-agent", studioId: "studio-rights", accountId: "agent.testnet", controllerAccountId: "admin.testnet", role: "reviewer", active: true, allowedTools: ["review"] });
+  createStudioProject(db, { id: "rights-project", studioId: "studio-rights", title: "Rights" });
+  createStudioWork(db, { id: "rights-song", studioId: "studio-rights", projectId: "rights-project", kind: "song" });
+  const assetHash = "e".repeat(64);
+  addStudioAsset(db, { hash: assetHash, provider: "stability-ai", model: "stable-audio-3", licenseRef: "stability-ai-api-terms", storageKey: "rights-asset", mimeType: "audio/mpeg", sizeBytes: 1000, durationMs: 4000 });
+  addWorkVersion(db, { workId: "rights-song", studioId: "studio-rights", version: 1, kind: "song", state: "accepted", title: "Rights", assetHash, metadataHash: "f".repeat(64), priceYocto: "100", split: [{ agentId: "rights-agent", basisPoints: 10_000 }] });
+  const grant = { assetHash, studioId: "studio-rights", adminAccountId: "admin.testnet", licenseRef: "stability-ai-api-terms", publicPlayback: true, paidPurchase: true, tips: true, downloads: true };
+  assert.throws(() => attestStudioAssetRights(db, { ...grant, adminAccountId: "stranger.testnet" }), /scope mismatch/);
+  attestStudioAssetRights(db, grant);
+  reviewStudioAsset(db, { assetHash, studioId: "studio-rights", reviewerAgentId: "rights-agent", decision: "accept", notesHash: "a".repeat(64) });
+  assert.throws(() => addStudioPublication(db, { workId: "rights-song", workVersion: 1, chainCommitment: "b".repeat(64), policyVersion: 1 }), /final sung recording/);
+  db.close();
+});
+
+test("MED-05 ElevenLabs owner attestation cannot publish without a permission reference", () => {
+  const db = openDatabase(path());
+  try {
+    createStudio(db, "studio-rights", "admin.testnet");
+    addStudioPolicy(db, { studioId: "studio-rights", version: 1, mode: "autonomous", maxGenerationCalls: 2, maxPayoutYocto: "0", paused: false });
+    addStudioAgent(db, { id: "reviewer", studioId: "studio-rights", accountId: "reviewer.testnet", controllerAccountId: "admin.testnet", role: "reviewer", active: true, allowedTools: ["review"] });
+    createStudioProject(db, { id: "project", studioId: "studio-rights", title: "Album" });
+    createStudioWork(db, { id: "song", studioId: "studio-rights", projectId: "project", kind: "song" });
+    const assetHash = "c".repeat(64);
+    addStudioAsset(db, { hash: assetHash, provider: "elevenlabs", model: "music_v2_5", licenseRef: "owner-attested-written-elevenlabs", storageKey: "music", mimeType: "audio/mpeg", sizeBytes: 1000, durationMs: 20_000 });
+    addWorkVersion(db, { workId: "song", studioId: "studio-rights", version: 1, kind: "song", state: "accepted", title: "Song", assetHash, metadataHash: "d".repeat(64), priceYocto: "100", split: [{ agentId: "reviewer", basisPoints: 10_000 }] });
+    attestStudioAssetRights(db, { assetHash, studioId: "studio-rights", adminAccountId: "admin.testnet", licenseRef: "owner-attested-written-elevenlabs", publicPlayback: true, paidPurchase: true, tips: true, downloads: true });
+    reviewStudioAsset(db, { assetHash, studioId: "studio-rights", reviewerAgentId: "reviewer", decision: "accept", notesHash: "e".repeat(64) });
+    const publication = { workId: "song", workVersion: 1, chainCommitment: "f".repeat(64), policyVersion: 1 };
+    assert.throws(() => addStudioPublication(db, publication), /permission reference/);
+    assert.throws(() => recordStudioProviderPermission(db, { assetHash, studioId: "studio-rights", adminAccountId: "stranger.testnet", reference: "agreement-123" }), /scope mismatch/);
+    recordStudioProviderPermission(db, { assetHash, studioId: "studio-rights", adminAccountId: "admin.testnet", reference: "agreement-123" });
+    addStudioPublication(db, publication);
+    const coverHash = "1".repeat(64);
+    createStudioWork(db, { id: "album", studioId: "studio-rights", projectId: "project", kind: "album" });
+    addStudioAsset(db, { hash: coverHash, provider: "project-original", model: "svg", licenseRef: "owner-created", storageKey: "cover", mimeType: "image/svg+xml", sizeBytes: 1000 });
+    addWorkVersion(db, { workId: "album", studioId: "studio-rights", version: 1, kind: "album", state: "accepted", title: "Album", assetHash: coverHash, metadataHash: "2".repeat(64), priceYocto: "100", split: [{ agentId: "reviewer", basisPoints: 10_000 }] });
+    addAlbumTracks(db, "album", 1, [{ songId: "song", songVersion: 1, basisPoints: 10_000 }]);
+    attestStudioAssetRights(db, { assetHash: coverHash, studioId: "studio-rights", adminAccountId: "admin.testnet", licenseRef: "owner-created", publicPlayback: true, paidPurchase: true, tips: true, downloads: true });
+    reviewStudioAsset(db, { assetHash: coverHash, studioId: "studio-rights", reviewerAgentId: "reviewer", decision: "accept", notesHash: "3".repeat(64) });
+    addStudioPublication(db, { workId: "album", workVersion: 1, chainCommitment: "4".repeat(64), policyVersion: 1 });
+    createRevenueEvent(db, { id: "historic-order", workId: "song", workVersion: 1, kind: "purchase", buyerAccountId: "buyer.testnet", grossYocto: "100", feeYocto: "0", refundableYocto: "0", state: "finalized" });
+    assert.throws(() => quarantineStudioAsset(db, { assetHash, studioId: "studio-rights", adminAccountId: "stranger.testnet", reasonHash: "a".repeat(64) }), /scope mismatch/);
+    quarantineStudioAsset(db, { assetHash, studioId: "studio-rights", adminAccountId: "admin.testnet", reasonHash: "a".repeat(64) });
+    assert.ok((db.prepare("SELECT unpublished_at_ms AS value FROM studio_publications WHERE work_id = 'song'").get() as { value: number | null }).value);
+    assert.ok((db.prepare("SELECT unpublished_at_ms AS value FROM studio_publications WHERE work_id = 'album'").get() as { value: number | null }).value);
+    assert.equal((db.prepare("SELECT COUNT(*) AS count FROM studio_revenue_events WHERE id = 'historic-order' AND state = 'finalized'").get() as { count: number }).count, 1);
+    assert.throws(() => addStudioPublication(db, { ...publication, chainCommitment: "a".repeat(64) }), /quarantined/);
+    assert.throws(() => addStudioPublication(db, { workId: "album", workVersion: 1, chainCommitment: "5".repeat(64), policyVersion: 1 }), /quarantined song/);
+  } finally { db.close(); }
+});
+
+test("BASE-04 media survives copy/restore and rejects corruption", () => {
+  const root = mkdtempSync(join(tmpdir(), "studio-media-"));
+  const store = new StudioMediaStore(root);
+  const bytes = new TextEncoder().encode("synthetic audio fixture");
+  const saved = store.put(bytes);
+  assert.deepEqual(store.get(saved.hash), bytes);
+  assert.throws(() => store.get("../private"));
+  const backup = mkdtempSync(join(tmpdir(), "studio-media-backup-"));
+  mkdirSync(backup, { recursive: true });
+  copyFileSync(join(root, `${saved.hash}.bin`), join(backup, `${saved.hash}.bin`));
+  assert.deepEqual(new StudioMediaStore(backup).get(saved.hash), bytes);
+  writeFileSync(join(backup, `${saved.hash}.bin`), "corrupted");
+  assert.throws(() => new StudioMediaStore(backup).get(saved.hash), /hash mismatch/);
+});
+
+test("DOM-04 two connections serialize a competing economic ID", () => {
+  const file = path();
+  const first = openDatabase(file);
+  createStudio(first, "studio-a", "admin.testnet");
+  addStudioAgent(first, { id: "agent-a", studioId: "studio-a", accountId: "agent-a.testnet", controllerAccountId: "admin.testnet", role: "producer", active: true });
+  createStudioProject(first, { id: "project-a", studioId: "studio-a", title: "Album" });
+  createStudioWork(first, { id: "song-a", studioId: "studio-a", projectId: "project-a", kind: "song" });
+  addWorkVersion(first, work);
+  const second = openDatabase(file);
+  second.exec("PRAGMA busy_timeout = 100");
+  const event = { id: "same-order", workId: "song-a", workVersion: 1, kind: "purchase" as const, buyerAccountId: "buyer.testnet", grossYocto: "100", feeYocto: "0", refundableYocto: "0", state: "requested" as const };
+  first.exec("BEGIN IMMEDIATE");
+  try {
+    createRevenueEvent(first, event);
+    assert.throws(() => createRevenueEvent(second, event), /locked/);
+    first.exec("COMMIT");
+  } catch (error) {
+    first.exec("ROLLBACK");
+    throw error;
+  }
+  assert.throws(() => createRevenueEvent(second, event));
+  assert.equal((second.prepare("SELECT COUNT(*) AS n FROM studio_revenue_events WHERE id = 'same-order'").get() as { n: number }).n, 1);
+  second.close();
+  first.close();
+});
+
+test("DOM-01 upgrades a version-4 legacy database to current schema without changing membership", () => {
+  const file = path();
+  const old = new DatabaseSync(file);
+  old.exec(`
+    CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at_ms INTEGER NOT NULL) STRICT;
+    INSERT INTO schema_migrations VALUES (4, 1);
+    CREATE TABLE release_memberships (
+      release_id TEXT NOT NULL, account_id TEXT NOT NULL, role TEXT NOT NULL,
+      status TEXT NOT NULL, created_at_ms INTEGER NOT NULL, accepted_at_ms INTEGER,
+      PRIMARY KEY(release_id, account_id, role)
+    ) STRICT;
+    INSERT INTO release_memberships VALUES ('legacy', 'owner.testnet', 'owner', 'accepted', 1, 1);
+  `);
+  old.close();
+  const upgraded = openDatabase(file);
+  assert.equal((upgraded.prepare("SELECT MAX(version) AS version FROM schema_migrations").get() as { version: number }).version, CURRENT_SCHEMA_VERSION);
+  assert.equal((upgraded.prepare("SELECT COUNT(*) AS n FROM release_memberships WHERE release_id = 'legacy'").get() as { n: number }).n, 1);
+  assert.equal((upgraded.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name = 'studio_works'").get() as { n: number }).n, 1);
+  upgraded.close();
+});

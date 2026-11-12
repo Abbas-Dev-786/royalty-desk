@@ -59,14 +59,28 @@ export async function sendApi(url: string, init: RequestInit): Promise<ActionRes
   const session = await readApi<{ accountId: string }>("/api/auth/me");
   const accounts = await wallet.getAccounts({ network: "testnet" });
   if (!accounts.some((account) => account.accountId === session.accountId)) throw new Error("Your connected wallet differs from this session. Reconnect it before signing.");
-  const outcome = await wallet.signAndSendTransaction({
-    signerId: session.accountId,
-    receiverId: transaction.receiverId,
-    network: "testnet",
-    actions: [{ type: "FunctionCall", params: { methodName: transaction.methodName, args: transaction.args, gas: "100000000000000", deposit: transaction.depositYocto } }]
-  });
-  if (typeof outcome.status === "object" && outcome.status !== null && "Failure" in outcome.status) throw new Error(`The wallet transaction failed: ${outcome.transaction.hash}`);
-  return { data, transactionHash: outcome.transaction.hash };
+  const releaseId = transaction.args.release_id;
+  if (typeof releaseId !== "string") throw new Error("The wallet request has no release identity.");
+  const operationId = crypto.randomUUID();
+  const intentJson = JSON.stringify({ signerId: session.accountId, transaction });
+  const operationResponse = await fetch("/api/chain/operations", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: operationId, logicalKey: operationId, releaseId, operationType: transaction.methodName, intentJson }) });
+  const operationData = await operationResponse.json() as { error?: string; operationId?: string };
+  if (!operationResponse.ok) throw new Error(operationData.error === "ERR_OPERATION_UNRESOLVED" ? `An earlier ${transaction.methodName} request is unresolved (${operationData.operationId}). Check the contract before trying again.` : readableError(operationData.error));
+  try {
+    const outcome = await wallet.signAndSendTransaction({
+      signerId: session.accountId,
+      receiverId: transaction.receiverId,
+      network: "testnet",
+      actions: [{ type: "FunctionCall", params: { methodName: transaction.methodName, args: transaction.args, gas: "100000000000000", deposit: transaction.depositYocto } }]
+    });
+    const transactionHash = outcome.transaction?.hash;
+    if (typeof transactionHash === "string") await fetch(`/api/chain/operations/${encodeURIComponent(operationId)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ state: "submitted", transactionHash }) });
+    if (typeof outcome.status === "object" && outcome.status !== null && "Failure" in outcome.status) throw new Error(`The wallet transaction failed: ${transactionHash ?? operationId}`);
+    return { data, ...(typeof transactionHash === "string" ? { transactionHash } : {}) };
+  } catch (error) {
+    await fetch(`/api/chain/operations/${encodeURIComponent(operationId)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ state: "unknown" }) }).catch(() => undefined);
+    throw error;
+  }
 }
 
 export function jsonRequest(body: unknown, method = "POST"): RequestInit {

@@ -2,6 +2,10 @@
 
 RoyaltyDesk is an evidence-backed royalty administration prototype for NEAR testnet. Owners approve agreement versions, delegate bounded settlement authority to separate agent accounts, review private statement evidence, and distribute native NEAR using contract-enforced accounting.
 
+**Product direction:** the project owner intends an agent-led music studio where AI agents create songs and albums, publish to an in-app catalogue, and split revenue. This repository currently implements the royalty-administration prototype described below. See [product vision alignment](docs/PRODUCT_VISION_ALIGNMENT.md) and the [NEAR integration strategy](docs/NEAR_INTEGRATION_STRATEGY.md) for the gap and the proposed first complete studio journey.
+
+The new implementation baseline is [plan v2](plan-v2/MASTER_PLAN.md). Its Phase 00 baseline and Phase 01 domain/persistence work are verified locally; later studio phases remain unimplemented. The v2 evidence records distinguish new studio checks from the older royalty prototype.
+
 ## Requirements
 
 - Node.js 24 or newer and npm 11.
@@ -63,6 +67,8 @@ npm run test:live
 ```
 
 `verify:release` runs the build, contract, domain, server, agent, recovery, browser, sandbox, and fault-injection suites. It writes a sanitized report to `plans/evidence/artifacts/release-suite.json`. Live inference is separate because it consumes paid gateway credit.
+
+New to the platform? Start with the [complete web app walkthrough](docs/WEBAPP_WALKTHROUGH.md). For a shorter three-owner evidence checklist, follow [manual browser verification](docs/MANUAL_BROWSER_VERIFICATION.md). Record transaction and child receipt IDs in a private copy of its worksheet; the automated HTTP smoke test does not establish browser wallet authority. A separate `npm run test:live-proposal` check asks the configured live model for structured three-owner terms and validates the response.
 
 ## Security and scope
 

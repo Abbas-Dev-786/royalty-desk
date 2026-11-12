@@ -24,13 +24,14 @@
 | Fault recovery | `npm run test:fault-injection` | Pass; interrupted callback, pending entitlement, and replay protection passed |
 | Live inference | `npm run test:live` | Pass; `z-ai/glm-5.3-flash`, `needs_human`, 32 input tokens, 179 output tokens |
 | Offline release aggregator | `npm run verify:release` | Pass on 2026-11-10 before the upgrade; all 11 suites passed, including contract regressions. The deployed WASM SHA-256 is `c319324997714c43ba10712a00487cfb125bd5ee7e8d7e49e5154b61604b7a3f`. Report: `plans/evidence/artifacts/release-suite.json`. |
+| Current offline release aggregator | `npm run verify:release` on 2026-11-11 | Pass, all 11 suites including Docker sandbox and fault injection; 34 domain, 23 server, and 5 agent tests passed. Report: `plans/evidence/artifacts/release-suite.json`. A subsequent receipt-identity comparison change passed `npm run check`; the full aggregator has not been rerun after that narrow change. |
 | Testnet deployment | `npm run verify:deployment -- BRHdcjbqqD5GAk9aXkTuNmmiQTRf4JtcVGSY5tFUjPio --upgrade` | Pass; deployed code hash and upgrade receipt match the build artifact. Existing release and settlement state remained readable and unchanged in the sampled views. See `TESTNET_UPGRADE_2026-11-10.md`. |
 | Live CLI journey | `npm run test:live-journey -- prepare`, `npm run test:live-agent`, `npm run test:live-journey -- settle` | Pass after the recorded agent job recovery; three owners accepted and approved, restricted agent approved for owner 2, 0.1 NEAR was funded and fully paid. See `LIVE_JOURNEY_2026-11-10.md`. |
 
 ## Remaining handoff work
 
 1. Run `npm ci` from a fresh checkout and then `npm run verify:release`.
-2. Complete the browser wallet journey and verify its authenticated API and UI paths with three owner accounts. The current live journey used CLI account keys.
+2. Complete the browser wallet journey using the detailed [manual walkthrough](../../docs/MANUAL_BROWSER_VERIFICATION.md) and verify its authenticated API and UI paths with three owner accounts. The current live journey used CLI account keys.
 3. Record live negative checks for duplicate submissions and revoked authority if Phase 09 requires those in addition to the compiled-WASM sandbox coverage.
 
 No wallet keys, API keys, cookies, private statements, or populated databases belong in this evidence record.

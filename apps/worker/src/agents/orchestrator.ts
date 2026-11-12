@@ -45,8 +45,9 @@ export class AgentOrchestrator {
       const proposalId = randomUUID();
       const parentProposalId = action.type === "counter_terms" ? action.parentProposalId : null;
       if (parentProposalId) {
-        const parent = this.#database.prepare(`SELECT id FROM agent_proposals WHERE id = ? AND session_id = ?`).get(parentProposalId, sessionId) as { id?: unknown } | undefined;
-        if (!parent || parent.id !== parentProposalId) throw new Error("ERR_AGENT_PARENT_PROPOSAL");
+        const parent = this.#database.prepare(`SELECT p.id, p.action_json FROM agent_proposals p JOIN agent_sessions s ON s.id = p.session_id WHERE p.id = ? AND s.release_id = ?`).get(parentProposalId, context.releaseId) as { id?: unknown; action_json?: unknown } | undefined;
+        const parentAction = typeof parent?.action_json === "string" ? parseModelAction(parent.action_json) : null;
+        if (parent?.id !== parentProposalId || (parentAction?.type !== "propose_terms" && parentAction?.type !== "counter_terms")) throw new Error("ERR_AGENT_PARENT_PROPOSAL");
       }
       const actionJson = canonicalJson(action as unknown as CanonicalValue);
       const outputDigest = sha256Hex(actionJson);

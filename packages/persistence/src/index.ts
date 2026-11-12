@@ -4,3 +4,6 @@ export * from "./auth-store.ts";
 export * from "./secure-store.ts";
 export * from "./release-store.ts";
 export * from "./operation-store.ts";
+export * from "./studio-store.ts";
+export * from "./studio-records.ts";
+export * from "./studio-media-store.ts";

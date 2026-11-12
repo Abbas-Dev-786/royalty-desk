@@ -3,11 +3,14 @@ import { createWorkerHealthServer } from "./health-server.ts";
 import { openDatabase } from "@royaltydesk/persistence";
 import { WorkerAgentService } from "./agents/service.ts";
 import { reconcileSignedOperations } from "./reconciliation/signed-operations.ts";
+import { createCreativeNearAiModel } from "./studio/creative-model.ts";
+import { StudioCreativeService } from "./studio/creative-service.ts";
 
 const config = readWorkerConfig();
 const database = openDatabase(config.databasePath);
 const agentService = new WorkerAgentService(database, config);
-const server = createWorkerHealthServer(config, agentService);
+const studioService = config.nearAiApiKey && config.nearAiModel ? new StudioCreativeService(config.databasePath, `${config.databasePath}.studio-graph.sqlite`, createCreativeNearAiModel({ baseUrl: config.nearAiBaseUrl, apiKey: config.nearAiApiKey, model: config.nearAiModel })) : undefined;
+const server = createWorkerHealthServer(config, agentService, studioService);
 let reconciling = false;
 async function reconcile(): Promise<void> {
   if (reconciling) return;
@@ -28,6 +31,7 @@ function shutdown(signal: string): void {
   console.log(`Received ${signal}; closing worker health server`);
   server.close((error) => {
     agentService.close();
+    studioService?.close();
     if (error) {
       console.error(error);
       process.exitCode = 1;

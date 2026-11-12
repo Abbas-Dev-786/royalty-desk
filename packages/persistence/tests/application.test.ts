@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { copyFileSync, cpSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -34,6 +34,27 @@ test("P05-PERSIST-01 encrypted documents never store plaintext", () => {
   store.put(key, source);
   assert.deepEqual(store.get(key), source);
   assert.equal(readFileSync(join(root, `${key}.bin`)).includes("private statement"), false);
+});
+
+test("P05-PERSIST-04 a closed database and private files restore together", () => {
+  const root = mkdtempSync(join(tmpdir(), "royaltydesk-restore-"));
+  const sourceDatabase = join(root, "source.sqlite");
+  const sourceFiles = join(root, "source-files");
+  const restoredDatabase = join(root, "restored.sqlite");
+  const restoredFiles = join(root, "restored-files");
+  const key = "b".repeat(48);
+  const secret = "backup-restore-secret-longer-than-32-bytes";
+  const database = openDatabase(sourceDatabase);
+  upsertUser(database, { networkId: "testnet", accountId: "restore-owner.testnet", publicKey: "ed25519:restore" });
+  new EncryptedFileStore(sourceFiles, secret).put(key, new TextEncoder().encode("synthetic-private-record"));
+  database.close();
+  copyFileSync(sourceDatabase, restoredDatabase);
+  cpSync(sourceFiles, restoredFiles, { recursive: true });
+  const restored = openDatabase(restoredDatabase);
+  assert.equal((restored.prepare("SELECT account_id FROM users WHERE account_id = ?").get("restore-owner.testnet") as { account_id: string }).account_id, "restore-owner.testnet");
+  assert.equal(new TextDecoder().decode(new EncryptedFileStore(restoredFiles, secret).get(key)), "synthetic-private-record");
+  assert.throws(() => new EncryptedFileStore(restoredFiles, "wrong-secret-that-is-long-enough-for-test").get(key));
+  restored.close();
 });
 
 test("P06-STATEMENT-01 duplicate semantic import is idempotent and corrections get revisions", () => {

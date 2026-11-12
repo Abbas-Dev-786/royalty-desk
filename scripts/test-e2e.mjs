@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createSession, openDatabase, upsertUser } from "@royaltydesk/persistence";
+import { createSession, openDatabase, upsertMembership, upsertUser } from "@royaltydesk/persistence";
 
 const port = 3192;
 const databasePath = join(mkdtempSync(join(tmpdir(), "royaltydesk-e2e-")), "app.sqlite");
@@ -26,10 +26,23 @@ try {
   const releases = await fetch(`http://127.0.0.1:${port}/api/releases`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ releaseId: "unauthorized", funderId: "funder.testnet" }) });
   const administratorRelease = await fetch(`http://127.0.0.1:${port}/api/releases`, { method: "POST", headers: { "content-type": "application/json", cookie: `royaltydesk_session=${administratorToken}` }, body: JSON.stringify({ releaseId: "admin-separate", recordingId: "recording-one", funderId: "funder.testnet", invitedOwnerIds: ["owner-one.testnet", "owner-two.testnet"] }) });
   const administratorReleaseBody = await administratorRelease.json();
+  const walletIntent = JSON.stringify({ signerId: "admin.testnet", transaction: administratorReleaseBody.transactionRequest });
+  const operationBody = JSON.stringify({ id: "owner-create-op", logicalKey: "owner-create-op", releaseId: "admin-separate", operationType: "create_release", intentJson: walletIntent });
+  const firstOperation = await fetch(`http://127.0.0.1:${port}/api/chain/operations`, { method: "POST", headers: { "content-type": "application/json", cookie: `royaltydesk_session=${administratorToken}` }, body: operationBody });
+  const duplicateOperation = await fetch(`http://127.0.0.1:${port}/api/chain/operations`, { method: "POST", headers: { "content-type": "application/json", cookie: `royaltydesk_session=${administratorToken}` }, body: JSON.stringify({ ...JSON.parse(operationBody), id: "second-op", logicalKey: "second-op" }) });
+  const ownerDatabase = openDatabase(databasePath);
+  const invitedOwner = upsertUser(ownerDatabase, { networkId: "testnet", accountId: "owner-one.testnet", publicKey: "ed25519:e2e-owner-key" });
+  upsertMembership(ownerDatabase, { releaseId: "admin-separate", accountId: "owner-one.testnet", role: "owner", status: "invited" });
+  const { token: invitedToken } = createSession(ownerDatabase, invitedOwner.id);
+  ownerDatabase.close();
+  const acceptanceIntent = JSON.stringify({ signerId: "owner-one.testnet", transaction: { networkId: "testnet", receiverId: "contract.testnet", methodName: "accept_membership", args: { release_id: "admin-separate" }, depositYocto: "0" } });
+  const invitedOperation = await fetch(`http://127.0.0.1:${port}/api/chain/operations`, { method: "POST", headers: { "content-type": "application/json", cookie: `royaltydesk_session=${invitedToken}` }, body: JSON.stringify({ id: "invited-accept-op", logicalKey: "invited-accept-op", releaseId: "admin-separate", operationType: "accept_membership", intentJson: acceptanceIntent }) });
   const agentRun = await fetch(`http://127.0.0.1:${port}/api/releases/release-1/agents/run`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "fixture" }) });
   if (home.status !== 200 || newRelease.status !== 200 || releasePages.some((page) => page.status !== 200) || challenge.status !== 200 || releases.status !== 401 || agentRun.status !== 401) throw new Error(`unexpected statuses home=${home.status} new=${newRelease.status} workspace=${releasePages.map((page) => page.status).join(",")} challenge=${challenge.status} releases=${releases.status} agent=${agentRun.status}`);
   if (administratorRelease.status !== 201 || administratorReleaseBody.administratorId !== "admin.testnet" || administratorReleaseBody.transactionRequest?.methodName !== "create_release" || administratorReleaseBody.transactionRequest.args.invited_owner_ids.includes("admin.testnet")) throw new Error(`administrator-separate release creation failed: ${administratorRelease.status} ${JSON.stringify(administratorReleaseBody)}`);
-  console.log(JSON.stringify({ status: "ok", checks: { home: "pass", releasePages: "pass", challenge: "pass", unauthorizedMutation: "pass", administratorSeparateFromOwners: "pass", unauthorizedAgent: "pass" } }));
+  if (firstOperation.status !== 201 || duplicateOperation.status !== 409) throw new Error(`wallet intent persistence failed: ${firstOperation.status}/${duplicateOperation.status}`);
+  if (invitedOperation.status !== 201) throw new Error(`invited owner operation preflight failed: ${invitedOperation.status}`);
+  console.log(JSON.stringify({ status: "ok", checks: { home: "pass", releasePages: "pass", challenge: "pass", unauthorizedMutation: "pass", administratorSeparateFromOwners: "pass", invitedOperation: "pass", unauthorizedAgent: "pass" } }));
 } finally {
   await new Promise((resolve) => {
     let childClosed = child.exitCode !== null;

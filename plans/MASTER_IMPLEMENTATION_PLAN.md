@@ -1,6 +1,6 @@
 # RoyaltyDesk — Master Implementation Plan
 
-Status: Phase 09 release verification and handoff is in progress; the current contract upgrade is verified on testnet. Baseline inspected: 2026-11-10.
+Status: Phase 09 release verification and handoff is in progress for the **royalty-administration prototype**; the current contract upgrade is verified on testnet. Baseline inspected: 2026-11-10. The project owner's newer agent-led music studio vision has a separate [implementation plan](AGENT_MUSIC_STUDIO_IMPLEMENTATION_PLAN.md); the phase statuses below do not establish that the studio is built.
 
 This is the entry point for the coding harness. It translates the existing product documents into ordered, verifiable implementation work. Phases represent dependency milestones, not calendar commitments. Creating these plans does not implement or verify the product.
 

@@ -1,13 +1,14 @@
 import { JsonRpcProvider } from "near-api-js";
 import { resolve } from "node:path";
 import { EncryptedFileStore } from "@royaltydesk/persistence";
-import { parseAgreementRules, sha256Hex, type StatementRow } from "@royaltydesk/domain";
+import { parseAgentAction, parseAgreementRules, sha256Hex, type AgentAction, type StatementRow } from "@royaltydesk/domain";
 
 export interface AgentContextPayload {
   readonly releaseId: string;
   readonly ownerAccountId: string;
   readonly agentAccountId: string | null;
   readonly privatePreferences: string;
+  readonly sharedProposals: readonly { readonly id: string; readonly ownerAccountId: string; readonly action: AgentAction }[];
   readonly agreement: ReturnType<typeof parseAgreementRules> | null;
   readonly settlement: { readonly releaseId: string; readonly period: string; readonly agreementVersion: string; readonly revision: string; readonly normalizedStatementHash: string; readonly grossYocto: string; readonly deductionEvidenceHash: string; readonly allocationPreviewHash: string } | null;
   readonly settlementDigest: string | null;
@@ -37,6 +38,13 @@ function rowValue(value: unknown): StatementRow | undefined {
 }
 
 export async function buildAuthorizedAgentContext(database: ReturnType<typeof import("@royaltydesk/persistence").openDatabase>, releaseId: string, ownerAccountId: string, period: string | null): Promise<AgentContextPayload> {
+  const proposalRows = database.prepare("SELECT p.id, p.owner_account_id, p.action_json FROM agent_proposals p JOIN agent_sessions s ON s.id = p.session_id WHERE s.release_id = ? AND p.status = 'validated' ORDER BY p.created_at_ms DESC LIMIT 12").all(releaseId) as unknown as readonly { id: string; owner_account_id: string; action_json: string }[];
+  const sharedProposals = proposalRows.flatMap((row) => {
+    try {
+      const action = parseAgentAction(JSON.parse(row.action_json) as unknown);
+      return action.type === "propose_terms" || action.type === "counter_terms" ? [{ id: row.id, ownerAccountId: row.owner_account_id, action }] : [];
+    } catch { return []; }
+  }).reverse();
   const profile = database.prepare(`SELECT agent_account_id, key_reference FROM agent_profiles WHERE release_id = ? AND owner_account_id = ?`).get(releaseId, ownerAccountId) as { agent_account_id?: unknown; key_reference?: unknown } | undefined;
   const privatePreferences = profile && typeof profile.key_reference === "string" ? new TextDecoder().decode(privateStore().get(profile.key_reference)) : "";
   const agreementRow = database.prepare(`SELECT rules_json FROM agreement_drafts WHERE release_id = ? AND status IN ('frozen','active') ORDER BY CAST(version AS INTEGER) DESC LIMIT 1`).get(releaseId) as { rules_json?: unknown } | undefined;
@@ -56,5 +64,5 @@ export async function buildAuthorizedAgentContext(database: ReturnType<typeof im
   }
   const settlement = statementRow && chainSettlement && chainSettlement.normalized_statement_hash === statementRow.normalized_hash && chainSettlement.gross_yocto === statementRow.gross_yocto ? { releaseId, period: chainSettlement.period, agreementVersion: String(chainSettlement.agreement_version), revision: String(chainSettlement.revision), normalizedStatementHash: chainSettlement.normalized_statement_hash, grossYocto: chainSettlement.gross_yocto, deductionEvidenceHash: chainSettlement.deduction_evidence_hash, allocationPreviewHash: chainSettlement.allocation_preview_hash } : null;
   const allowedActions = mandate ? mandate.actions.filter((action): action is "approve_settlement" | "dispute_settlement" | "execute_payout" => action === "approve_settlement" || action === "dispute_settlement" || action === "execute_payout") : [];
-  return { releaseId, ownerAccountId, agentAccountId: typeof profile?.agent_account_id === "string" ? profile.agent_account_id : null, privatePreferences, agreement, settlement, settlementDigest: settlement ? sha256Hex([settlement.period, settlement.revision, settlement.agreementVersion, settlement.normalizedStatementHash, settlement.grossYocto, settlement.deductionEvidenceHash, settlement.allocationPreviewHash].join("|")) : null, statementRows: rows, validationFindings: Array.isArray(validation?.unsupportedClaimLineIds) ? validation.unsupportedClaimLineIds.filter((value): value is string => typeof value === "string").map((value) => `Unsupported deduction claim: ${value}`) : [], allowedActions, mandateEpoch: mandate ? String(mandate.epoch) : null, mandateExpiresAtNanoseconds: mandate ? String(mandate.expires_at_nanoseconds) : null, mandateMaxGrossYocto: mandate ? String(mandate.max_gross_yocto) : null };
+  return { releaseId, ownerAccountId, agentAccountId: typeof profile?.agent_account_id === "string" ? profile.agent_account_id : null, privatePreferences, sharedProposals, agreement, settlement, settlementDigest: settlement ? sha256Hex([settlement.period, settlement.revision, settlement.agreementVersion, settlement.normalizedStatementHash, settlement.grossYocto, settlement.deductionEvidenceHash, settlement.allocationPreviewHash].join("|")) : null, statementRows: rows, validationFindings: Array.isArray(validation?.unsupportedClaimLineIds) ? validation.unsupportedClaimLineIds.filter((value): value is string => typeof value === "string").map((value) => `Unsupported deduction claim: ${value}`) : [], allowedActions, mandateEpoch: mandate ? String(mandate.epoch) : null, mandateExpiresAtNanoseconds: mandate ? String(mandate.expires_at_nanoseconds) : null, mandateMaxGrossYocto: mandate ? String(mandate.max_gross_yocto) : null };
 }

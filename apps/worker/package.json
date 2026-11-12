@@ -10,8 +10,16 @@
     "check": "tsc --noEmit --pretty false"
   },
   "dependencies": {
+    "@langchain/langgraph": "1.7.3",
+    "@langchain/langgraph-checkpoint-sqlite": "1.1.0",
     "@royaltydesk/chain": "0.1.0",
     "@royaltydesk/domain": "0.1.0",
-    "@royaltydesk/persistence": "0.1.0"
+    "@royaltydesk/persistence": "0.1.0",
+    "mpg123-decoder": "0.4.6",
+    "music-metadata": "12.4.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@breezystack/lamejs": "1.2.7"
   }
 }

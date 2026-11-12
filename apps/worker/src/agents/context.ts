@@ -9,6 +9,7 @@ export function buildAgentPrompt(context: PersonalAgentContext): { readonly syst
     ownerAccountId: context.ownerAccountId,
     agentAccountId: context.agentAccountId,
     privatePreferences: bound(context.privatePreferences, 4_096),
+    sharedProposals: context.sharedProposals ?? [],
     agreement: context.agreement,
     settlement: context.settlement,
     settlementDigest: context.settlementDigest,

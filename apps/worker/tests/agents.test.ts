@@ -69,3 +69,30 @@ test("P07-AGENT-03 invented evidence and a second call after the budget are bloc
   assert.equal(exhausted.status, "awaiting_human");
   database.close();
 });
+
+test("P07-AGENT-05 an owner can counter another owner's validated terms on the same release", async () => {
+  const database = openDatabase(join(mkdtempSync(join(tmpdir(), "royaltydesk-counter-")), "agent.sqlite"));
+  const orchestrator = new AgentOrchestrator(database);
+  const agreement = {
+    schemaVersion: "1", releaseId: context.releaseId, recordingId: "ISRC-DEMO-001", effectivePeriod: "2026-11",
+    participants: [
+      { ownerId: "artist.testnet", basisPoints: "6000" },
+      { ownerId: "producer.testnet", basisPoints: "2500" },
+      { ownerId: "writer.testnet", basisPoints: "1500" }
+    ],
+    recoupment: { code: "advance-v1", beneficiaryId: "producer.testnet", capYocto: "2000000000000000000000000" }
+  };
+  const firstSession = orchestrator.createSession({ releaseId: context.releaseId, ownerAccountId: context.ownerAccountId, mode: "fixture", inputDigest: buildAgentPrompt(context).inputDigest });
+  const first = await orchestrator.run(firstSession, context, createFixtureAgentModel([JSON.stringify({ type: "propose_terms", agreement })]));
+  assert.equal(first.action?.type, "propose_terms");
+  assert.ok(first.proposalId);
+  const secondContext: PersonalAgentContext = { ...context, ownerAccountId: "producer.testnet", sharedProposals: [{ id: first.proposalId, ownerAccountId: context.ownerAccountId, action: first.action! }] };
+  const secondSession = orchestrator.createSession({ releaseId: context.releaseId, ownerAccountId: secondContext.ownerAccountId, mode: "fixture", inputDigest: buildAgentPrompt(secondContext).inputDigest });
+  const second = await orchestrator.run(secondSession, secondContext, createFixtureAgentModel([JSON.stringify({ type: "counter_terms", parentProposalId: first.proposalId, agreement })]));
+  assert.equal(second.action?.type, "counter_terms");
+  const otherRelease: PersonalAgentContext = { ...context, releaseId: "release-2", ownerAccountId: "writer.testnet" };
+  const otherSession = orchestrator.createSession({ releaseId: otherRelease.releaseId, ownerAccountId: otherRelease.ownerAccountId, mode: "fixture", inputDigest: buildAgentPrompt(otherRelease).inputDigest });
+  const rejected = await orchestrator.run(otherSession, otherRelease, createFixtureAgentModel([JSON.stringify({ type: "counter_terms", parentProposalId: first.proposalId, agreement: { ...agreement, releaseId: otherRelease.releaseId } })]));
+  assert.equal(rejected.reason, "ERR_AGENT_PARENT_PROPOSAL");
+  database.close();
+});

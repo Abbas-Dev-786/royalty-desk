@@ -32,14 +32,31 @@
     "test:recovery": "node --experimental-strip-types scripts/test-recovery.ts",
     "test:e2e": "node scripts/test-e2e.mjs",
     "test:live": "node --env-file-if-exists=.env --experimental-strip-types apps/worker/src/near-ai/probe.ts",
+    "test:live-proposal": "node --env-file-if-exists=.env --experimental-strip-types scripts/live/useful-proposal.ts",
     "verify:release": "node --env-file-if-exists=.env scripts/verify-release.mjs",
     "release:manifest": "node --env-file-if-exists=.env scripts/release-manifest.mjs",
     "verify:deployment": "node --env-file-if-exists=.env scripts/verify-testnet-deployment.mjs",
     "test:live-journey": "node --env-file-if-exists=.env --experimental-strip-types scripts/live/journey.mjs",
     "test:live-agent": "node --env-file-if-exists=.env --experimental-strip-types scripts/live/agent.mjs",
-    "test:contract-regressions": "node scripts/audit-contract.mjs"
+    "test:contract-regressions": "node scripts/audit-contract.mjs",
+    "test:studio-domain": "node scripts/studio-suite.mjs domain",
+    "test:studio-agents": "node scripts/studio-suite.mjs agents",
+    "test:studio-media": "node scripts/studio-suite.mjs media",
+    "test:studio-sandbox": "node scripts/studio-suite.mjs sandbox",
+    "test:studio-server": "node scripts/studio-suite.mjs server",
+    "test:studio-e2e": "node scripts/studio-suite.mjs e2e",
+    "verify:studio": "node scripts/verify-studio.mjs",
+    "probe:studio-testnet": "node --env-file-if-exists=.env scripts/probe-studio-testnet.mjs",
+    "test:studio-live-agent": "node --env-file-if-exists=.env --experimental-strip-types scripts/live/studio-creative.ts",
+    "test:studio-live-collaboration": "node --env-file-if-exists=.env --experimental-strip-types scripts/live/studio-collaboration.ts",
+    "test:studio-agent-keys": "node --experimental-strip-types scripts/sandbox/studio-agent-keys.mjs",
+    "test:studio-live-music": "node --env-file-if-exists=.env --experimental-strip-types scripts/live/studio-elevenlabs-album.ts",
+    "test:studio-live-stability": "node --env-file-if-exists=.env --experimental-strip-types scripts/live/studio-music.ts",
+    "review:studio-phase03": "node --experimental-strip-types scripts/live/studio-phase03-review.ts",
+    "probe:elevenlabs-music": "node --env-file-if-exists=.env --experimental-strip-types scripts/live/probe-elevenlabs-music.ts"
   },
   "allowScripts": {
-    "sharp@0.34.5": true
+    "sharp@0.34.5": true,
+    "better-sqlite3@12.11.1": true
   }
 }

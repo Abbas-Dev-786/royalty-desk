@@ -101,6 +101,13 @@ export class JobStore {
     return result.changes === 1;
   }
 
+  requeueFailed(id: string, nowMs = Date.now()): StoredJob | undefined {
+    const result = this.#database.prepare("UPDATE jobs SET state = 'queued', lease_owner = NULL, lease_expires_at_ms = NULL, error_code = NULL, updated_at_ms = ? WHERE id = ? AND state = 'failed'").run(nowMs, id);
+    if (result.changes !== 1) return undefined;
+    this.#recordHistory(id, "failed", "queued", "recovery", nowMs);
+    return this.get(id);
+  }
+
   #recordHistory(jobId: string, fromState: JobState | null, toState: JobState, actor: string, nowMs: number): void {
     this.#database.prepare(`INSERT INTO job_history(job_id, from_state, to_state, actor, created_at_ms) VALUES (?, ?, ?, ?, ?)`).run(jobId, fromState, toState, actor, nowMs);
   }

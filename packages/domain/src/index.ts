@@ -7,3 +7,4 @@ export * from "./serialization.ts";
 export * from "./statements/index.ts";
 export * from "./types.ts";
 export * from "./agreement-renderer.ts";
+export * from "./studio/index.ts";

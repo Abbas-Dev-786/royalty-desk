@@ -8,6 +8,7 @@ export interface PersonalAgentContext {
   readonly ownerAccountId: string;
   readonly agentAccountId: string | null;
   readonly privatePreferences: string;
+  readonly sharedProposals?: readonly { readonly id: string; readonly ownerAccountId: string; readonly action: AgentAction }[];
   readonly agreement: AgreementRules | null;
   readonly settlement: SettlementCommitment | null;
   readonly settlementDigest: string | null;

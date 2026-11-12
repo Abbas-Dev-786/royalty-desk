@@ -81,6 +81,9 @@ test("CAT-02/PAY-04 built web app hides drafts and rejects anonymous downloads",
     assert.deepEqual(await catalogue.json(), { items: [], staleCount: 0 });
     const media = await fetch(`${base}/api/studio/media/${"a".repeat(64)}`);
     assert.equal(media.status, 404);
+    const draftCollaboration = await fetch(`${base}/studio/draft-song/collaboration?version=1`);
+    assert.equal(draftCollaboration.status, 404);
+    assert.doesNotMatch(await draftCollaboration.text(), /Private draft/);
     const download = await fetch(`${base}/api/studio/download/draft-song?version=1`);
     assert.equal(download.status, 401);
   } finally {

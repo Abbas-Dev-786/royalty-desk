@@ -22,7 +22,11 @@ export default async function StudioOperationsPage() {
   const user = await currentUser();
   if (!user) return <section className="studio-page"><h1>Studio operations</h1><p>Connect and sign in with the studio administrator wallet to view private work and payments.</p><Link href="/studio">Explore published music</Link></section>;
   let chain;
-  try { chain = studioContractClient(); if (user.accountId !== await chain.admin()) return <section className="studio-page"><h1>Studio operations</h1><p>This workspace is available to the studio administrator only.</p><Link href="/studio">Explore published music</Link></section>; }
+  try {
+    chain = studioContractClient();
+    const adminId = await chain.admin();
+    if (user.accountId !== adminId) return <section className="studio-page"><h1>Studio operations</h1><p>Signed in as <strong>{user.accountId}</strong>. The on-chain studio administrator is <strong>{adminId}</strong>.</p><p>Switch to that NEAR testnet account and sign in again to manage projects, releases and payouts. Your current account can still explore and purchase published music.</p><Link href="/studio">Explore published music</Link></section>;
+  }
   catch { return <section className="studio-page"><h1>Studio operations unavailable</h1><p>The NEAR testnet contract could not be verified. Check the RPC connection and retry.</p></section>; }
   const database = openStudioCatalogueDatabase();
   let agents: AgentRow[];

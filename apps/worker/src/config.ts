@@ -6,6 +6,7 @@ export interface WorkerConfig {
   readonly networkId: "testnet";
   readonly contractId: string;
   readonly databasePath: string;
+  readonly studioDatabasePath: string;
   readonly storageSecret: string | null;
   readonly workerApiToken: string | null;
   readonly nearAiBaseUrl: string;
@@ -31,5 +32,5 @@ export function readWorkerConfig(environment: NodeJS.ProcessEnv = process.env): 
   const workerApiToken = environment.ROYALTYDESK_WORKER_TOKEN ?? null;
   if (environment.NODE_ENV === "production" && (!workerApiToken || workerApiToken.length < 32)) throw new Error("ROYALTYDESK_WORKER_TOKEN must be configured in production");
   if (environment.ROYALTYDESK_AGENT_KEYSTORE_PATH && (!workerApiToken || workerApiToken.length < 32)) throw new Error("Agent signing requires a private worker API token of at least 32 characters");
-  return { host: environment.ROYALTYDESK_WORKER_HOST ?? "127.0.0.1", port, networkId, contractId, databasePath: resolve(process.cwd(), "../..", environment.ROYALTYDESK_DB_PATH ?? environment.ROYALTYDESK_DATABASE_PATH ?? ".royaltydesk/royaltydesk.sqlite"), storageSecret, workerApiToken, nearAiBaseUrl: environment.NEAR_AI_BASE_URL ?? "https://cloud-api.near.ai/v1", nearAiApiKey: environment.NEAR_AI_API_KEY ?? null, nearAiModel: environment.NEAR_AI_MODEL ?? null, agentKeystorePath: environment.ROYALTYDESK_AGENT_KEYSTORE_PATH ? resolve(process.cwd(), "../..", environment.ROYALTYDESK_AGENT_KEYSTORE_PATH) : null };
+  return { host: environment.ROYALTYDESK_WORKER_HOST ?? "127.0.0.1", port, networkId, contractId, databasePath: resolve(process.cwd(), "../..", environment.ROYALTYDESK_DB_PATH ?? environment.ROYALTYDESK_DATABASE_PATH ?? ".royaltydesk/royaltydesk.sqlite"), studioDatabasePath: resolve(process.cwd(), "../..", environment.STUDIO_CATALOGUE_DB_PATH ?? "private/studio-v2/phase05/studio.sqlite"), storageSecret, workerApiToken, nearAiBaseUrl: environment.NEAR_AI_BASE_URL ?? "https://cloud-api.near.ai/v1", nearAiApiKey: environment.NEAR_AI_API_KEY ?? null, nearAiModel: environment.NEAR_AI_MODEL ?? null, agentKeystorePath: environment.ROYALTYDESK_AGENT_KEYSTORE_PATH ? resolve(process.cwd(), "../..", environment.ROYALTYDESK_AGENT_KEYSTORE_PATH) : null };
 }

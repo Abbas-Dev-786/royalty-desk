@@ -5,12 +5,16 @@ import { WorkerAgentService } from "./agents/service.ts";
 import { reconcileSignedOperations } from "./reconciliation/signed-operations.ts";
 import { createCreativeNearAiModel } from "./studio/creative-model.ts";
 import { StudioCreativeService } from "./studio/creative-service.ts";
+import { StudioSongProductionService } from "./studio/song-production.ts";
+import { StudioReleaseAgentService } from "./studio/release-agents.ts";
 
 const config = readWorkerConfig();
 const database = openDatabase(config.databasePath);
 const agentService = new WorkerAgentService(database, config);
-const studioService = config.nearAiApiKey && config.nearAiModel ? new StudioCreativeService(config.databasePath, `${config.databasePath}.studio-graph.sqlite`, createCreativeNearAiModel({ baseUrl: config.nearAiBaseUrl, apiKey: config.nearAiApiKey, model: config.nearAiModel })) : undefined;
-const server = createWorkerHealthServer(config, agentService, studioService);
+const studioService = config.nearAiApiKey && config.nearAiModel ? new StudioCreativeService(config.studioDatabasePath, `${config.studioDatabasePath}.studio-graph.sqlite`, createCreativeNearAiModel({ baseUrl: config.nearAiBaseUrl, apiKey: config.nearAiApiKey, model: config.nearAiModel })) : undefined;
+const songService = StudioSongProductionService.fromEnvironment(config.studioDatabasePath);
+const releaseService = StudioReleaseAgentService.fromEnvironment(config.studioDatabasePath);
+const server = createWorkerHealthServer(config, agentService, studioService, songService ?? undefined, releaseService ?? undefined);
 let reconciling = false;
 async function reconcile(): Promise<void> {
   if (reconciling) return;

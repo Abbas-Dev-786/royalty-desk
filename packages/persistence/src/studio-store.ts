@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { AlbumTrack, RevenueEvent, StudioAgent, StudioPolicy, WorkVersion } from "@royaltydesk/domain";
-import { requireAccountId, requireStudioId, validateAlbumTracks, validateRevenueEvent, validateStudioAgent, validateStudioPolicy, validateWorkVersion } from "@royaltydesk/domain";
+import { assertWorkTransition, requireAccountId, requireStudioId, validateAlbumTracks, validateRevenueEvent, validateStudioAgent, validateStudioPolicy, validateWorkVersion } from "@royaltydesk/domain";
 
 export function createStudio(database: DatabaseSync, id: string, adminAccountId: string, nowMs = Date.now()): void {
   database.prepare("INSERT INTO studios(id, admin_account_id, created_at_ms) VALUES (?, ?, ?)").run(requireStudioId(id), requireAccountId(adminAccountId), nowMs);
@@ -62,6 +62,14 @@ export function addWorkVersion(database: DatabaseSync, work: WorkVersion, nowMs 
     database.exec("ROLLBACK");
     throw error;
   }
+}
+
+export function transitionStudioWorkState(database: DatabaseSync, workId: string, version: number, from: WorkVersion["state"], to: WorkVersion["state"]): void {
+  requireStudioId(workId);
+  if (!Number.isSafeInteger(version) || version < 1) throw new Error("Invalid work version");
+  assertWorkTransition(from, to);
+  const changed = database.prepare("UPDATE studio_work_versions SET state = ? WHERE work_id = ? AND version = ? AND state = ?").run(to, workId, version, from);
+  if (changed.changes !== 1) throw new Error("ERR_WORK_STATE_STALE");
 }
 
 export function addAlbumTracks(database: DatabaseSync, albumId: string, albumVersion: number, tracks: readonly AlbumTrack[]): void {

@@ -1,6 +1,6 @@
 # Phase 09 — integrated fault and security verification
 
-Depends on: 00–08. Status: not_started. Outcome: trust boundaries and recovery work under restarts, concurrency and hostile inputs.
+Depends on: 00–08. Status: in_progress; core audit and testnet ledger replay passed, full fault matrix remains. Outcome: trust boundaries and recovery work under restarts, concurrency and hostile inputs. See [Phase 09 evidence](../evidence/PHASE_09.md).
 
 ## Tasks
 

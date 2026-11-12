@@ -11,12 +11,15 @@ import { MusicProviderHttpError, createStabilityMusicProvider, type MusicProvide
 import { generateDraftMusic } from "../src/studio/music-service.ts";
 import { createElevenLabsMusicProvider, musicPlanHash, type ElevenLabsMusicProvider, type ElevenLabsSongRequest } from "../src/studio/elevenlabs-music-provider.ts";
 import { generateElevenLabsSong } from "../src/studio/elevenlabs-music-service.ts";
+import { StudioSongProductionService } from "../src/studio/song-production.ts";
+import { runCreativeModelStep } from "../src/studio/creative-model.ts";
+import type { AgentModel } from "../src/agents/types.ts";
 
-function synthesizeMp3(frequency = 440, amplitude = 4000): Uint8Array {
+function synthesizeMp3(frequency = 440, amplitude = 4000, seconds = 4): Uint8Array {
   const encoder = new Mp3Encoder(1, 44_100, 128);
   const parts: Uint8Array[] = [];
-  for (let offset = 0; offset < 44_100 * 4; offset += 1152) {
-    const pcm = new Int16Array(Math.min(1152, 44_100 * 4 - offset));
+  for (let offset = 0; offset < 44_100 * seconds; offset += 1152) {
+    const pcm = new Int16Array(Math.min(1152, 44_100 * seconds - offset));
     for (let index = 0; index < pcm.length; index += 1) pcm[index] = Math.round(amplitude * Math.sin(2 * Math.PI * frequency * (offset + index) / 44_100));
     const part = encoder.encodeBuffer(pcm);
     if (part.length) parts.push(Uint8Array.from(part));
@@ -191,4 +194,55 @@ test("MED-07 ElevenLabs song generation reserves credits, caches output and bloc
     await assert.rejects(() => generateElevenLabsSong(unknown.database, unknown.media, lost, request), /OUTCOME_UNKNOWN/);
     assert.equal(uncertainCalls, 1);
   } finally { unknown.database.close(); }
+});
+
+test("MED-08 accepted live agent outputs create one review song without a second music call", async () => {
+  const root = mkdtempSync(join(tmpdir(), "studio-song-production-"));
+  const databasePath = join(root, "studio.sqlite");
+  const database = openDatabase(databasePath);
+  createStudio(database, "studio-a", "admin.testnet");
+  createStudioProject(database, { id: "project-a", studioId: "studio-a", title: "Two songs" });
+  addStudioAgent(database, { id: "lyricist", studioId: "studio-a", accountId: "lyricist.testnet", controllerAccountId: "admin.testnet", role: "lyricist", active: true, allowedTools: ["lyrics", "split_proposal"] });
+  addStudioAgent(database, { id: "composer", studioId: "studio-a", accountId: "composer.testnet", controllerAccountId: "admin.testnet", role: "composer", active: true, allowedTools: ["composition", "split_response", "music_generation"] });
+  addStudioAgent(database, { id: "reviewer", studioId: "studio-a", accountId: "reviewer.testnet", controllerAccountId: "admin.testnet", role: "reviewer", active: true, allowedTools: ["review"] });
+  addStudioPolicy(database, { studioId: "studio-a", version: 1, mode: "autonomous", maxGenerationCalls: 2, maxMusicRequestDurationMs: 20_000, maxMusicTotalDurationMs: 40_000, maxPayoutYocto: "0", paused: false });
+  const brief = "Write a hopeful original river song with sung vocals";
+  const contents = new Map<string, string>([["lyrics", "River light is rising, and a new day calls"], ["composition", "Warm acoustic folk with gentle strings"], ["review", "ACCEPT: original and suitable"], ["split_proposal", '{"lyricistBasisPoints":5000,"composerBasisPoints":5000}'], ["split_response", '{"decision":"accept","lyricistBasisPoints":5000,"composerBasisPoints":5000}']]);
+  const model: AgentModel = { mode: "live", complete: async ({ system }) => {
+    const role = system.match(/You are the (\S+) agent/)?.[1] ?? "";
+    return { model: "test/live", content: JSON.stringify({ content: contents.get(role) ?? "" }) };
+  } };
+  const steps = [["lyricist", "lyrics"], ["composer", "composition"], ["reviewer", "review"], ["lyricist", "split_proposal"], ["composer", "split_response"]] as const;
+  for (const [agentId, role] of steps) await runCreativeModelStep(database, model, { projectId: "project-a", agentId, role, revision: 0, brief, context: role, maxCalls: 6, maxOutputTokens: 100 });
+  database.close();
+  let calls = 0;
+  const provider: ElevenLabsMusicProvider = { compose: async (plan) => { calls += 1; return { bytes: synthesizeMp3(440, 4000, 20), contentType: "audio/mpeg", requestId: "test-request", planHash: musicPlanHash(plan) }; } };
+  const service = new StudioSongProductionService(databasePath, join(root, "media"), provider, "owner-confirmation-testnet");
+  const request = { projectId: "project-a", brief, title: "River Light", lyricistId: "lyricist", composerId: "composer", reviewerId: "reviewer" };
+  const first = await service.generate(request);
+  assert.equal(first.state, "review");
+  assert.equal((await service.generate(request)).assetHash, first.assetHash);
+  assert.equal(calls, 1);
+  const reopened = openDatabase(databasePath);
+  try {
+    assert.equal((reopened.prepare("SELECT COUNT(*) AS n FROM studio_contributions WHERE work_id = ?").get(first.workId) as { n: number }).n, 2);
+    assert.equal((reopened.prepare("SELECT COUNT(*) AS n FROM studio_work_versions WHERE work_id = ?").get(first.workId) as { n: number }).n, 1);
+  } finally { reopened.close(); }
+});
+
+test("MED-07 a media-store failure after a paid response blocks a second music request", async () => {
+  const env = setup(1, 4_000, 4_000);
+  let calls = 0;
+  const provider: ElevenLabsMusicProvider = { compose: async (plan) => { calls += 1; return { bytes: synthesizeMp3(), contentType: "audio/mpeg", requestId: "paid-response", planHash: musicPlanHash(plan) }; } };
+  class FailedMediaStore extends StudioMediaStore {
+    override put(_bytes: Uint8Array): { readonly hash: string; readonly sizeBytes: number } { throw new Error("simulated media volume failure"); }
+  }
+  const media = new FailedMediaStore(join(mkdtempSync(join(tmpdir(), "studio-broken-media-")), "media"));
+  const request = { projectId: "project-a", workId: "song-a", workVersion: 1, revision: 0, agentId: "composer", plan: vocalPlan, licenseRef: "owner-confirmation-testnet" };
+  try {
+    await assert.rejects(() => generateElevenLabsSong(env.database, media, provider, request), /media volume failure/);
+    assert.equal((env.database.prepare("SELECT status FROM studio_external_operations WHERE operation_type = 'elevenlabs_music'").get() as { status: string }).status, "unknown");
+    await assert.rejects(() => generateElevenLabsSong(env.database, env.media, provider, request), /OUTCOME_UNKNOWN/);
+    assert.equal(calls, 1);
+  } finally { env.database.close(); }
 });

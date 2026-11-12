@@ -9,6 +9,7 @@ const MAX_PAYOUT_YOCTO: u128 = 100_000_000_000_000_000_000_000;
 impl StudioContract {
     /// Deterministically allocates a finalized, unrefunded payment exactly once.
     pub fn allocate_payment(&mut self, payment_id: String) {
+        self.require_admin();
         let mut payment = self.payments.get(&payment_id).cloned().expect("PAYMENT_MISSING");
         require!(payment.status == "finalized" && payment.allocated_yocto == 0, "PAYMENT_NOT_ALLOCATABLE");
         let release = self.releases.get(&Self::release_key(&payment.work_id, payment.version)).cloned().expect("RELEASE_MISSING");
@@ -49,7 +50,7 @@ impl StudioContract {
     pub fn request_payout(&mut self, payout_id: String, recipient_id: AccountId) -> Promise {
         require!(!self.policy.paused, "STUDIO_PAUSED");
         require!(env::attached_deposit().as_yoctonear() == 1, "ONE_YOCTO_REQUIRED");
-        require!(env::predecessor_account_id() == recipient_id || env::predecessor_account_id() == self.admin_id, "PAYOUT_CALLER_FORBIDDEN");
+        require!(env::predecessor_account_id() == self.admin_id || !self.policy.human_review && env::predecessor_account_id() == recipient_id, "PAYOUT_CALLER_FORBIDDEN");
         require!(self.agents.get(&recipient_id).is_some(), "PAYOUT_RECIPIENT_NOT_AGENT");
         require!(!payout_id.is_empty() && payout_id.len() <= 64 && payout_id.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-'), "PAYOUT_ID_INVALID");
         require!(self.payouts.get(&payout_id).is_none() && self.payout_count < 50_000, "PAYOUT_DUPLICATE_OR_LIMIT");

@@ -49,7 +49,7 @@ export class StudioCreativeService {
 
   create(request: StudioCreativeRequest): string {
     requestSchema.parse(request);
-    if (request.lyricistId === request.composerId || request.deadlineAtMs <= Date.now()) throw new Error("ERR_CREATIVE_IDENTITY_OR_DEADLINE");
+    if (request.lyricistId === request.composerId) throw new Error("ERR_CREATIVE_IDENTITY_OR_DEADLINE");
     const accounts = new Map<string, string>();
     for (const id of new Set([request.lyricistId, request.composerId, request.reviewerId])) {
       const agent = this.#database.prepare("SELECT a.account_id FROM studio_agents a JOIN studio_projects p ON p.studio_id = a.studio_id WHERE p.id = ? AND a.id = ? AND a.active = 1 AND a.revoked_at_ms IS NULL AND (a.expires_at_ms IS NULL OR a.expires_at_ms > ?)").get(request.projectId, id, Date.now()) as { account_id: string } | undefined;
@@ -59,7 +59,10 @@ export class StudioCreativeService {
     if (accounts.get(request.lyricistId) === accounts.get(request.composerId)) throw new Error("ERR_CREATIVE_SHARED_ACCOUNT");
     const inputDigest = digest(JSON.stringify(request));
     const sessionId = digest(`studio-creative:${request.projectId}:${inputDigest}`);
-    if (!this.#jobs.get(sessionId)) this.#jobs.enqueue({ id: sessionId, logicalKey: `studio-creative:${request.projectId}:${inputDigest}`, releaseId: request.projectId, participantId: request.lyricistId, inputDigest });
+    if (!this.#jobs.get(sessionId)) {
+      if (request.deadlineAtMs <= Date.now()) throw new Error("ERR_CREATIVE_IDENTITY_OR_DEADLINE");
+      this.#jobs.enqueue({ id: sessionId, logicalKey: `studio-creative:${request.projectId}:${inputDigest}`, releaseId: request.projectId, participantId: request.lyricistId, inputDigest });
+    }
     return sessionId;
   }
 

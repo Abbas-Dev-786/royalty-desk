@@ -12,6 +12,8 @@ export interface StudioReleaseInput {
 export interface StudioReleaseView extends StudioReleaseInput { readonly published: boolean; readonly ever_published: boolean; readonly commitment: string; }
 export interface StudioPaymentView { readonly payment_id: string; readonly work_id: string; readonly version: number; readonly kind: "purchase" | "tip"; readonly buyer_id: string; readonly gross_yocto: string; readonly commitment: string; readonly status: "finalized" | "refund_pending" | "refunded"; readonly allocated_yocto: string; }
 export interface StudioPolicyView { readonly epoch: number; readonly human_review: boolean; readonly paused: boolean; readonly max_price_yocto: string; readonly max_tip_yocto: string; }
+export interface StudioEarningsView { readonly account_id: string; readonly owed_yocto: string; readonly pending_yocto: string; readonly paid_yocto: string; }
+export interface StudioPayoutView { readonly payout_id: string; readonly recipient_id: string; readonly amount_yocto: string; readonly status: "pending" | "paid" | "failed"; }
 export type StudioTransactionResponse = Awaited<ReturnType<Account["signAndSendTransaction"]>>;
 
 const hex = /^[0-9a-f]{64}$/;
@@ -27,15 +29,19 @@ export function validateStudioReleaseInput(input: StudioReleaseInput): void {
 export class StudioContractClient {
   readonly contractId: string;
   readonly provider: Provider;
-  constructor(contractId: string, provider: Provider) {
-    if (!/^[a-z0-9._-]+\.testnet$/.test(contractId)) throw new Error("Studio contract must be a testnet account");
+  constructor(contractId: string, provider: Provider, network: "testnet" | "sandbox" = "testnet") {
+    if (network === "testnet" ? !/^[a-z0-9._-]+\.testnet$/.test(contractId) : !/^[a-z0-9._-]+\.test\.near$/.test(contractId)) throw new Error("Studio contract must match its network");
     this.contractId = contractId;
     this.provider = provider;
   }
   async policy(): Promise<StudioPolicyView> { const value = await this.provider.callFunction<StudioPolicyView>({ contractId: this.contractId, method: "get_policy", args: {} }); if (!value) throw new Error("Studio policy is unavailable"); return value; }
   async admin(): Promise<string> { const value = await this.provider.callFunction<string>({ contractId: this.contractId, method: "get_admin", args: {} }); if (!value) throw new Error("Studio admin is unavailable"); return value; }
   async release(workId: string, version: number): Promise<StudioReleaseView | null> { return await this.provider.callFunction<StudioReleaseView>({ contractId: this.contractId, method: "get_release", args: { work_id: workId, version } }) ?? null; }
+  async hasAcceptedSplit(workId: string, version: number, accountId: string): Promise<boolean> { return await this.provider.callFunction<boolean>({ contractId: this.contractId, method: "has_accepted_split", args: { work_id: workId, version, account_id: accountId } }) ?? false; }
+  async hasApprovedRelease(workId: string, version: number, policyEpoch: number): Promise<boolean> { return await this.provider.callFunction<boolean>({ contractId: this.contractId, method: "has_approved_release", args: { work_id: workId, version, policy_epoch: policyEpoch } }) ?? false; }
   async payment(paymentId: string): Promise<StudioPaymentView | null> { return await this.provider.callFunction<StudioPaymentView>({ contractId: this.contractId, method: "get_payment", args: { payment_id: paymentId } }) ?? null; }
+  async earnings(accountId: string): Promise<StudioEarningsView> { const value = await this.provider.callFunction<StudioEarningsView>({ contractId: this.contractId, method: "get_earnings", args: { account_id: accountId } }); if (!value) throw new Error("Studio earnings unavailable"); return value; }
+  async payout(payoutId: string): Promise<StudioPayoutView | null> { return await this.provider.callFunction<StudioPayoutView>({ contractId: this.contractId, method: "get_payout", args: { payout_id: payoutId } }) ?? null; }
   async send(account: Account, methodName: string, args: Record<string, unknown>, depositYocto = 0n): Promise<StudioTransactionResponse> {
     return account.signAndSendTransaction({ receiverId: this.contractId, actions: [actions.functionCall(methodName, args, 100_000_000_000_000n, depositYocto)], waitUntil: "FINAL" });
   }

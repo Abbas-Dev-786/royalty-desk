@@ -22,7 +22,7 @@ const CreativeState = new StateSchema({
 const splitSchema = z.object({ lyricistBasisPoints: z.number().int().min(0).max(10_000), composerBasisPoints: z.number().int().min(0).max(10_000) });
 const decisionSchema = splitSchema.extend({ decision: z.enum(["accept", "counter"]) });
 
-function parseSplitDecision(raw: string): z.infer<typeof decisionSchema> {
+export function parseSplitDecision(raw: string): z.infer<typeof decisionSchema> {
   try {
     return decisionSchema.parse(JSON.parse(raw) as unknown);
   } catch (error) {

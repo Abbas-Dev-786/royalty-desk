@@ -2,8 +2,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use near_sdk::json_types::U128;
 use near_sdk::test_utils::VMContextBuilder;
 use near_sdk::{NearToken, testing_env};
-use crate::{PolicyInput, ReleaseInput, StudioContract};
-use crate::models::{AlbumTrack, Share};
+use crate::{LegacyStudioContract, PolicyInput, ReleaseInput, StudioContract};
+use crate::models::{AlbumTrack, Payment, Release, Share};
 
 fn context(predecessor: &str, deposit: u128) {
     let mut builder = VMContextBuilder::new();
@@ -83,4 +83,41 @@ fn draft_album_can_reference_unpublished_songs_but_cannot_publish() {
     context("admin.testnet", 0);
     assert!(catch_unwind(AssertUnwindSafe(|| contract.publish_release("draft-album".to_string(), 1, commitment, 1))).is_err());
     assert!(!contract.get_release("draft-album".to_string(), 1).unwrap().published);
+}
+
+#[test]
+fn v1_state_migrates_without_losing_escrow_or_payments() {
+    context("studio.testnet", 0);
+    let mut original = StudioContract::new("admin.testnet".parse().unwrap());
+    original.schema_version = 1;
+    original.escrow_yocto = 77;
+    original.payments.insert("old-payment".to_string(), Payment { work_id: "old-song".to_string(), version: 1, kind: "tip".to_string(), buyer_id: "buyer.testnet".parse().unwrap(), gross_yocto: 77, commitment: "old".to_string(), status: "finalized".to_string(), allocated_yocto: 0 });
+    original.payments.flush();
+    let legacy = LegacyStudioContract { schema_version: 1, admin_id: original.admin_id, policy: original.policy, agents: original.agents, releases: original.releases, latest: original.latest, acceptances: original.acceptances, approvals: original.approvals, payments: original.payments, agent_count: 0, release_count: 0, payment_count: 1, escrow_yocto: 77 };
+    near_sdk::env::state_write(&legacy);
+    let migrated = StudioContract::migrate();
+    assert_eq!(migrated.get_schema_version(), 2);
+    assert_eq!(migrated.get_escrow_yocto().0, 77);
+    assert_eq!(migrated.get_payment("old-payment".to_string()).unwrap().gross_yocto.0, 77);
+    assert_eq!(migrated.get_pending_payout_yocto().0, 0);
+}
+
+#[test]
+fn album_allocation_uses_track_then_song_splits_and_assigns_dust_to_last() {
+    context("studio.testnet", 0);
+    let mut contract = StudioContract::new("admin.testnet".parse().unwrap());
+    let first: near_sdk::AccountId = "first.testnet".parse().unwrap();
+    let second: near_sdk::AccountId = "second.testnet".parse().unwrap();
+    let song = |work_id: &str, first_bp, second_bp| Release { work_id: work_id.to_string(), version: 1, kind: "song".to_string(), media_hash: String::new(), metadata_hash: String::new(), split_hash: String::new(), track_order_hash: String::new(), price_yocto: 1, shares: vec![Share { account_id: first.clone(), basis_points: first_bp }, Share { account_id: second.clone(), basis_points: second_bp }], tracks: vec![], policy_epoch: 1, published: true, ever_published: true, commitment: "song".to_string() };
+    contract.releases.insert("s1:1".to_string(), song("s1", 3333, 6667));
+    contract.releases.insert("s2:1".to_string(), song("s2", 6000, 4000));
+    contract.releases.insert("album:1".to_string(), Release { work_id: "album".to_string(), version: 1, kind: "album".to_string(), media_hash: String::new(), metadata_hash: String::new(), split_hash: String::new(), track_order_hash: String::new(), price_yocto: 101, shares: vec![], tracks: vec![AlbumTrack { song_id: "s1".to_string(), song_version: 1, basis_points: 3333 }, AlbumTrack { song_id: "s2".to_string(), song_version: 1, basis_points: 6667 }], policy_epoch: 1, published: true, ever_published: true, commitment: "album-commit".to_string() });
+    contract.payments.insert("album-tip".to_string(), Payment { work_id: "album".to_string(), version: 1, kind: "tip".to_string(), buyer_id: "buyer.testnet".parse().unwrap(), gross_yocto: 101, commitment: "album-commit".to_string(), status: "finalized".to_string(), allocated_yocto: 0 });
+    contract.escrow_yocto = 101;
+    context("admin.testnet", 0);
+    contract.allocate_payment("album-tip".to_string());
+    assert_eq!(contract.get_earnings(first.clone()).owed_yocto.0, 50);
+    assert_eq!(contract.get_earnings(second).owed_yocto.0, 51);
+    assert_eq!(contract.get_payment("album-tip".to_string()).unwrap().allocated_yocto.0, 101);
+    assert!(catch_unwind(AssertUnwindSafe(|| contract.allocate_payment("album-tip".to_string()))).is_err());
 }

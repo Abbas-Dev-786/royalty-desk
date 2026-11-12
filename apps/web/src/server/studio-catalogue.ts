@@ -9,7 +9,7 @@ export interface CatalogueTrack { readonly workId: string; readonly version: num
 export interface CatalogueItem { readonly workId: string; readonly version: number; readonly kind: "song" | "album"; readonly title: string; readonly assetHash: string; readonly metadataHash: string; readonly priceYocto: string; readonly commitment: string; readonly credits: readonly { readonly accountId: string; readonly basisPoints: number }[]; readonly tracks: readonly CatalogueTrack[]; }
 interface LocalPublication { readonly work_id: string; readonly work_version: number; readonly chain_commitment: string; readonly title: string; readonly asset_hash: string; readonly metadata_hash: string; readonly price_yocto: string; readonly split_json: string; readonly kind: "song" | "album"; readonly mime_type: string; readonly provider: string; readonly permission_ref: string | null; }
 
-const dbPath = resolve(/* turbopackIgnore: true */ process.cwd(), "../..", process.env.STUDIO_CATALOGUE_DB_PATH ?? "private/studio-v2/phase03/studio.sqlite");
+const dbPath = resolve(/* turbopackIgnore: true */ process.cwd(), "../..", process.env.STUDIO_CATALOGUE_DB_PATH ?? "private/studio-v2/phase05/studio.sqlite");
 const mediaPath = resolve(/* turbopackIgnore: true */ process.cwd(), "../..", process.env.STUDIO_MEDIA_PATH ?? "private/studio-media");
 
 export function studioContractClient(): StudioContractClient {

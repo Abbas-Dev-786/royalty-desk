@@ -63,6 +63,8 @@ impl StudioContract {
     pub fn get_schema_version(&self) -> u8 { self.schema_version }
     pub fn get_agent(&self, account_id: AccountId) -> Option<AgentView> { self.agents.get(&account_id).map(|a| a.view(account_id)) }
     pub fn get_release(&self, work_id: String, version: u32) -> Option<ReleaseView> { self.releases.get(&Self::release_key(&work_id, version)).map(|r| r.view()) }
+    pub fn has_accepted_split(&self, work_id: String, version: u32, account_id: AccountId) -> bool { self.acceptances.get(&Self::acceptance_key(&work_id, version, &account_id)).is_some() }
+    pub fn has_approved_release(&self, work_id: String, version: u32, policy_epoch: u32) -> bool { self.approvals.get(&Self::approval_key(&work_id, version, policy_epoch)).is_some() }
     pub fn get_latest_version(&self, work_id: String) -> Option<u32> { self.latest.get(&work_id).copied() }
     pub fn get_payment(&self, payment_id: String) -> Option<PaymentView> { self.payments.get(&payment_id).map(|p| p.view(payment_id)) }
     pub fn get_escrow_yocto(&self) -> near_sdk::json_types::U128 { near_sdk::json_types::U128(self.escrow_yocto) }

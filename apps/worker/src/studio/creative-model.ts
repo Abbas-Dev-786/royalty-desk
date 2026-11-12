@@ -37,7 +37,8 @@ export async function runCreativeModelStep(database: DatabaseSync, model: AgentM
   const system = `You are the ${step.role} agent in an original music studio. Return JSON only: {"content":"..."}. Do not refer to named artists, existing song or album titles, or copyrighted lyrics.`;
   const user = `Brief: ${step.brief}\nContext: ${step.context}`;
   const inputHash = digest(`${system}\n${user}`);
-  const logicalKey = `creative:${step.projectId}:${step.agentId}:${step.role}:${step.revision}`;
+  const briefHash = digest(step.brief);
+  const logicalKey = `creative:${step.projectId}:${briefHash}:${step.agentId}:${step.role}:${step.revision}`;
   const operationId = digest(logicalKey);
   const previous = database.prepare("SELECT o.status, r.output_json, r.input_hash FROM studio_external_operations o LEFT JOIN studio_model_outputs r ON r.operation_id = o.id WHERE o.logical_key = ?").get(logicalKey) as { status: string; output_json: string | null; input_hash: string | null } | undefined;
   if (previous) {
@@ -47,7 +48,7 @@ export async function runCreativeModelStep(database: DatabaseSync, model: AgentM
     }
     throw new Error("ERR_CREATIVE_OUTCOME_UNKNOWN");
   }
-  const prefix = `creative:${step.projectId}:`;
+  const prefix = `creative:${step.projectId}:${briefHash}:${step.agentId}:`;
   const count = database.prepare("SELECT COUNT(*) AS n FROM studio_external_operations WHERE operation_type = 'near_ai_creative' AND substr(logical_key, 1, ?) = ?").get(prefix.length, prefix) as { n: number };
   if (count.n >= Math.min(step.maxCalls, agent.max_calls)) throw new Error("ERR_CREATIVE_BUDGET");
   database.prepare("INSERT INTO studio_external_operations(id, logical_key, operation_type, status, created_at_ms, updated_at_ms) VALUES (?, ?, 'near_ai_creative', 'requested', ?, ?)").run(operationId, logicalKey, Date.now(), Date.now());

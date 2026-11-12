@@ -82,9 +82,9 @@ States: `not_started`, `in_progress`, `blocked`, `verified`. This table describe
 | 04 | verified | [Phase 04 evidence](evidence/PHASE_04.md) | Isolated studio contract, sandbox authority matrix and live scoped agent keys passed |
 | 05 | in_progress | [Phase 05 evidence](evidence/PHASE_05.md) | Real two-song album published on testnet; catalogue and range-media HTTP checks passed; owner browser playback/mobile checks pending |
 | 06 | in_progress | [Phase 06 evidence](evidence/PHASE_06.md) | Real album/song purchases and tips finalized on testnet; owner reports web song purchase/tip work; album and remaining browser checks pending |
-| 07 | not_started | None | V2-07-01 |
-| 08 | not_started | None | V2-08-01 |
-| 09 | not_started | None | V2-09-01 |
+| 07 | in_progress | [Phase 07 evidence](evidence/PHASE_07.md) | Live payouts, ledger audit, concurrent payout rejection and incident inspection passed; missing-callback recovery remains |
+| 08 | in_progress | [Phase 08 evidence](evidence/PHASE_08.md) | Browser project, agent, music, review, album, chain commitment and admin operations are implemented; live new-release and owner browser journeys remain |
+| 09 | in_progress | [Phase 09 evidence](evidence/PHASE_09.md) | Full gate, restricted signer sandbox, backup drill, deployed upgrade and live ledger audits passed; full fault, browser isolation and event replay matrix remain |
 | 10 | not_started | None | V2-10-01 |
 
 ## External references

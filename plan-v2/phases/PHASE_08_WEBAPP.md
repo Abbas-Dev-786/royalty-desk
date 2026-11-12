@@ -1,6 +1,6 @@
 # Phase 08 — administrator and listener web app
 
-Depends on: 02–07. Status: not_started. Outcome: the complete studio journey is understandable and operable from the browser.
+Depends on: 02–07. Status: in_progress; the browser project, song, album, review, chain commitment and commerce controls are implemented, while a new live release and owner browser journey remain unverified. Outcome: the complete studio journey is understandable and operable from the browser. See [Phase 08 evidence](../evidence/PHASE_08.md).
 
 ## Tasks
 

@@ -3,6 +3,8 @@ import type { WorkerConfig } from "./config.ts";
 import type { AgentSessionRequest, WorkerAgentService } from "./agents/service.ts";
 import type { AgentMode, PersonalAgentContext } from "./agents/types.ts";
 import type { StudioCreativeRequest, StudioCreativeService } from "./studio/creative-service.ts";
+import type { SongProductionRequest, StudioSongProductionService } from "./studio/song-production.ts";
+import type { StudioReleaseAgentService } from "./studio/release-agents.ts";
 
 async function readJson(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -16,7 +18,7 @@ async function readJson(request: IncomingMessage): Promise<unknown> {
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
-export function createWorkerHealthServer(config: WorkerConfig, agentService?: WorkerAgentService, studioService?: StudioCreativeService): Server {
+export function createWorkerHealthServer(config: WorkerConfig, agentService?: WorkerAgentService, studioService?: StudioCreativeService, songService?: StudioSongProductionService, releaseService?: StudioReleaseAgentService): Server {
   return createServer((request, response) => {
     if (request.method === "GET" && request.url === "/health") {
       response.writeHead(200, { "content-type": "application/json" });
@@ -43,17 +45,28 @@ export function createWorkerHealthServer(config: WorkerConfig, agentService?: Wo
       })();
       return;
     }
-    if (studioService && request.url?.startsWith("/studio/")) {
+    if ((studioService || songService || releaseService) && request.url?.startsWith("/studio/")) {
       void (async () => {
         if (!config.workerApiToken || request.headers.authorization !== `Bearer ${config.workerApiToken}`) { response.writeHead(401, { "content-type": "application/json" }); response.end(JSON.stringify({ error: "ERR_WORKER_AUTH" })); return; }
         try {
-          if (request.method === "POST" && request.url === "/studio/sessions") {
+          const acceptance = /^\/studio\/releases\/([a-z0-9][a-z0-9._-]{0,63})\/accept$/.exec(request.url ?? "");
+          if (request.method === "POST" && acceptance && releaseService) {
+            const body = await readJson(request) as { version?: number };
+            const result = await releaseService.accept(acceptance[1]!, body.version ?? 0);
+            response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" }); response.end(JSON.stringify(result)); return;
+          }
+          if (request.method === "POST" && request.url === "/studio/songs/generate" && songService) {
+            const body = await readJson(request) as SongProductionRequest;
+            const result = await songService.generate(body);
+            response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" }); response.end(JSON.stringify(result)); return;
+          }
+          if (request.method === "POST" && request.url === "/studio/sessions" && studioService) {
             const body = await readJson(request) as StudioCreativeRequest;
             const sessionId = studioService.create(body);
             response.writeHead(201, { "content-type": "application/json" }); response.end(JSON.stringify({ sessionId })); return;
           }
           const match = /^\/studio\/sessions\/([a-f0-9]{64})\/run$/.exec(request.url ?? "");
-          if (request.method === "POST" && match) {
+          if (request.method === "POST" && match && studioService) {
             const body = await readJson(request) as StudioCreativeRequest;
             const result = await studioService.run(match[1]!, body);
             response.writeHead(200, { "content-type": "application/json" }); response.end(JSON.stringify(result)); return;

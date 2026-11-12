@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { acceptStudioSplit, addAlbumTracks, addStudioAgent, addStudioAsset, addStudioContribution, addStudioEntitlement, addStudioExternalOperation, addStudioPayout, addStudioPolicy, addStudioPublication, addStudioRefund, addStudioTask, addWorkVersion, attestStudioAssetRights, createRevenueEvent, createStudio, createStudioProject, createStudioWork, CURRENT_SCHEMA_VERSION, listStudioProjects, openDatabase, quarantineStudioAsset, recordStudioProviderPermission, reviewStudioAsset, StudioMediaStore } from "../src/index.ts";
+import { acceptStudioSplit, addAlbumTracks, addStudioAgent, addStudioAsset, addStudioContribution, addStudioEntitlement, addStudioExternalOperation, addStudioPayout, addStudioPolicy, addStudioPublication, addStudioRefund, addStudioTask, addWorkVersion, attestStudioAssetRights, createRevenueEvent, createStudio, createStudioAlbumDraft, createStudioProject, createStudioWork, CURRENT_SCHEMA_VERSION, listStudioProjects, openDatabase, quarantineStudioAsset, readStudioPermissionReference, recordStudioProviderPermission, reviewStudioAsset, StudioMediaStore, transitionStudioWorkState } from "../src/index.ts";
 
 function path(): string { return join(mkdtempSync(join(tmpdir(), "studio-test-")), "db.sqlite"); }
 const work = { workId: "song-a", studioId: "studio-a", version: 1, kind: "song" as const, state: "draft" as const, title: "First", assetHash: "a".repeat(64), metadataHash: "b".repeat(64), priceYocto: "100", split: [{ agentId: "agent-a", basisPoints: 10000 }] };
@@ -20,6 +20,9 @@ test("DOM-01/04 migrates, persists versions, rejects stale and duplicate IDs", (
   assert.throws(() => listStudioProjects(db, "studio-a", 101));
   createStudioWork(db, { id: "song-a", studioId: "studio-a", projectId: "project-a", kind: "song" });
   addWorkVersion(db, work);
+  transitionStudioWorkState(db, "song-a", 1, "draft", "review");
+  transitionStudioWorkState(db, "song-a", 1, "review", "accepted");
+  assert.throws(() => transitionStudioWorkState(db, "song-a", 1, "review", "accepted"), /STALE/);
   assert.throws(() => addWorkVersion(db, work));
   addWorkVersion(db, { ...work, version: 2, title: "Second" });
   assert.throws(() => addWorkVersion(db, { ...work, version: 2 }));
@@ -48,6 +51,42 @@ test("DOM-02 album track references cannot cross projects", () => {
   addAlbumTracks(db, "album-a", 1, [{ songId: "song-a", songVersion: 1, basisPoints: 10000 }]);
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM studio_album_tracks").get() as { n: number }).n, 1);
   db.close();
+});
+
+test("DOM-02 two reviewed songs form one version-bound album draft with escaped cover text", () => {
+  const db = openDatabase(path());
+  const media = new StudioMediaStore(join(mkdtempSync(join(tmpdir(), "studio-album-media-")), "media"));
+  createStudio(db, "studio-a", "admin.testnet");
+  createStudioProject(db, { id: "project-a", studioId: "studio-a", title: "Album" });
+  addStudioAgent(db, { id: "lyricist", studioId: "studio-a", accountId: "lyricist.testnet", controllerAccountId: "admin.testnet", role: "lyricist", active: true });
+  addStudioAgent(db, { id: "composer", studioId: "studio-a", accountId: "composer.testnet", controllerAccountId: "admin.testnet", role: "composer", active: true });
+  for (const [songId, lyricBasisPoints] of [["song-a", 6000], ["song-b", 4000]] as const) {
+    createStudioWork(db, { id: songId, studioId: "studio-a", projectId: "project-a", kind: "song" });
+    const asset = media.put(new TextEncoder().encode(songId));
+    addStudioAsset(db, { hash: asset.hash, provider: "test", model: "test", licenseRef: "test", storageKey: `${asset.hash}.bin`, mimeType: "audio/mpeg", sizeBytes: asset.sizeBytes });
+    const song = { workId: songId, studioId: "studio-a", kind: "song" as const, state: "review" as const, title: songId, assetHash: asset.hash, metadataHash: "a".repeat(64), priceYocto: "100", split: [{ agentId: "lyricist", basisPoints: lyricBasisPoints }, { agentId: "composer", basisPoints: 10_000 - lyricBasisPoints }] };
+    addWorkVersion(db, { ...song, version: 1 });
+    if (songId === "song-b") addWorkVersion(db, { ...song, version: 2 });
+  }
+  const input = { studioId: "studio-a", projectId: "project-a", title: "River <Dawn>", songIds: ["song-a", "song-b"] as const };
+  const album = createStudioAlbumDraft(db, media, input);
+  assert.equal(createStudioAlbumDraft(db, media, input).workId, album.workId);
+  assert.deepEqual(db.prepare("SELECT song_id, song_version, basis_points FROM studio_album_tracks WHERE album_id = ? ORDER BY track_number").all(album.workId).map((entry) => ({ ...entry })), [{ song_id: "song-a", song_version: 1, basis_points: 5000 }, { song_id: "song-b", song_version: 2, basis_points: 5000 }]);
+  const row = db.prepare("SELECT split_json FROM studio_work_versions WHERE work_id = ?").get(album.workId) as { split_json: string };
+  assert.deepEqual(JSON.parse(row.split_json), [{ agentId: "composer", basisPoints: 5000 }, { agentId: "lyricist", basisPoints: 5000 }]);
+  assert.match(new TextDecoder().decode(media.get(album.assetHash)), /River &lt;Dawn&gt;/);
+  assert.throws(() => createStudioAlbumDraft(db, media, { ...input, title: "Changed title" }), /VERSION_CHANGED/);
+  db.close();
+});
+
+test("MED-05 permission record must cover every catalogue use and the studio account", () => {
+  const file = join(mkdtempSync(join(tmpdir(), "studio-permission-")), "record.json");
+  const record = { basis: "owner-confirmed-private-permission", reference: "owner-confirmation-2026-11-12", studioAccountId: "studio.testnet", testnetOnly: true, coveredUses: { musicLibrary: true, musicStreamingDistribution: true, publicPlayback: true, paidPurchases: true, tips: true, downloads: true } };
+  writeFileSync(file, JSON.stringify(record));
+  assert.equal(readStudioPermissionReference(file, "studio.testnet"), record.reference);
+  assert.throws(() => readStudioPermissionReference(file, "other.testnet"), /STUDIO/);
+  writeFileSync(file, JSON.stringify({ ...record, coveredUses: { ...record.coveredUses, downloads: false } }));
+  assert.throws(() => readStudioPermissionReference(file, "studio.testnet"), /SCOPE/);
 });
 
 test("DOM-05 backup and restore preserves legacy and studio records", () => {

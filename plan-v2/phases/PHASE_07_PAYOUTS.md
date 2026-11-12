@@ -1,6 +1,6 @@
 # Phase 07 — revenue splits and payouts
 
-Depends on: 04, 06. Status: not_started. Outcome: each agent receives the correct share of actual listener proceeds without double payment.
+Depends on: 04, 06. Status: in_progress; live payouts passed, unknown-callback recovery remains. Outcome: each agent receives the correct share of actual listener proceeds without double payment. See [Phase 07 evidence](../evidence/PHASE_07.md).
 
 ## Tasks
 

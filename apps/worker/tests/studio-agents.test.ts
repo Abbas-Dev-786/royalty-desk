@@ -100,8 +100,10 @@ test("AGT-04 repeated logical creative step after restart reuses stored output",
   env.database.close();
   const reopened = openDatabase(env.databasePath);
   assert.equal(await runCreativeModelStep(reopened, model, input), "original verse");
-  await assert.rejects(() => runCreativeModelStep(reopened, model, { ...input, brief: "Different song" }), /INPUT_CHANGED/);
-  assert.equal(calls, 1);
+  await assert.rejects(() => runCreativeModelStep(reopened, model, { ...input, context: "Changed verse" }), /INPUT_CHANGED/);
+  assert.equal(await runCreativeModelStep(reopened, model, { ...input, brief: "Different song" }), "original verse");
+  assert.equal(await runCreativeModelStep(reopened, model, { ...input, brief: "Different song" }), "original verse");
+  assert.equal(calls, 2);
   reopened.close();
 });
 
@@ -156,6 +158,29 @@ test("AGT-04 durable studio service returns one result after process restart", a
   assert.equal((await second.run(id, request)).status, "awaiting_human");
   assert.equal(calls, 5);
   second.close();
+});
+
+test("AGT-04 a completed paid session can be recovered after its deadline without another model call", async () => {
+  const env = setup();
+  env.database.close();
+  let calls = 0;
+  const model: AgentModel = { mode: "fixture", complete: async (request) => {
+    calls += 1;
+    const role = request.system.match(/You are the (\S+) agent/)?.[1];
+    const content = role === "review" ? "ACCEPT: ready" : role === "split_proposal" ? '{"lyricistBasisPoints":5000,"composerBasisPoints":5000}' : role === "split_response" ? "Decision: ACCEPT | lyricistBasisPoints: 5000 | composerBasisPoints: 5000 | total: 10000. Agreed." : "original content";
+    return { model: "fixture/studio", content: JSON.stringify({ content }) };
+  } };
+  const request = { projectId: "project-a", brief: "Original studio song", lyricistId: "lyricist", composerId: "composer", reviewerId: "composer", maxCalls: 5, maxOutputTokens: 100, maxRevisions: 0, deadlineAtMs: Date.now() + 200 };
+  const service = new StudioCreativeService(env.databasePath, env.checkpointPath, model);
+  try {
+    const sessionId = service.create(request);
+    assert.equal((await service.run(sessionId, request)).status, "awaiting_human");
+    const count = calls;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    assert.equal(service.create(request), sessionId);
+    assert.equal((await service.run(sessionId, request)).status, "awaiting_human");
+    assert.equal(calls, count);
+  } finally { service.close(); }
 });
 
 test("AGT-06 expired deadline is rejected before a model call", async () => {
@@ -254,7 +279,7 @@ test("AGT-04 killed in-flight inference is not charged twice after process resta
   }
   const reopened = openDatabase(env.databasePath);
   try {
-    const row = reopened.prepare("SELECT status FROM studio_external_operations WHERE logical_key = 'creative:project-a:lyricist:lyrics:0'").get() as { status: string };
+    const row = reopened.prepare("SELECT status FROM studio_external_operations WHERE logical_key LIKE 'creative:project-a:%:lyricist:lyrics:0'").get() as { status: string };
     assert.equal(row.status, "requested");
     let repeatedCalls = 0;
     const model: AgentModel = { mode: "fixture", complete: async () => { repeatedCalls += 1; return { model: "fixture/studio", content: '{"content":"duplicate"}' }; } };

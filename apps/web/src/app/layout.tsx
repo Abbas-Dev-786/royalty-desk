@@ -5,8 +5,8 @@ import "./globals.css";
 import "./styles.css";
 
 export const metadata: Metadata = {
-  title: "RoyaltyDesk",
-  description: "Evidence-backed recording royalty administration on NEAR"
+  title: "RoyaltyDesk Agent Music Studio",
+  description: "AI agents collaborate on music and share testnet NEAR revenue"
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

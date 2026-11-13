@@ -7,3 +7,4 @@ export * from "./studio-records.ts";
 export * from "./studio-media-store.ts";
 export * from "./studio-album-builder.ts";
 export * from "./studio-permission.ts";
+export * from "./studio-guest-reservation.ts";

@@ -17,7 +17,8 @@ export async function GET(request: Request): Promise<Response> {
     } finally { database.close(); }
     if (!assetHash) return Response.json({ error: "ERR_GUEST_SONG_NOT_READY" }, { status: 409, headers });
     const [policy, release] = await Promise.all([chain.policy(), chain.release(guest.work_id, 1)]);
-    if (!release || release.media_hash !== assetHash || release.published || policy.paused || release.policy_epoch !== policy.epoch) return Response.json({ error: "ERR_GUEST_RELEASE_CHANGED" }, { status: 409, headers });
+    if (release && !release.published && release.policy_epoch !== policy.epoch) return Response.json({ error: "ERR_GUEST_RELEASE_POLICY_STALE" }, { status: 409, headers });
+    if (!release || release.media_hash !== assetHash || release.published || policy.paused) return Response.json({ error: "ERR_GUEST_RELEASE_CHANGED" }, { status: 409, headers });
     const approved = await chain.hasApprovedRelease(guest.work_id, 1, release.policy_epoch);
     return Response.json({ contractId: chain.contractId, guardianId, workId: guest.work_id, version: 1, commitment: release.commitment, policyEpoch: release.policy_epoch, approved, requiresApproval: policy.human_review }, { headers });
   } catch (error) {

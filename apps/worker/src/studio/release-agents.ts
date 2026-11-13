@@ -74,11 +74,12 @@ export class StudioReleaseAgentService {
       const client = new StudioContractClient(this.#contractId, this.#provider, this.#contractId.endsWith(".test.near") ? "sandbox" : "testnet");
       const policy = await client.policy();
       if (policy.paused) throw new Error("ERR_RELEASE_POLICY_PAUSED");
-      const input = acceptedStudioReleaseInputFromDatabase(database, new StudioMediaStore(this.#mediaPath), studio.studio_id, workId, version, policy.epoch);
       const existing = await client.release(workId, version);
+      const input = acceptedStudioReleaseInputFromDatabase(database, new StudioMediaStore(this.#mediaPath), studio.studio_id, workId, version, existing?.policy_epoch ?? policy.epoch);
       if (existing) {
         const matches = (Object.keys(input) as (keyof typeof input)[]).every((key) => JSON.stringify(existing[key]) === JSON.stringify(input[key]));
         if (!matches) throw new Error("ERR_RELEASE_CHAIN_MISMATCH");
+        if (!existing.published && existing.policy_epoch !== policy.epoch) throw new Error("ERR_RELEASE_POLICY_STALE");
         return existing;
       }
       const logicalKey = `release-commit:${workId}:${version}`;

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { acceptStudioSplit, addAlbumTracks, addStudioAgent, addStudioAsset, addStudioContribution, addStudioEntitlement, addStudioExternalOperation, addStudioPayout, addStudioPolicy, addStudioPublication, addStudioRefund, addStudioTask, addWorkVersion, attestStudioAssetRights, createRevenueEvent, createStudio, createStudioAlbumDraft, createStudioProject, createStudioWork, CURRENT_SCHEMA_VERSION, listStudioProjects, openDatabase, quarantineStudioAsset, readStudioPermissionReference, recordStudioProviderPermission, reviewStudioAsset, StudioMediaStore, transitionStudioWorkState } from "../src/index.ts";
+import { acceptStudioSplit, addAlbumTracks, addStudioAgent, addStudioAsset, addStudioContribution, addStudioEntitlement, addStudioExternalOperation, addStudioPayout, addStudioPolicy, addStudioPublication, addStudioRefund, addStudioTask, addWorkVersion, attestStudioAssetRights, createRevenueEvent, createStudio, createStudioAlbumDraft, createStudioProject, createStudioWork, CURRENT_SCHEMA_VERSION, listStudioProjects, openDatabase, quarantineStudioAsset, readStudioPermissionReference, recordStudioProviderPermission, renewUnstartedGuestDeadline, reviewStudioAsset, StudioMediaStore, transitionStudioWorkState } from "../src/index.ts";
 
 function path(): string { return join(mkdtempSync(join(tmpdir(), "studio-test-")), "db.sqlite"); }
 const work = { workId: "song-a", studioId: "studio-a", version: 1, kind: "song" as const, state: "draft" as const, title: "First", assetHash: "a".repeat(64), metadataHash: "b".repeat(64), priceYocto: "100", split: [{ agentId: "agent-a", basisPoints: 10000 }] };
@@ -64,6 +64,24 @@ test("DOM-01 migrates one-song wallets without losing the old song and accepts a
   assert.equal((upgraded.prepare("SELECT COUNT(*) AS n FROM studio_guest_songs WHERE account_id = 'alice.testnet'").get() as { n: number }).n, 2);
   assert.deepEqual(upgraded.prepare("PRAGMA foreign_key_check").all(), []);
   upgraded.close();
+});
+
+test("DOM-01 renews an expired guest deadline only before any agent work starts", () => {
+  const db = openDatabase(path());
+  createStudio(db, "studio-a", "admin.testnet");
+  for (const role of ["lyricist", "composer", "reviewer"] as const) addStudioAgent(db, { id: role, studioId: "studio-a", accountId: `${role}.testnet`, controllerAccountId: "admin.testnet", role, active: true });
+  createStudioProject(db, { id: "project-guest-a", studioId: "studio-a", title: "First song" });
+  const now = Date.now();
+  db.prepare("INSERT INTO studio_guest_songs(account_id,studio_id,project_id,brief,title,lyricist_id,composer_id,reviewer_id,deadline_at_ms,created_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .run("alice.testnet", "studio-a", "project-guest-a", "A quiet midnight jazz song with strings", "First song", "lyricist", "composer", "reviewer", now - 1, now - 600_001);
+  assert.equal(renewUnstartedGuestDeadline(db, "bob.testnet", "project-guest-a", now), null);
+  assert.equal(renewUnstartedGuestDeadline(db, "alice.testnet", "project-guest-a", now), now + 600_000);
+  assert.equal(renewUnstartedGuestDeadline(db, "alice.testnet", "project-guest-a", now + 1), now + 600_000);
+  db.prepare("UPDATE studio_guest_songs SET deadline_at_ms = ? WHERE project_id = ?").run(now - 1, "project-guest-a");
+  db.prepare("INSERT INTO studio_external_operations(id,logical_key,operation_type,status,created_at_ms,updated_at_ms) VALUES (?,?, 'near_ai_creative','requested',?,?)")
+    .run("a".repeat(64), "creative:project-guest-a:lyrics", now, now);
+  assert.equal(renewUnstartedGuestDeadline(db, "alice.testnet", "project-guest-a", now), now - 1);
+  db.close();
 });
 
 test("DOM-02 album track references cannot cross projects", () => {

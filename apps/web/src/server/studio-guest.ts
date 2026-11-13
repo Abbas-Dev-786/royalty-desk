@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { createStudioProject } from "@studio/persistence";
+import { createStudioProject, renewUnstartedGuestDeadline } from "@studio/persistence";
 import { currentUser } from "./runtime";
 import { openStudioCatalogueDatabase, studioContractClient } from "./studio-catalogue";
 
@@ -41,7 +41,8 @@ export async function reserveGuestSong(accountId: string, projectId: string, tit
       const existing = database.prepare("SELECT * FROM studio_guest_songs WHERE project_id = ?").get(projectId) as unknown as GuestSongRow | undefined;
       if (existing) {
         if (existing.account_id !== accountId || existing.title !== title || existing.brief !== brief) throw new Error("ERR_GUEST_PROJECT_MISMATCH");
-        database.exec("COMMIT"); return existing;
+        const deadlineAtMs = renewUnstartedGuestDeadline(database, accountId, projectId);
+        database.exec("COMMIT"); return { ...existing, deadline_at_ms: deadlineAtMs ?? existing.deadline_at_ms };
       }
       const studio = database.prepare("SELECT id FROM studios WHERE admin_account_id = ? LIMIT 1").get(contractId) as { id: string } | undefined;
       if (!studio) throw new Error("ERR_GUEST_STUDIO_UNAVAILABLE");

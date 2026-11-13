@@ -10,7 +10,7 @@ Run:
 npm run inspect:studio-guest -- --account-id=<wallet.testnet>
 ```
 
-`inspection_only` reads the current guest project, job, saved outputs, audio count and operation states without revealing the brief, keys or model text. A `failed` job with `requested` or `unknown` model operations and no saved output has an uncertain provider outcome. Check the NEAR AI Cloud account's usage/activity for the time of the attempt before deciding whether to sponsor another run. This repository cannot prove that an in-flight request was free when the worker stopped before saving its response.
+`inspection_only` reads the wallet's most recent guest project unless `--expected-project-id=<project-id>` selects a specific song. It reports the job, saved outputs, audio count and operation states without revealing the brief, keys or model text. A `failed` job with `requested` or `unknown` model operations and no saved output has an uncertain provider outcome. Check the NEAR AI Cloud account's usage/activity for the time of the attempt before deciding whether to sponsor another run. This repository cannot prove that an in-flight request was free when the worker stopped before saving its response.
 
 ## Explicitly allow another run
 
@@ -20,6 +20,6 @@ Only after reviewing the possible credit charge, copy the exact project ID from 
 npm run inspect:studio-guest -- --account-id=<wallet.testnet> --expected-project-id=<project-id> --execute --acknowledge-possible-duplicate-ai-charge
 ```
 
-The command refuses to reset a guest with saved model output, generated audio, a work ID, a non-failed job, or a finalized model operation. A recorded provider response ID is allowed only for an operation explicitly marked `failed`, such as a completed reply without usable content. It makes a persistent SQLite backup under ignored `private/studio-v2/recovery`, marks the old project cancelled, retains its operation journal, and points the same wallet's one guest slot to a fresh project with the same title and brief. It makes **no** model or music API request. The next **Resume my agent run** click may consume new NEAR AI credits. The guest cap still counts that wallet once.
+The command refuses to reset a song with saved model output, generated audio, a work ID, a non-failed job, or a finalized model operation. A recorded provider response ID is allowed only for an operation explicitly marked `failed`, such as a completed reply without usable content. It makes a persistent SQLite backup under ignored `private/studio-v2/recovery`, marks the selected project cancelled, retains its operation journal, and creates a fresh project for the same wallet with the same title and brief. It makes **no** model or music API request. A new agent run may consume NEAR AI credits.
 
 Run the worker with `npm run dev:worker` during paid generation. This command now stays on one process; `npm run dev:watch --workspace @studio/worker` is for development when no paid requests are running.

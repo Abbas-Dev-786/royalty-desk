@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request): Promise<Response> {
   try {
-    const row = guestSong(await guestAccountId());
+    const projectId = new URL(request.url).searchParams.get("projectId") ?? undefined;
+    const row = guestSong(await guestAccountId(), projectId);
     if (!row?.work_id) return Response.json({ error: "ERR_GUEST_SONG_MISSING" }, { status: 404 });
     const database = openStudioCatalogueDatabase();
     let asset: { asset_hash: string; mime_type: string } | undefined;

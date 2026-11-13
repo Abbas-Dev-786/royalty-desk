@@ -16,7 +16,9 @@ const databasePath = resolve(process.env.STUDIO_CATALOGUE_DB_PATH ?? "private/st
 if (!existsSync(databasePath)) throw new Error("Studio database is missing");
 const database = openDatabase(databasePath);
 try {
-  const guest = database.prepare("SELECT account_id,studio_id,project_id,title,brief,session_id,work_id FROM studio_guest_songs WHERE account_id = ?").get(accountId);
+  const guest = expectedProjectId
+    ? database.prepare("SELECT account_id,studio_id,project_id,title,brief,session_id,work_id FROM studio_guest_songs WHERE account_id = ? AND project_id = ?").get(accountId, expectedProjectId)
+    : database.prepare("SELECT account_id,studio_id,project_id,title,brief,session_id,work_id FROM studio_guest_songs WHERE account_id = ? ORDER BY created_at_ms DESC, project_id DESC LIMIT 1").get(accountId);
   if (!guest) throw new Error("Guest reservation is missing");
   const job = guest.session_id ? database.prepare("SELECT state,attempts,error_code FROM jobs WHERE id = ?").get(guest.session_id) : null;
   const operations = database.prepare("SELECT status,provider_request_id FROM studio_external_operations WHERE operation_type = 'near_ai_creative' AND logical_key LIKE ?").all(`creative:${guest.project_id}:%`);
@@ -35,9 +37,9 @@ try {
   const newProjectId = `project-guest-${randomUUID()}`;
   database.exec("BEGIN IMMEDIATE");
   try {
-    const current = database.prepare("SELECT project_id,work_id FROM studio_guest_songs WHERE account_id = ?").get(accountId);
+    const current = database.prepare("SELECT project_id,work_id FROM studio_guest_songs WHERE account_id = ? AND project_id = ?").get(accountId, expectedProjectId);
     if (current?.project_id !== expectedProjectId || current.work_id) throw new Error("Guest reservation changed during recovery");
-    createStudioProject(database, { id: newProjectId, studioId: guest.studio_id, title: `Guest song by ${accountId}` });
+    createStudioProject(database, { id: newProjectId, studioId: guest.studio_id, title: guest.title });
     database.prepare("UPDATE studio_projects SET status = 'cancelled' WHERE id = ?").run(expectedProjectId);
     database.prepare("UPDATE studio_guest_songs SET project_id = ?, session_id = NULL, work_id = NULL, deadline_at_ms = ? WHERE account_id = ? AND project_id = ?").run(newProjectId, Date.now() + 600_000, accountId, expectedProjectId);
     const logicalKey = `guest-recovery:${accountId}:${expectedProjectId}`;

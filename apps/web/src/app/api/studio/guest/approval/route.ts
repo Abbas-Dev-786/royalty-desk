@@ -1,11 +1,12 @@
 import { guestAccountId, guestSong } from "@/server/studio-guest";
 import { openStudioCatalogueDatabase, studioContractClient } from "@/server/studio-catalogue";
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
   const headers = { "cache-control": "private, no-store" };
   try {
     const accountId = await guestAccountId();
-    const guest = guestSong(accountId);
+    const projectId = new URL(request.url).searchParams.get("projectId") ?? undefined;
+    const guest = guestSong(accountId, projectId);
     if (!guest?.work_id) return Response.json({ error: "ERR_GUEST_SONG_NOT_READY" }, { status: 409, headers });
     const chain = studioContractClient();
     const guardianId = await chain.guardian();

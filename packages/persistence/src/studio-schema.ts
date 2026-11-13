@@ -260,9 +260,9 @@ CREATE TABLE studio_orders (
       ) STRICT;
 
 CREATE TABLE studio_guest_songs (
-        account_id TEXT PRIMARY KEY,
+        project_id TEXT PRIMARY KEY REFERENCES studio_projects(id),
+        account_id TEXT NOT NULL,
         studio_id TEXT NOT NULL REFERENCES studios(id),
-        project_id TEXT NOT NULL UNIQUE REFERENCES studio_projects(id),
         brief TEXT NOT NULL CHECK(length(brief) BETWEEN 20 AND 2000),
         title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 160),
         lyricist_id TEXT NOT NULL REFERENCES studio_agents(id),
@@ -294,4 +294,6 @@ CREATE INDEX studio_model_outputs_project ON studio_model_outputs(project_id, ag
 CREATE INDEX studio_audio_generations_project ON studio_audio_generations(project_id, work_id);
 
 CREATE INDEX studio_orders_buyer_active ON studio_orders(buyer_account_id, work_id, work_version, kind, status);
+
+CREATE INDEX studio_guest_songs_account_created ON studio_guest_songs(account_id, created_at_ms DESC);
 `;

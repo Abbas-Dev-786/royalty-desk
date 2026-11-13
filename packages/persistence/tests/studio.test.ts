@@ -34,6 +34,38 @@ test("DOM-01/04 migrates, persists versions, rejects stale and duplicate IDs", (
   db.close();
 });
 
+test("DOM-01 migrates one-song wallets without losing the old song and accepts another project", () => {
+  const file = path();
+  const previous = openDatabase(file);
+  createStudio(previous, "studio-a", "admin.testnet");
+  for (const [id, role] of [["lyricist", "lyricist"], ["composer", "composer"], ["reviewer", "reviewer"]] as const) {
+    addStudioAgent(previous, { id, studioId: "studio-a", accountId: `${id}.testnet`, controllerAccountId: "admin.testnet", role, active: true });
+  }
+  createStudioProject(previous, { id: "project-old", studioId: "studio-a", title: "First song" });
+  previous.exec(`DROP TABLE studio_guest_songs;
+    CREATE TABLE studio_guest_songs (
+      account_id TEXT PRIMARY KEY, studio_id TEXT NOT NULL REFERENCES studios(id),
+      project_id TEXT NOT NULL UNIQUE REFERENCES studio_projects(id), brief TEXT NOT NULL,
+      title TEXT NOT NULL, lyricist_id TEXT NOT NULL REFERENCES studio_agents(id),
+      composer_id TEXT NOT NULL REFERENCES studio_agents(id), reviewer_id TEXT NOT NULL REFERENCES studio_agents(id),
+      deadline_at_ms INTEGER NOT NULL, session_id TEXT, work_id TEXT UNIQUE, created_at_ms INTEGER NOT NULL
+    ) STRICT;
+    UPDATE schema_migrations SET version = 15;`);
+  previous.prepare("INSERT INTO studio_guest_songs(account_id,studio_id,project_id,brief,title,lyricist_id,composer_id,reviewer_id,deadline_at_ms,created_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .run("alice.testnet", "studio-a", "project-old", "A bright song about the first morning", "First song", "lyricist", "composer", "reviewer", Date.now() + 600_000, Date.now());
+  previous.close();
+
+  const upgraded = openDatabase(file);
+  assert.equal((upgraded.prepare("SELECT MAX(version) AS version FROM schema_migrations").get() as { version: number }).version, CURRENT_SCHEMA_VERSION);
+  assert.equal((upgraded.prepare("SELECT title FROM studio_guest_songs WHERE project_id = 'project-old'").get() as { title: string }).title, "First song");
+  createStudioProject(upgraded, { id: "project-new", studioId: "studio-a", title: "Second song" });
+  upgraded.prepare("INSERT INTO studio_guest_songs(account_id,studio_id,project_id,brief,title,lyricist_id,composer_id,reviewer_id,deadline_at_ms,created_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .run("alice.testnet", "studio-a", "project-new", "Another bright song about the next morning", "Second song", "lyricist", "composer", "reviewer", Date.now() + 600_000, Date.now());
+  assert.equal((upgraded.prepare("SELECT COUNT(*) AS n FROM studio_guest_songs WHERE account_id = 'alice.testnet'").get() as { n: number }).n, 2);
+  assert.deepEqual(upgraded.prepare("PRAGMA foreign_key_check").all(), []);
+  upgraded.close();
+});
+
 test("DOM-02 album track references cannot cross projects", () => {
   const db = openDatabase(path());
   createStudio(db, "studio-a", "admin.testnet");

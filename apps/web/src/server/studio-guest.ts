@@ -1,0 +1,69 @@
+import "server-only";
+import { createHash, randomUUID } from "node:crypto";
+import { createStudioProject } from "@royaltydesk/persistence";
+import { currentUser } from "./runtime";
+import { openStudioCatalogueDatabase, studioContractClient } from "./studio-catalogue";
+
+export interface GuestSongRow { readonly account_id: string; readonly studio_id: string; readonly project_id: string; readonly brief: string; readonly title: string; readonly lyricist_id: string; readonly composer_id: string; readonly reviewer_id: string; readonly deadline_at_ms: number; readonly session_id: string | null; readonly work_id: string | null; }
+interface OutputRow { readonly role: string; readonly agent_id: string; readonly model: string; readonly provider_mode: string; readonly output_hash: string; readonly output_json: string; readonly created_at_ms: number; }
+const maxGuests = 3;
+
+export async function guestAccountId(): Promise<string> {
+  const user = await currentUser();
+  if (!user || user.networkId !== "testnet") throw new Error("ERR_UNAUTHORIZED");
+  return user.accountId;
+}
+
+export function guestSong(accountId: string): GuestSongRow | undefined {
+  const database = openStudioCatalogueDatabase();
+  try { return database.prepare("SELECT * FROM studio_guest_songs WHERE account_id = ?").get(accountId) as unknown as GuestSongRow | undefined; }
+  finally { database.close(); }
+}
+
+export async function reserveGuestSong(accountId: string, title: string, brief: string): Promise<GuestSongRow> {
+  const adminId = await studioContractClient().admin();
+  const database = openStudioCatalogueDatabase();
+  try {
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      const existing = database.prepare("SELECT * FROM studio_guest_songs WHERE account_id = ?").get(accountId) as unknown as GuestSongRow | undefined;
+      if (existing) { database.exec("COMMIT"); return existing; }
+      const count = database.prepare("SELECT COUNT(*) AS n FROM studio_guest_songs").get() as { n: number };
+      const configured = Number(process.env.STUDIO_GUEST_MAX_SONGS ?? maxGuests);
+      if (!Number.isSafeInteger(configured) || configured < 1 || configured > 500 || count.n >= configured) throw new Error("ERR_GUEST_CAP_REACHED");
+      const studio = database.prepare("SELECT id FROM studios WHERE admin_account_id = ? LIMIT 1").get(adminId) as { id: string } | undefined;
+      if (!studio) throw new Error("ERR_GUEST_STUDIO_UNAVAILABLE");
+      const agents = database.prepare("SELECT id, role FROM studio_agents WHERE studio_id = ? AND role IN ('lyricist','composer','reviewer') AND active = 1 AND revoked_at_ms IS NULL AND (expires_at_ms IS NULL OR expires_at_ms > ?) ORDER BY id").all(studio.id, Date.now()) as { id: string; role: string }[];
+      const byRole = (role: string) => agents.find((agent) => agent.role === role)?.id;
+      const lyricistId = byRole("lyricist"), composerId = byRole("composer"), reviewerId = byRole("reviewer");
+      if (!lyricistId || !composerId || !reviewerId || new Set([lyricistId, composerId, reviewerId]).size !== 3) throw new Error("ERR_GUEST_AGENT_TEAM_UNAVAILABLE");
+      const projectId = `project-guest-${randomUUID()}`;
+      const deadlineAtMs = Date.now() + 600_000;
+      createStudioProject(database, { id: projectId, studioId: studio.id, title: `Guest song by ${accountId}` });
+      database.prepare("INSERT INTO studio_guest_songs(account_id,studio_id,project_id,brief,title,lyricist_id,composer_id,reviewer_id,deadline_at_ms,created_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?)").run(accountId, studio.id, projectId, brief, title, lyricistId, composerId, reviewerId, deadlineAtMs, Date.now());
+      const created = database.prepare("SELECT * FROM studio_guest_songs WHERE account_id = ?").get(accountId) as unknown as GuestSongRow;
+      database.exec("COMMIT");
+      return created;
+    } catch (error) { database.exec("ROLLBACK"); throw error; }
+  } finally { database.close(); }
+}
+
+export function guestSnapshot(accountId: string) {
+  const database = openStudioCatalogueDatabase();
+  try {
+    const row = database.prepare("SELECT * FROM studio_guest_songs WHERE account_id = ?").get(accountId) as unknown as GuestSongRow | undefined;
+    if (!row) return null;
+    const job = row.session_id ? database.prepare("SELECT state, error_code FROM jobs WHERE id = ?").get(row.session_id) as { state: string; error_code: string | null } | undefined : undefined;
+    const uncertain = job?.state === "failed" && Boolean(database.prepare("SELECT 1 FROM studio_external_operations WHERE operation_type = 'near_ai_creative' AND logical_key LIKE ? AND status IN ('requested','submitted','unknown') LIMIT 1").get(`creative:${row.project_id}:%`));
+    const outputRows = database.prepare("SELECT o.role,o.agent_id,o.model,o.provider_mode,o.output_hash,o.output_json,o.created_at_ms FROM studio_model_outputs o JOIN studio_external_operations e ON e.id=o.operation_id WHERE o.project_id = ? AND e.status = 'finalized' ORDER BY o.created_at_ms LIMIT 12").all(row.project_id) as unknown as OutputRow[];
+    const steps = outputRows.flatMap((output) => {
+      if (output.provider_mode !== "live" || createHash("sha256").update(output.output_json).digest("hex") !== output.output_hash) return [];
+      try {
+        const parsed = JSON.parse(output.output_json) as { content?: unknown };
+        return typeof parsed.content === "string" ? [{ role: output.role, agentId: output.agent_id, model: output.model, content: parsed.content.slice(0, 4000), outputHash: output.output_hash }] : [];
+      } catch { return []; }
+    });
+    const work = row.work_id ? database.prepare("SELECT v.version, v.state, v.asset_hash, a.duration_ms, p.chain_tx_hash FROM studio_work_versions v JOIN studio_assets a ON a.hash = v.asset_hash LEFT JOIN studio_publications p ON p.work_id = v.work_id AND p.work_version = v.version AND p.unpublished_at_ms IS NULL WHERE v.work_id = ? ORDER BY v.version DESC LIMIT 1").get(row.work_id) as { version: number; state: string; asset_hash: string; duration_ms: number | null; chain_tx_hash: string | null } | undefined : undefined;
+    return { projectId: row.project_id, title: row.title, brief: row.brief, sessionId: row.session_id, status: job?.state ?? "reserved", error: uncertain ? "ERR_CREATIVE_OUTCOME_UNKNOWN" : job?.error_code ?? null, steps, song: work ? { workId: row.work_id, version: work.version, state: work.state, published: Boolean(work.chain_tx_hash), durationMs: work.duration_ms, assetHash: work.asset_hash } : null };
+  } finally { database.close(); }
+}

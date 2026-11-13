@@ -3,11 +3,13 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { acceptStudioSplit, addStudioAgent, addWorkVersion, createStudio, createStudioProject, createStudioWork, openDatabase } from "@royaltydesk/persistence";
+import { acceptStudioSplit, addStudioAgent, addWorkVersion, createStudio, createStudioProject, createStudioWork, JobStore, openDatabase } from "@royaltydesk/persistence";
 import type { AgentModel } from "../src/agents/types.ts";
+import { createNearAiAgentModel, NearAiCompletionError } from "../src/agents/model.ts";
 import { createCreativeGraph } from "../src/studio/creative-graph.ts";
 import { runCreativeModelStep } from "../src/studio/creative-model.ts";
 import { StudioCreativeService } from "../src/studio/creative-service.ts";
+import { DurableJobRunner } from "../src/jobs/runner.ts";
 import { createWorkerHealthServer } from "../src/health-server.ts";
 import type { WorkerConfig } from "../src/config.ts";
 import type { AddressInfo } from "node:net";
@@ -26,12 +28,38 @@ function setup() {
   return { database, checkpointPath: join(root, "graph.sqlite"), databasePath: join(root, "app.sqlite") };
 }
 
-test("AGT-01 two agents create parallel deliverables and review a revision", async () => {
+test("AGT-04 a completed reasoning-only response records its provider ID without retry", async () => {
+  const env = setup();
+  const originalFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = async (_input, init) => {
+    requests += 1;
+    const body = JSON.parse(String(init?.body)) as { max_tokens: number; reasoning_effort?: string; thinking?: { type: string } };
+    assert.equal(body.max_tokens, 4000);
+    assert.equal(body.reasoning_effort, "low");
+    assert.deepEqual(body.thinking, { type: "enabled" });
+    return Response.json({ id: "chat-test-1", choices: [{ finish_reason: "length", message: { content: null, reasoning_content: "private reasoning" } }], usage: { completion_tokens: 4000 } });
+  };
+  try {
+    const model = createNearAiAgentModel({ baseUrl: "https://example.test/v1", apiKey: "fixture-key", model: "z-ai/glm-5.3-flash" });
+    const step = { projectId: "project-a", agentId: "lyricist", role: "lyrics" as const, revision: 0, brief: "An original song about morning", context: "Write original lyrics.", maxCalls: 6, maxOutputTokens: 4000 };
+    await assert.rejects(runCreativeModelStep(env.database, model, step), (error: unknown) => error instanceof NearAiCompletionError && error.message === "ERR_NEAR_AI_OUTPUT_LIMIT" && error.responseId === "chat-test-1");
+    const operation = env.database.prepare("SELECT status, provider_request_id FROM studio_external_operations").get() as { status: string; provider_request_id: string };
+    assert.equal(operation.status, "failed");
+    assert.equal(operation.provider_request_id, "chat-test-1");
+    await assert.rejects(runCreativeModelStep(env.database, model, step), /ERR_CREATIVE_OUTCOME_UNKNOWN/);
+    assert.equal(requests, 1);
+  } finally { globalThis.fetch = originalFetch; env.database.close(); }
+});
+
+test("AGT-01 lyricist hands lyrics to composer before review and split negotiation", async () => {
   const setupResult = setup();
   let calls = 0;
+  let composerSawLyrics = false;
   const model: AgentModel = { mode: "fixture", complete: async (request) => {
     calls += 1;
     const role = request.system.includes("split_proposal agent") ? "split_proposal" : request.system.includes("split_response agent") ? "split_response" : request.system.includes("lyrics agent") ? "lyrics" : request.system.includes("composition agent") ? "composition" : request.system.includes("revision agent") ? "revision" : "review";
+    if (role === "composition") composerSawLyrics = request.user.includes("lyrics content");
     const content = role === "review" ? calls < 4 ? "REVISE: improve chorus" : "ACCEPT: ready" : role === "split_proposal" ? '{"lyricistBasisPoints":5000,"composerBasisPoints":5000}' : role === "split_response" ? '{"decision":"accept","lyricistBasisPoints":5000,"composerBasisPoints":5000}' : `${role} content`;
     return { model: "fixture/studio", content: JSON.stringify({ content }) };
   } };
@@ -40,6 +68,7 @@ test("AGT-01 two agents create parallel deliverables and review a revision", asy
   assert.equal(result.status, "awaiting_acceptance");
   assert.equal(result.revisionCount, 1);
   assert.equal(calls, 7);
+  assert.equal(composerSawLyrics, true);
   assert.equal((setupResult.database.prepare("SELECT COUNT(DISTINCT agent_id) AS n FROM studio_model_outputs").get() as { n: number }).n, 2);
   const saved = await created.graph.getState({ configurable: { thread_id: "project-a:1" } });
   assert.equal(saved.values.status, "awaiting_acceptance");
@@ -51,6 +80,20 @@ test("AGT-01 two agents create parallel deliverables and review a revision", asy
   assert.equal(calls, 7);
   resumed.close();
   reopened.close();
+});
+
+test("AGT-04 an aggregated graph failure records the underlying model error", async () => {
+  const root = mkdtempSync(join(tmpdir(), "studio-aggregate-"));
+  const path = join(root, "jobs.sqlite");
+  const jobs = new JobStore(path);
+  try {
+    jobs.enqueue({ id: "aggregate-case", releaseId: "project-a", inputDigest: "a".repeat(64) });
+    const result = await new DurableJobRunner(jobs).run("aggregate-case", async () => { throw new AggregateError([new Error("ERR_NEAR_AI_HTTP_402"), new Error("ERR_CREATIVE_OUTCOME_UNKNOWN")], "Multiple errors occurred during superstep 3"); });
+    assert.equal(result?.state, "failed");
+    const database = openDatabase(path);
+    try { assert.equal((database.prepare("SELECT error_code FROM jobs WHERE id = 'aggregate-case'").get() as { error_code: string }).error_code, "ERR_NEAR_AI_HTTP_402"); }
+    finally { database.close(); }
+  } finally { jobs.close(); }
 });
 
 test("AGT-02 another agent cannot accept a participant's split or stale version", () => {

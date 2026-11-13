@@ -64,7 +64,7 @@ export function createCreativeGraph(options: CreativeGraphOptions) {
   });
   const graph = new StateGraph(CreativeState)
     .addNode("write_lyrics", async (state) => ({ lyrics: await step("lyrics", options.lyricistId, state, "Write original lyrics.") }))
-    .addNode("plan_composition", async (state) => ({ composition: await step("composition", options.composerId, state, "Write an original composition plan.") }))
+    .addNode("plan_composition", async (state) => ({ composition: await step("composition", options.composerId, state, `Write an original composition plan for these lyrics: ${state.lyrics}`) }))
     .addNode("review_work", async (state) => {
       const review = await step("review", options.reviewerId, state, `Lyrics: ${state.lyrics}\nComposition: ${state.composition}. Start content with ACCEPT: or REVISE:.`);
       return { review, status: review.startsWith("ACCEPT:") ? "accepted" as const : options.maxRevisions > state.revisionCount ? "running" as const : "unresolved" as const };
@@ -85,8 +85,8 @@ export function createCreativeGraph(options: CreativeGraphOptions) {
       return { splitDecision: JSON.stringify(response), status: response.decision === "accept" && matches ? "awaiting_acceptance" as const : "unresolved" as const };
     })
     .addEdge(START, "write_lyrics")
-    .addEdge(START, "plan_composition")
-    .addEdge(["write_lyrics", "plan_composition"], "review_work")
+    .addEdge("write_lyrics", "plan_composition")
+    .addEdge("plan_composition", "review_work")
     .addConditionalEdges("review_work", (state) => state.status === "running" ? "revise_lyrics" : state.status === "accepted" ? "propose_split" : END, ["revise_lyrics", "propose_split", END])
     .addEdge("revise_lyrics", "review_work")
     .addEdge("propose_split", "respond_split")

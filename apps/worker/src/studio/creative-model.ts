@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import { createNearAiAgentModel } from "../agents/model.ts";
+import { NearAiCompletionError } from "../agents/model.ts";
 import type { AgentModel } from "../agents/types.ts";
 
 const outputSchema = z.object({ content: z.string().min(1).max(12_000) }).strict();
@@ -52,9 +53,13 @@ export async function runCreativeModelStep(database: DatabaseSync, model: AgentM
   const count = database.prepare("SELECT COUNT(*) AS n FROM studio_external_operations WHERE operation_type = 'near_ai_creative' AND substr(logical_key, 1, ?) = ?").get(prefix.length, prefix) as { n: number };
   if (count.n >= Math.min(step.maxCalls, agent.max_calls)) throw new Error("ERR_CREATIVE_BUDGET");
   database.prepare("INSERT INTO studio_external_operations(id, logical_key, operation_type, status, created_at_ms, updated_at_ms) VALUES (?, ?, 'near_ai_creative', 'requested', ?, ?)").run(operationId, logicalKey, Date.now(), Date.now());
+  let responseId: string | null = null;
   try {
     const result = await model.complete({ system, user, inputDigest: inputHash, maxOutputTokens: step.maxOutputTokens });
-    const parsed = outputSchema.parse(JSON.parse(result.content) as unknown);
+    responseId = result.responseId ?? null;
+    let parsed: z.infer<typeof outputSchema>;
+    try { parsed = outputSchema.parse(JSON.parse(result.content) as unknown); }
+    catch { throw new Error("ERR_CREATIVE_MODEL_FORMAT"); }
     if (step.role === "review" && !/^(ACCEPT|REVISE):/.test(parsed.content)) throw new Error("ERR_CREATIVE_REVIEW_FORMAT");
     const outputJson = JSON.stringify(parsed);
     database.exec("BEGIN IMMEDIATE");
@@ -68,7 +73,9 @@ export async function runCreativeModelStep(database: DatabaseSync, model: AgentM
     }
     return parsed.content;
   } catch (error) {
-    database.prepare("UPDATE studio_external_operations SET status = 'unknown', updated_at_ms = ? WHERE id = ? AND status = 'requested'").run(Date.now(), operationId);
+    const completed = error instanceof NearAiCompletionError || responseId !== null;
+    const providerId = error instanceof NearAiCompletionError ? error.responseId : responseId;
+    database.prepare("UPDATE studio_external_operations SET status = ?, provider_request_id = COALESCE(?, provider_request_id), updated_at_ms = ? WHERE id = ? AND status = 'requested'").run(completed ? "failed" : "unknown", providerId, Date.now(), operationId);
     throw error;
   }
 }

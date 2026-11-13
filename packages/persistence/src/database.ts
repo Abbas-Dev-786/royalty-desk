@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
-export const CURRENT_SCHEMA_VERSION = 13;
+export const CURRENT_SCHEMA_VERSION = 14;
 
 export function openDatabase(path: string): DatabaseSync {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
@@ -495,6 +495,27 @@ export function openDatabase(path: string): DatabaseSync {
       ALTER TABLE studio_publications ADD COLUMN chain_tx_hash TEXT;
       ALTER TABLE studio_publications ADD COLUMN published_by_account_id TEXT;
       INSERT INTO schema_migrations(version, applied_at_ms) VALUES (13, strftime('%s','now') * 1000);
+      COMMIT;
+    `);
+  }
+  if (version < 14) {
+    database.exec(`
+      BEGIN IMMEDIATE;
+      CREATE TABLE studio_guest_songs (
+        account_id TEXT PRIMARY KEY,
+        studio_id TEXT NOT NULL REFERENCES studios(id),
+        project_id TEXT NOT NULL UNIQUE REFERENCES studio_projects(id),
+        brief TEXT NOT NULL CHECK(length(brief) BETWEEN 20 AND 2000),
+        title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 160),
+        lyricist_id TEXT NOT NULL REFERENCES studio_agents(id),
+        composer_id TEXT NOT NULL REFERENCES studio_agents(id),
+        reviewer_id TEXT NOT NULL REFERENCES studio_agents(id),
+        deadline_at_ms INTEGER NOT NULL,
+        session_id TEXT,
+        work_id TEXT UNIQUE,
+        created_at_ms INTEGER NOT NULL
+      ) STRICT;
+      INSERT INTO schema_migrations(version, applied_at_ms) VALUES (14, strftime('%s','now') * 1000);
       COMMIT;
     `);
   }

@@ -4,6 +4,13 @@ import { JobStore, type JobState, type StoredJob } from "@royaltydesk/persistenc
 export interface JobExecutionContext { readonly job: StoredJob; readonly workerId: string; readonly heartbeat: () => boolean; }
 export type JobHandler = (context: JobExecutionContext) => Promise<{ readonly resultJson?: string; readonly awaitingHuman?: boolean }>;
 
+function failureCode(error: unknown): string {
+  const nested = error instanceof AggregateError ? error.errors as unknown[] : [];
+  const codes = (nested.length ? nested : [error]).flatMap((value) => value instanceof Error ? [value.message] : []);
+  const recognized = codes.find((message) => /^ERR_[A-Z0-9_]+(?::[a-zA-Z0-9._-]+)?$/.test(message));
+  return recognized ?? (error instanceof Error ? error.message.slice(0, 128) : "ERR_JOB_FAILED");
+}
+
 export class DurableJobRunner {
   readonly #store: JobStore;
   readonly #workerId: string;
@@ -21,7 +28,7 @@ export class DurableJobRunner {
       const state: JobState = result.awaitingHuman ? "awaiting_human" : "succeeded";
       return this.#store.transition(jobId, this.#workerId, "running", state, Date.now(), result.resultJson);
     } catch (error) {
-      const errorCode = error instanceof Error ? error.message.slice(0, 128) : "ERR_JOB_FAILED";
+      const errorCode = failureCode(error);
       return this.#store.transition(jobId, this.#workerId, "running", "failed", Date.now(), undefined, errorCode);
     }
   }

@@ -28,6 +28,18 @@ This guide records **manual checks to perform**, not passing evidence. Run it on
 5. Open `/studio/album-phase03/collaboration?version=2`. Follow each track story. Verify the album's own split and approval record separately from its song records.
 6. Try `/studio/<unpublished-work-id>/collaboration?version=1`. Expect `404`; private drafts, keys, and full prompts must not appear in the HTML or network response. On a narrow viewport and with keyboard navigation, check the timeline and links remain readable.
 
+## Create a judge song with any testnet wallet
+
+1. Start both `npm run dev:web` and `npm run dev:worker`. Confirm the worker has NEAR AI and ElevenLabs credentials and `.env` sets `STUDIO_GUEST_MAX_SONGS` to the maximum number of wallet reservations you will sponsor (default 3). The cap covers all wallets together; each account has one reserved song. Do not put provider keys in the browser.
+2. Use a fresh NEAR testnet wallet and open `/studio/create`. Enter a song title and a brief of at least 20 characters. Click **Create my song with agents** once. This reserves that wallet's sole project and makes bounded live NEAR AI calls. The form should lock to its original title and brief.
+3. If the request takes time, press **Refresh status**. If it fails or the browser closes, reopen the same page with the same wallet and press **Resume my agent run**. Confirm the same project and session ID are reused. Do not switch wallets to retry: that would reserve another funded slot.
+   If the page says the NEAR AI outcome is uncertain, stop retries and follow [guest recovery](STUDIO_GUEST_RECOVERY.md). The administrator must check provider usage before sponsoring another run.
+4. Read the lyricist, composer, reviewer, split proposal and split response steps. Confirm the page labels the actual model and output hashes. A failed or disputed split must not show a music-generation button. Save a screenshot without wallet secrets.
+5. If status is `awaiting_human`, click **Generate my 20-second song** once. This is a separate paid ElevenLabs request. Wait for the private MP3 player, play it, refresh, and confirm the same work ID and media hash remain. Repeating the request for the same wallet must reuse the stored generation; an unknown paid outcome must block a second call.
+6. Sign out. The guest status and media APIs must return `401`; another signed-in wallet must not see this project's transcript or audio. The new song is a private review draft, absent from `/studio` until the administrator reviews rights and publishes it. After publication, its public collaboration route should link to the saved source hashes.
+
+The repository verifies the guest page build and anonymous/cross-wallet read isolation. A complete new live judge song and browser audio run still needs owner-run evidence because it spends limited provider credits.
+
 ## Listener purchase and tip
 
 1. Sign into a funded **testnet** listener wallet. Open a song page. Select purchase; inspect the wallet prompt. Confirm receiver is the configured studio contract, method is `purchase`, work/version/commitment match the page, and attached deposit equals the quoted price in yoctoNEAR.

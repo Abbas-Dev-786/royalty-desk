@@ -64,6 +64,7 @@
     "audit:studio-upgrade": "node --env-file-if-exists=.env scripts/live/studio-upgrade-audit.mjs",
     "test:studio-backup": "node --env-file-if-exists=.env scripts/live/studio-backup-drill.mjs",
     "inspect:studio-payout": "node --env-file-if-exists=.env scripts/live/studio-payout-incident.mjs",
+    "inspect:studio-guest": "node --env-file-if-exists=.env scripts/live/studio-guest-recovery.mjs",
     "bootstrap:studio-reviewer": "node --env-file-if-exists=.env scripts/live/studio-reviewer-bootstrap.mjs",
     "test:studio-live-music": "node --env-file-if-exists=.env --experimental-strip-types scripts/live/studio-elevenlabs-album.ts",
     "test:studio-live-stability": "node --env-file-if-exists=.env --experimental-strip-types scripts/live/studio-music.ts",

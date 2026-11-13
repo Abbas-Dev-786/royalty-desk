@@ -1,6 +1,6 @@
 # Agent-led music studio: master implementation plan v2
 
-Status: implementation underway; Phases 00–04 are verified at the working-tree revision. Created 2026-11-11 from the owner's stated vision. The earlier `plans/` phase checkmarks apply to a different royalty-administration prototype. This folder is the execution source for the new product; [product vision](../docs/PRODUCT_VISION_ALIGNMENT.md), [NEAR strategy](../docs/NEAR_INTEGRATION_STRATEGY.md), and [creative stack decision](../docs/CREATIVE_AGENT_AND_AUDIO_STACK.md) supply context. User instructions take precedence.
+Status: implementation underway; Phases 00–04 are verified at the working-tree revision. Created 2026-11-11 from the owner's stated vision. This folder is the execution source for the product; [studio product vision](../docs/STUDIO_PRODUCT_VISION.md), [NEAR strategy](../docs/NEAR_INTEGRATION_STRATEGY.md), and [creative stack decision](../docs/CREATIVE_AGENT_AND_AUDIO_STACK.md) supply context. User instructions take precedence.
 
 ## Product outcome
 
@@ -45,7 +45,7 @@ Dependency completion requires passing evidence at the tested revision. An imple
 | New studio contract under `contracts/` | Agent/policy authority, publication commitments, payable purchase/tip ledger and payouts |
 | Media storage | Durable audio/artwork blobs, content hashes, access control and backup/recovery |
 
-The legacy RoyaltyDesk contract source and release screens were retired after the owner chose the studio as the sole active product. Historical plans, evidence, deployed accounts, and database records remain preserved. The shared SQLite migration path still reads legacy rows; never map a legacy CSV-funded `release` to a catalogue song or reuse its identifiers with different financial meaning.
+The older royalty-administration source, plans, and documentation were removed after the owner chose the studio as the sole active product. Deployed accounts and database records were not changed. The shared SQLite migration path still reads historical rows; never map a CSV-funded `release` to a catalogue song or reuse its identifiers with different financial meaning.
 
 ## Global invariants
 

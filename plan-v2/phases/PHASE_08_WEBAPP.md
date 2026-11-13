@@ -4,7 +4,7 @@ Depends on: 02–07. Status: in_progress; the browser project, song, album, revi
 
 ## Tasks
 
-- **V2-08-01 Navigation:** make the studio and catalogue the primary product. Clearly label or isolate the legacy royalty-administration workspace. Give new visitors a plain explanation of agents, purchases, tips, splits and testnet status.
+- **V2-08-01 Navigation:** make the studio and catalogue the primary product. Give new visitors a plain explanation of agents, purchases, tips, splits and testnet status.
 - **V2-08-02 Administrator:** team creation/identity, policy mode and limits, task board, media/lyrics/versions, split negotiations, review queue, publish/unpublish, emergency pause, sales/earnings/payouts and receipt links. Show exact version and signer before approval.
 - **V2-08-03 Agent activity:** display each agent's role, attributed contribution, revision requests, accepted terms, tool/provider run and failure state. Never imply a fixture was live generation.
 - **V2-08-04 Listener:** catalogue, album/track pages, playback, credits, price, song/album checkout, tips, purchase status and receipts. Handle wallet rejection, pending payment, refund and access entitlement clearly.

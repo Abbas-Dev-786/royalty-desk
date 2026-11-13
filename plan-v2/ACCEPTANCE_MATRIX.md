@@ -18,5 +18,3 @@ Case IDs are requirements, not passes. Actual observations belong in `evidence/P
 | Admin pauses an agent | Future action rejected | Policy epoch, rejected call | 04, 09 |
 | Worker/browser restarts | Same operation resolved | Operation ID, no duplicate transfer | 02, 06, 07, 09 |
 | Owner follows walkthrough | Both modes completed | Browser and chain/model/media proof | 08, 10 |
-
-The old royalty-administration matrix does not prove any row here.

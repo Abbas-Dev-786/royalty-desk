@@ -27,6 +27,6 @@ Date: 2026-11-11. Source: Git baseline `a381d13` plus the working-tree v2 change
 | BASE-05 | `npm run test:live` outside sandbox | Live NEAR AI response from `z-ai/glm-5.3-flash`, `needs_human`, 32 input/113 output tokens; exit 0 | pass for connectivity, not studio collaboration |
 | Release gate | `npm run verify:studio` with Docker access | Built current app, ran studio domain, then exited 1 at missing Phase 02 agent suite | expected incomplete release |
 
-The command sandbox initially denied Docker and network access; authorized reruns passed. No studio contract transaction, ElevenLabs generation or listener payment occurred. No external operation needs reconciliation. The existing wallet compatibility record is in [legacy Phase 00 evidence](../../plans/evidence/PHASE_00.md); the studio wallet journey remains Phase 08. The owner-authorized rights scope is a planning basis, while the specific licensed audio call and publication proof remain Phase 03.
+The command sandbox initially denied Docker and network access; authorized reruns passed. No studio contract transaction, ElevenLabs generation or listener payment occurred. No external operation needs reconciliation. The studio wallet journey remains Phase 08. The owner-authorized rights scope is a planning basis, while the specific licensed audio call and publication proof remain Phase 03.
 
 Exit: BASE-01 through BASE-05 satisfied for the Phase 00 baseline. Next task: V2-02-01.

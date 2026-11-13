@@ -4,8 +4,7 @@
 
 - `plan-v2/MASTER_PLAN.md`: current studio implementation sequence and verification gates.
 - `plan-v2/phases/` and `plan-v2/ACCEPTANCE_MATRIX.md`: studio tasks and evidence mapping.
-- `docs/`: product vision and technical decisions; older royalty-administration documents are historical context.
-- `plans/`: historical RoyaltyDesk prototype plans and evidence, retained for audit and migration context.
+- `docs/`: studio product vision, design decisions, and operator procedures.
 - `HACKATHON.md`: event rules and submission constraints.
 - `exa-results/`: research artifacts; do not treat them as product requirements.
 

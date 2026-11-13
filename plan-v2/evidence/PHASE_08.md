@@ -1,6 +1,6 @@
 # Phase 08 evidence — web app in progress
 
-Date: 2026-11-12. The home route opens `/studio`; the legacy royalty dashboard is at `/royalty`. The studio sidebar explains agent-made music, testnet purchases, tips and contract split accounting.
+Date: 2026-11-12. At this evidence revision, the home route opened `/studio` and the older dashboard was at `/royalty`. The studio sidebar explained agent-made music, testnet purchases, tips and contract split accounting. The `/royalty` route was removed in the 2026-11-13 cleanup; this line records the earlier tested state.
 
 | Case | Evidence | State |
 | --- | --- | --- |

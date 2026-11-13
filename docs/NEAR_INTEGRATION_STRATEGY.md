@@ -1,6 +1,6 @@
 # NEAR integration strategy for the agent-led music studio
 
-Status: design direction, not an implemented feature list. Use alongside [the product vision](PRODUCT_VISION_ALIGNMENT.md) and [studio implementation plan](../plans/AGENT_MUSIC_STUDIO_IMPLEMENTATION_PLAN.md). This document was checked against the local NEAR skills and NEAR Docs MCP on 2026-11-11; recheck live docs before implementation.
+Status: design direction, not an implemented feature list. Use alongside [the studio product vision](STUDIO_PRODUCT_VISION.md) and [studio master plan](../plan-v2/MASTER_PLAN.md). This document was checked against the local NEAR skills and NEAR Docs MCP on 2026-11-11; recheck live docs before implementation.
 
 “Use NEAR at its full potential” means making its capabilities solve the studio's actual problems: attributable agent actions, configurable autonomy, real listener payments, immutable split commitments, and recoverable payouts. Adding unrelated protocols would make the demo harder to verify without improving those outcomes.
 
@@ -41,4 +41,4 @@ Use NEAR AI Cloud for the multi-agent reasoning, review, artwork generation if s
 
 At minimum show: two separate agent accounts, a policy switch from human review to autonomous mode, a trace of two agents collaborating, an on-chain publication/split commitment, a testnet listener purchase and tip, exact ledger allocations, and final payout receipts. Show a revoked agent call failing and a duplicate payment remaining single. The demo should distinguish NEAR AI reasoning from the external audio-generation service and show that real listener payments, rather than CSV figures, back the payouts.
 
-The existing royalty-administration contract cannot be described as implementing this flow. Its authority, reserve, and callback patterns are reusable engineering input; the studio needs a new contract design and tests for listener commerce and autonomous publishing.
+The studio contract implements its own authority, publication, commerce, and payout state. Verify listener commerce and autonomous publishing against the studio contract rather than relying on historical accounting behavior.

@@ -12,7 +12,7 @@ The [studio master plan](plan-v2/MASTER_PLAN.md) and its [evidence](plan-v2/evid
 - `packages/domain`, `packages/chain`, `packages/persistence`: studio rules, contract client, SQLite storage, and shared infrastructure.
 - `fixtures/studio` and `tests/studio`: studio vectors and integration checks.
 
-The former RoyaltyDesk royalty-administration UI, worker routes, and contract source were retired from the active application. Historical records and the original plans and evidence remain available under `plans/` and `docs/`. SQLite migrations still preserve existing royalty records; studio purchases and tips never use the old CSV settlement flow. Some `@royaltydesk/*` package and `ROYALTYDESK_*` environment names remain as compatibility identifiers for existing deployments.
+The former royalty-administration application and its documentation were retired. SQLite migrations still preserve existing historical records; studio purchases and tips use the studio contract. Some `@royaltydesk/*` package and `ROYALTYDESK_*` environment names remain as compatibility identifiers for existing deployments.
 
 ## Setup
 

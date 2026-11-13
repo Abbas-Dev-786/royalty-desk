@@ -12,5 +12,6 @@ export function assertContractIdentity(identity: ContractIdentity): void {
 
 export * from "./royaltydesk.ts";
 export * from "./studio.ts";
+export * from "./studio-release-input.ts";
 export * from "./restricted-signer.ts";
 export * from "./transfer-outcome.ts";

@@ -60,6 +60,7 @@ impl StudioContract {
     }
     pub fn get_policy(&self) -> PolicyView { self.policy.view() }
     pub fn get_admin(&self) -> AccountId { self.admin_id.clone() }
+    pub fn get_guardian(&self) -> AccountId { self.admin_id.clone() }
     pub fn get_schema_version(&self) -> u8 { self.schema_version }
     pub fn get_agent(&self, account_id: AccountId) -> Option<AgentView> { self.agents.get(&account_id).map(|a| a.view(account_id)) }
     pub fn get_release(&self, work_id: String, version: u32) -> Option<ReleaseView> { self.releases.get(&Self::release_key(&work_id, version)).map(|r| r.view()) }
@@ -91,6 +92,16 @@ impl StudioContract {
         self.policy = Policy { epoch: input.epoch, human_review: input.human_review, paused: input.paused, max_price_yocto: input.max_price_yocto.0, max_tip_yocto: input.max_tip_yocto.0 };
         Self::event("policy_updated", near_sdk::serde_json::json!({"epoch": self.policy.epoch, "human_review": self.policy.human_review, "paused": self.policy.paused}));
     }
+    /// One-time handover from the contract bootstrap account to a narrowly scoped guardian.
+    /// Routine release and accounting methods do not grant this account special authority.
+    #[payable]
+    pub fn transfer_guardian(&mut self, guardian_id: AccountId) {
+        self.require_admin_one_yocto();
+        require!(self.admin_id == env::current_account_id(), "GUARDIAN_ALREADY_TRANSFERRED");
+        require!(guardian_id != self.admin_id, "GUARDIAN_UNCHANGED");
+        self.admin_id = guardian_id.clone();
+        Self::event("guardian_transferred", near_sdk::serde_json::json!({"guardian_id": guardian_id}));
+    }
     #[payable]
     pub fn register_agent(&mut self, account_id: AccountId, role: String, expires_at_ms: u64, max_actions: u32) {
         self.require_admin();
@@ -111,6 +122,19 @@ impl StudioContract {
         agent.active = false;
         self.agents.insert(account_id.clone(), agent);
         Self::event("agent_revoked", near_sdk::serde_json::json!({"account_id": account_id}));
+    }
+    /// Extend an existing active agent without changing its role or resetting used actions.
+    #[payable]
+    pub fn renew_agent(&mut self, account_id: AccountId, expires_at_ms: u64, max_actions: u32) {
+        self.require_admin_one_yocto();
+        let mut agent = self.agents.get(&account_id).cloned().expect("AGENT_MISSING");
+        require!(agent.active, "AGENT_REVOKED");
+        require!(expires_at_ms > env::block_timestamp_ms() && expires_at_ms > agent.expires_at_ms && expires_at_ms <= env::block_timestamp_ms().saturating_add(365 * 24 * 60 * 60 * 1000), "AGENT_RENEWAL_EXPIRY_INVALID");
+        require!(max_actions >= agent.max_actions && max_actions > agent.actions_used && max_actions <= 1000, "AGENT_RENEWAL_BUDGET_INVALID");
+        agent.expires_at_ms = expires_at_ms;
+        agent.max_actions = max_actions;
+        self.agents.insert(account_id.clone(), agent);
+        Self::event("agent_renewed", near_sdk::serde_json::json!({"account_id": account_id, "expires_at_ms": expires_at_ms, "max_actions": max_actions}));
     }
     fn require_admin(&self) { require!(env::predecessor_account_id() == self.admin_id, "ADMIN_REQUIRED"); }
     fn require_admin_one_yocto(&self) { self.require_admin(); require!(env::attached_deposit().as_yoctonear() == 1, "ONE_YOCTO_REQUIRED"); }

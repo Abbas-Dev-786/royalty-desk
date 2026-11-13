@@ -2,10 +2,11 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Account, JsonRpcProvider, KeyPair, KeyPairSigner, actions, baseEncode, type KeyPairString } from "near-api-js";
-import { studioDigest, StudioContractClient, type StudioReleaseView } from "@royaltydesk/chain";
-import { acceptStudioSplit, addStudioPublication, openDatabase, recordStudioPublicationReceipt } from "@royaltydesk/persistence";
+import { acceptedStudioReleaseInputFromDatabase, studioDigest, StudioContractClient, type StudioReleaseView } from "@royaltydesk/chain";
+import { acceptStudioSplit, addStudioPublication, openDatabase, recordStudioPublicationReceipt, StudioMediaStore } from "@royaltydesk/persistence";
 import type { DatabaseSync } from "node:sqlite";
 import type { WorkVersion } from "@royaltydesk/domain";
+import { prepareAgentReviewedSong } from "./release-preparation.ts";
 
 interface ScopedKey { readonly accountId: string; readonly publicKey: string; readonly secretKey: string; readonly methods: readonly string[]; }
 interface AgentRow { readonly id: string; readonly role: string; readonly account_id: string; readonly active: number; }
@@ -17,12 +18,14 @@ export class StudioReleaseAgentService {
   readonly #contractId: string;
   readonly #provider: JsonRpcProvider;
   readonly #journeyPath: string;
+  readonly #mediaPath: string;
 
-  constructor(databasePath: string, contractId: string, rpcUrl: string, journeyPath: string) {
+  constructor(databasePath: string, contractId: string, rpcUrl: string, journeyPath: string, mediaPath = resolve(process.cwd(), "../..", process.env.STUDIO_MEDIA_PATH ?? "private/studio-media")) {
     this.#databasePath = databasePath;
     this.#contractId = contractId;
     this.#provider = new JsonRpcProvider({ url: rpcUrl });
     this.#journeyPath = journeyPath;
+    this.#mediaPath = mediaPath;
   }
 
   static fromEnvironment(databasePath: string): StudioReleaseAgentService | null {
@@ -31,25 +34,78 @@ export class StudioReleaseAgentService {
     return new StudioReleaseAgentService(databasePath, contractId, process.env.NEAR_RPC_URL ?? "https://testnet-rpc.intea.rs", resolve(process.cwd(), "../..", "private/studio-v2/testnet/journey.json"));
   }
 
-  #scopedKey(role: string, accountId: string, method: "accept_split" | "publish_release"): ScopedKey {
+  #scopedKey(role: string, accountId: string, method: "accept_split" | "create_release" | "publish_release"): ScopedKey {
     const parsed = JSON.parse(readFileSync(this.#journeyPath, "utf8")) as unknown;
     if (!parsed || typeof parsed !== "object") throw new Error("ERR_AGENT_KEYSTORE");
     const accounts = (parsed as { accounts?: unknown }).accounts;
     if (!accounts || typeof accounts !== "object") throw new Error("ERR_AGENT_KEYSTORE");
-    const key = (accounts as Record<string, unknown>)[`${role}Scoped`];
+    const key = (accounts as Record<string, unknown>)[method === "create_release" ? "producerCreateScoped" : `${role}Scoped`];
     if (!key || typeof key !== "object") throw new Error("ERR_AGENT_SCOPED_KEY_MISSING");
     const record = key as Record<string, unknown>;
     if (record.accountId !== accountId || typeof record.publicKey !== "string" || typeof record.secretKey !== "string" || !Array.isArray(record.methods) || record.methods.length !== 1 || record.methods[0] !== method) throw new Error("ERR_AGENT_SCOPED_KEY_MISMATCH");
     return { accountId, publicKey: record.publicKey, secretKey: record.secretKey, methods: [method] };
   }
 
-  async #verifyKey(key: ScopedKey, role: string, method: "accept_split" | "publish_release"): Promise<void> {
+  async #verifyKey(key: ScopedKey, role: string, method: "accept_split" | "create_release" | "publish_release"): Promise<void> {
     const publicKey = KeyPair.fromString(key.secretKey as KeyPairString).getPublicKey().toString();
     if (publicKey !== key.publicKey) throw new Error("ERR_AGENT_KEY_MISMATCH");
     const access = await this.#provider.viewAccessKey({ accountId: key.accountId, publicKey, finalityQuery: { finality: "final" } });
     if (access.permission === "FullAccess" || access.permission.FunctionCall.receiver_id !== this.#contractId || JSON.stringify(access.permission.FunctionCall.method_names) !== JSON.stringify([method])) throw new Error("ERR_AGENT_KEY_PERMISSION");
     const agent = await this.#provider.callFunction<{ role: string; active: boolean; expires_at_ms: number; actions_used: number; max_actions: number }>({ contractId: this.#contractId, method: "get_agent", args: { account_id: key.accountId } }) ?? null;
     if (!agent || agent.role !== role || !agent.active || agent.expires_at_ms <= Date.now() || agent.actions_used >= agent.max_actions) throw new Error("ERR_AGENT_CHAIN_SCOPE");
+  }
+
+  async finalize(workId: string, version: number, reviewerId: string): Promise<{ readonly workId: string; readonly version: number; readonly acceptedAccounts: readonly string[]; readonly published: boolean }> {
+    if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(workId) || !Number.isSafeInteger(version) || version < 1 || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(reviewerId)) throw new Error("ERR_RELEASE_AGENT_INPUT");
+    const database = openDatabase(this.#databasePath);
+    try {
+      prepareAgentReviewedSong(database, new StudioMediaStore(this.#mediaPath), this.#contractId, workId, version, reviewerId);
+    } finally { database.close(); }
+    await this.commit(workId, version);
+    return this.accept(workId, version);
+  }
+
+  async commit(workId: string, version: number): Promise<StudioReleaseView> {
+    if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(workId) || !Number.isSafeInteger(version) || version < 1) throw new Error("ERR_RELEASE_AGENT_INPUT");
+    const database = openDatabase(this.#databasePath);
+    try {
+      const studio = database.prepare("SELECT w.studio_id FROM studio_works w JOIN studio_work_versions v ON v.work_id = w.id WHERE w.id = ? AND v.version = ? AND v.state = 'accepted'").get(workId, version) as { studio_id: string } | undefined;
+      if (!studio) throw new Error("ERR_RELEASE_NOT_ACCEPTED");
+      const client = new StudioContractClient(this.#contractId, this.#provider, this.#contractId.endsWith(".test.near") ? "sandbox" : "testnet");
+      const policy = await client.policy();
+      if (policy.paused) throw new Error("ERR_RELEASE_POLICY_PAUSED");
+      const input = acceptedStudioReleaseInputFromDatabase(database, new StudioMediaStore(this.#mediaPath), studio.studio_id, workId, version, policy.epoch);
+      const existing = await client.release(workId, version);
+      if (existing) {
+        const matches = (Object.keys(input) as (keyof typeof input)[]).every((key) => JSON.stringify(existing[key]) === JSON.stringify(input[key]));
+        if (!matches) throw new Error("ERR_RELEASE_CHAIN_MISMATCH");
+        return existing;
+      }
+      const logicalKey = `release-commit:${workId}:${version}`;
+      const operationId = digest(logicalKey);
+      if (database.prepare("SELECT 1 FROM studio_external_operations WHERE id = ?").get(operationId)) throw new Error("ERR_RELEASE_COMMIT_OUTCOME_UNKNOWN");
+      const producer = database.prepare("SELECT role, account_id FROM studio_agents WHERE studio_id = ? AND role = 'producer' AND active = 1 AND revoked_at_ms IS NULL LIMIT 1").get(studio.studio_id) as { role: string; account_id: string } | undefined;
+      if (!producer) throw new Error("ERR_PRODUCER_MISSING");
+      const key = this.#scopedKey("producer", producer.account_id, "create_release");
+      await this.#verifyKey(key, "producer", "create_release");
+      const signer = KeyPairSigner.fromSecretKey(key.secretKey as KeyPairString);
+      const account = new Account(producer.account_id, this.#provider);
+      const transaction = await account.createTransaction({ receiverId: this.#contractId, actions: [actions.functionCall("create_release", { input }, 100_000_000_000_000n, 0n)], publicKey: await signer.getPublicKey() });
+      const { txHash, signedTransaction } = await signer.signTransaction(transaction);
+      const transactionHash = baseEncode(txHash);
+      database.prepare("INSERT INTO studio_external_operations(id, logical_key, operation_type, status, provider_request_id, created_at_ms, updated_at_ms) VALUES (?, ?, 'chain_release_commitment', 'requested', ?, ?, ?)").run(operationId, logicalKey, transactionHash, Date.now(), Date.now());
+      try {
+        const result = await this.#provider.sendTransactionUntil(signedTransaction, "FINAL");
+        if (typeof result.status === "object" && "Failure" in result.status) throw new Error("ERR_RELEASE_COMMIT_CHAIN_FAILURE");
+        const final = await client.release(workId, version);
+        if (!final || final.commitment !== studioDigest(input) || result.transaction.hash !== transactionHash) throw new Error("ERR_RELEASE_COMMIT_NOT_FINAL");
+        database.prepare("UPDATE studio_external_operations SET status = 'finalized', result_hash = ?, updated_at_ms = ? WHERE id = ?").run(final.commitment, Date.now(), operationId);
+        return final;
+      } catch (error) {
+        database.prepare("UPDATE studio_external_operations SET status = 'unknown', updated_at_ms = ? WHERE id = ? AND status = 'requested'").run(Date.now(), operationId);
+        throw error;
+      }
+    } finally { database.close(); }
   }
 
   async accept(workId: string, version: number): Promise<{ readonly workId: string; readonly version: number; readonly acceptedAccounts: readonly string[]; readonly published: boolean }> {
@@ -73,7 +129,7 @@ export class StudioReleaseAgentService {
       if (!chain.published && (policy.paused || chain.policy_epoch !== policy.epoch)) throw new Error("ERR_RELEASE_POLICY_STALE");
       const work: WorkVersion = { workId, studioId: row.studio_id, version, kind: row.kind, state: "accepted", title: row.title, assetHash: row.asset_hash, metadataHash: row.metadata_hash, priceYocto: row.price_yocto, split };
       for (const agent of agents) await this.#acceptOne(database, client, chain, work, agent);
-      if (!policy.human_review) await this.#publish(database, client, chain, work);
+      if (!policy.human_review || await client.hasApprovedRelease(workId, version, chain.policy_epoch)) await this.#publish(database, client, chain, work);
       return { workId, version, acceptedAccounts: agents.map((agent) => agent.account_id), published: (await client.release(workId, version))?.published === true };
     } finally { database.close(); }
   }

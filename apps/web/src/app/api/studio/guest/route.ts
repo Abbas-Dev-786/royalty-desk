@@ -35,6 +35,6 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ demo: guestSnapshot(accountId), ...(runResponse.ok ? {} : { error: run.error ?? "ERR_GUEST_RUN" }) }, { status: runResponse.ok ? 200 : 502, headers });
   } catch (error) {
     const message = error instanceof Error ? error.message : "ERR_GUEST_RUN";
-    return Response.json({ error: message }, { status: message === "ERR_UNAUTHORIZED" ? 401 : message === "ERR_GUEST_CAP_REACHED" ? 429 : 409, headers });
+    return Response.json({ error: message }, { status: message === "ERR_UNAUTHORIZED" ? 401 : 409, headers });
   }
 }

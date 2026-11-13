@@ -74,7 +74,7 @@ test("CAT-02/PAY-04 built web app hides drafts and rejects anonymous downloads",
     const operations = await fetch(`${base}/studio/operations`);
     assert.equal(operations.status, 200);
     const operationsHtml = await operations.text();
-    assert.match(operationsHtml, /Connect and sign in with the studio administrator wallet/);
+    assert.match(operationsHtml, /choose the guardian testnet account/);
     assert.doesNotMatch(operationsHtml, /Private draft/);
     const payout = await fetch(`${base}/api/studio/payouts/web-test`);
     assert.equal(payout.status, 401);

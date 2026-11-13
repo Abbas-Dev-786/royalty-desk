@@ -9,7 +9,7 @@ export async function POST(request: Request): Promise<Response> {
     const user = await currentUser();
     if (!user) return Response.json({ error: "ERR_UNAUTHORIZED" }, { status: 401 });
     const chain = studioContractClient();
-    if (await chain.admin() !== user.accountId) return Response.json({ error: "ERR_FORBIDDEN" }, { status: 403 });
+    if (await chain.guardian() !== user.accountId) return Response.json({ error: "ERR_FORBIDDEN" }, { status: 403 });
     const body = await request.json() as { workId?: unknown; version?: unknown; reason?: unknown };
     if (typeof body.workId !== "string" || !/^[a-zA-Z0-9-]{1,64}$/.test(body.workId) || !Number.isSafeInteger(body.version) || typeof body.reason !== "string" || body.reason.trim().length < 5 || body.reason.length > 500) return Response.json({ error: "ERR_INPUT" }, { status: 400 });
     const release = await chain.release(body.workId, Number(body.version));

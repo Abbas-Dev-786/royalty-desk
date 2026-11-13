@@ -9,8 +9,7 @@ fn digest(bytes: &[u8]) -> String { env::sha256(bytes).iter().map(|b| format!("{
 impl StudioContract {
     #[payable]
     pub fn create_release(&mut self, input: ReleaseInput) -> String {
-        let caller = env::predecessor_account_id();
-        if caller != self.admin_id { self.require_agent_role(&["producer"]); }
+        self.require_agent_role(&["producer"]);
         require!(!self.policy.paused && input.policy_epoch == self.policy.epoch, "POLICY_STALE_OR_PAUSED");
         require!(self.release_count < 500, "RELEASE_LIMIT");
         require!(!input.work_id.is_empty() && input.work_id.len() <= 64 && input.work_id.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-'), "WORK_ID_INVALID");
@@ -78,7 +77,7 @@ impl StudioContract {
     }
 
     pub fn publish_release(&mut self, work_id: String, version: u32, commitment: String, policy_epoch: u32) {
-        if env::predecessor_account_id() != self.admin_id { self.require_agent_role(&["producer"]); }
+        self.require_agent_role(&["producer"]);
         require!(!self.policy.paused && policy_epoch == self.policy.epoch, "POLICY_STALE_OR_PAUSED");
         let key = Self::release_key(&work_id, version);
         let mut release = self.releases.get(&key).cloned().expect("RELEASE_MISSING");

@@ -1,16 +1,18 @@
 import { JsonRpcProvider } from "near-api-js";
 import { addStudioPolicy } from "@royaltydesk/persistence";
-import { requireOrigin } from "@/server/runtime";
-import { requireStudioAdmin } from "@/server/studio-admin";
+import { currentUser, requireOrigin } from "@/server/runtime";
 import { openStudioCatalogueDatabase, studioContractClient } from "@/server/studio-catalogue";
 
 export async function POST(request: Request): Promise<Response> {
   try {
     requireOrigin(request);
-    const { accountId, studioId } = await requireStudioAdmin();
+    const user = await currentUser();
+    if (!user) return Response.json({ error: "ERR_UNAUTHORIZED" }, { status: 401 });
+    const accountId = user.accountId;
     const body = await request.json() as { transactionHash?: unknown };
     if (typeof body.transactionHash !== "string" || !/^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(body.transactionHash)) return Response.json({ error: "ERR_POLICY_TX" }, { status: 400 });
     const chain = studioContractClient();
+    if (await chain.guardian() !== accountId) return Response.json({ error: "ERR_FORBIDDEN" }, { status: 403 });
     const rpc = new JsonRpcProvider({ url: process.env.NEAR_RPC_URL ?? "https://testnet-rpc.intea.rs" });
     const receipt = await rpc.viewTransactionStatus({ txHash: body.transactionHash, accountId, waitUntil: "FINAL" });
     if (receipt.transaction.signer_id !== accountId || receipt.transaction.receiver_id !== chain.contractId || receipt.transaction.hash !== body.transactionHash || typeof receipt.status !== "object" || !("SuccessValue" in receipt.status || "SuccessReceiptId" in receipt.status) || receipt.transaction.actions.length !== 1) throw new Error("ERR_POLICY_RECEIPT");
@@ -23,6 +25,9 @@ export async function POST(request: Request): Promise<Response> {
     if (policy.epoch !== input.epoch || policy.human_review !== input.human_review || policy.paused !== input.paused || policy.max_price_yocto !== input.max_price_yocto || policy.max_tip_yocto !== input.max_tip_yocto) throw new Error("ERR_POLICY_CHAIN_MISMATCH");
     const database = openStudioCatalogueDatabase();
     try {
+      const studio = database.prepare("SELECT id FROM studios WHERE admin_account_id = ? LIMIT 1").get(chain.contractId) as { id: string } | undefined;
+      if (!studio) throw new Error("ERR_LOCAL_STUDIO_MISSING");
+      const studioId = studio.id;
       const last = database.prepare("SELECT version, mode, max_generation_calls, max_music_request_duration_ms, max_music_total_duration_ms, max_payout_yocto, paused FROM studio_policies WHERE studio_id = ? ORDER BY version DESC LIMIT 1").get(studioId) as { version: number; mode: string; max_generation_calls: number; max_music_request_duration_ms: number; max_music_total_duration_ms: number; max_payout_yocto: string; paused: number } | undefined;
       if (!last) throw new Error("ERR_LOCAL_POLICY_MISSING");
       if (last.version === policy.epoch) {

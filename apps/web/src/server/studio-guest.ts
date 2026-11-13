@@ -6,7 +6,6 @@ import { openStudioCatalogueDatabase, studioContractClient } from "./studio-cata
 
 export interface GuestSongRow { readonly account_id: string; readonly studio_id: string; readonly project_id: string; readonly brief: string; readonly title: string; readonly lyricist_id: string; readonly composer_id: string; readonly reviewer_id: string; readonly deadline_at_ms: number; readonly session_id: string | null; readonly work_id: string | null; }
 interface OutputRow { readonly role: string; readonly agent_id: string; readonly model: string; readonly provider_mode: string; readonly output_hash: string; readonly output_json: string; readonly created_at_ms: number; }
-const maxGuests = 3;
 
 export async function guestAccountId(): Promise<string> {
   const user = await currentUser();
@@ -21,17 +20,14 @@ export function guestSong(accountId: string): GuestSongRow | undefined {
 }
 
 export async function reserveGuestSong(accountId: string, title: string, brief: string): Promise<GuestSongRow> {
-  const adminId = await studioContractClient().admin();
+  const contractId = studioContractClient().contractId;
   const database = openStudioCatalogueDatabase();
   try {
     database.exec("BEGIN IMMEDIATE");
     try {
       const existing = database.prepare("SELECT * FROM studio_guest_songs WHERE account_id = ?").get(accountId) as unknown as GuestSongRow | undefined;
       if (existing) { database.exec("COMMIT"); return existing; }
-      const count = database.prepare("SELECT COUNT(*) AS n FROM studio_guest_songs").get() as { n: number };
-      const configured = Number(process.env.STUDIO_GUEST_MAX_SONGS ?? maxGuests);
-      if (!Number.isSafeInteger(configured) || configured < 1 || configured > 500 || count.n >= configured) throw new Error("ERR_GUEST_CAP_REACHED");
-      const studio = database.prepare("SELECT id FROM studios WHERE admin_account_id = ? LIMIT 1").get(adminId) as { id: string } | undefined;
+      const studio = database.prepare("SELECT id FROM studios WHERE admin_account_id = ? LIMIT 1").get(contractId) as { id: string } | undefined;
       if (!studio) throw new Error("ERR_GUEST_STUDIO_UNAVAILABLE");
       const agents = database.prepare("SELECT id, role FROM studio_agents WHERE studio_id = ? AND role IN ('lyricist','composer','reviewer') AND active = 1 AND revoked_at_ms IS NULL AND (expires_at_ms IS NULL OR expires_at_ms > ?) ORDER BY id").all(studio.id, Date.now()) as { id: string; role: string }[];
       const byRole = (role: string) => agents.find((agent) => agent.role === role)?.id;

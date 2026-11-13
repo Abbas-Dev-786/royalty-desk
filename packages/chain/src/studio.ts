@@ -14,6 +14,7 @@ export interface StudioPaymentView { readonly payment_id: string; readonly work_
 export interface StudioPolicyView { readonly epoch: number; readonly human_review: boolean; readonly paused: boolean; readonly max_price_yocto: string; readonly max_tip_yocto: string; }
 export interface StudioEarningsView { readonly account_id: string; readonly owed_yocto: string; readonly pending_yocto: string; readonly paid_yocto: string; }
 export interface StudioPayoutView { readonly payout_id: string; readonly recipient_id: string; readonly amount_yocto: string; readonly status: "pending" | "paid" | "failed"; }
+export interface StudioAgentView { readonly account_id: string; readonly role: string; readonly active: boolean; readonly expires_at_ms: number; readonly max_actions: number; readonly actions_used: number; }
 export type StudioTransactionResponse = Awaited<ReturnType<Account["signAndSendTransaction"]>>;
 
 const hex = /^[0-9a-f]{64}$/;
@@ -36,6 +37,8 @@ export class StudioContractClient {
   }
   async policy(): Promise<StudioPolicyView> { const value = await this.provider.callFunction<StudioPolicyView>({ contractId: this.contractId, method: "get_policy", args: {} }); if (!value) throw new Error("Studio policy is unavailable"); return value; }
   async admin(): Promise<string> { const value = await this.provider.callFunction<string>({ contractId: this.contractId, method: "get_admin", args: {} }); if (!value) throw new Error("Studio admin is unavailable"); return value; }
+  async guardian(): Promise<string> { const value = await this.provider.callFunction<string>({ contractId: this.contractId, method: "get_guardian", args: {} }); if (!value) throw new Error("Studio guardian is unavailable"); return value; }
+  async agent(accountId: string): Promise<StudioAgentView | null> { return await this.provider.callFunction<StudioAgentView>({ contractId: this.contractId, method: "get_agent", args: { account_id: accountId } }) ?? null; }
   async release(workId: string, version: number): Promise<StudioReleaseView | null> { return await this.provider.callFunction<StudioReleaseView>({ contractId: this.contractId, method: "get_release", args: { work_id: workId, version } }) ?? null; }
   async hasAcceptedSplit(workId: string, version: number, accountId: string): Promise<boolean> { return await this.provider.callFunction<boolean>({ contractId: this.contractId, method: "has_accepted_split", args: { work_id: workId, version, account_id: accountId } }) ?? false; }
   async hasApprovedRelease(workId: string, version: number, policyEpoch: number): Promise<boolean> { return await this.provider.callFunction<boolean>({ contractId: this.contractId, method: "has_approved_release", args: { work_id: workId, version, policy_epoch: policyEpoch } }) ?? false; }

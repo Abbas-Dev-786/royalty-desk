@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { acceptStudioSplit, addStudioAgent, addWorkVersion, createStudio, createStudioProject, createStudioWork, JobStore, openDatabase } from "@royaltydesk/persistence";
+import { acceptStudioSplit, addStudioAgent, addStudioAsset, addWorkVersion, createStudio, createStudioProject, createStudioWork, JobStore, openDatabase, StudioMediaStore } from "@royaltydesk/persistence";
 import type { AgentModel } from "../src/agents/types.ts";
 import { createNearAiAgentModel, NearAiCompletionError } from "../src/agents/model.ts";
 import { createCreativeGraph } from "../src/studio/creative-graph.ts";
@@ -17,6 +17,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { KeyPair } from "near-api-js";
 import { verifyStudioAgentKey } from "../src/studio/agent-key-proof.ts";
+import { prepareAgentReviewedSong } from "../src/studio/release-preparation.ts";
 
 function setup() {
   const root = mkdtempSync(join(tmpdir(), "studio-agents-"));
@@ -27,6 +28,29 @@ function setup() {
   addStudioAgent(database, { id: "composer", studioId: "studio-a", accountId: "composer.testnet", controllerAccountId: "admin.testnet", role: "composer", active: true });
   return { database, checkpointPath: join(root, "graph.sqlite"), databasePath: join(root, "app.sqlite") };
 }
+
+test("AGT-08 an agent-reviewed recording is prepared from saved output and pre-authorized provider rights", () => {
+  const env = setup();
+  const media = new StudioMediaStore(join(env.checkpointPath, "..", "media"));
+  const asset = media.put(new Uint8Array(4096).fill(4));
+  const metadata = media.put(new TextEncoder().encode('{"title":"Morning"}'));
+  const permissionPath = join(env.checkpointPath, "..", "permission.json");
+  writeFileSync(permissionPath, JSON.stringify({ basis: "owner-confirmed-private-permission", reference: "owner-confirmation-2026-11-13", testnetOnly: true, studioAccountId: "studio.testnet", coveredUses: { musicLibrary: true, musicStreamingDistribution: true, publicPlayback: true, paidPurchases: true, tips: true, downloads: true } }));
+  addStudioAgent(env.database, { id: "reviewer", studioId: "studio-a", accountId: "reviewer.testnet", controllerAccountId: "admin.testnet", role: "reviewer", active: true });
+  createStudioWork(env.database, { id: "song-reviewed", studioId: "studio-a", projectId: "project-a", kind: "song" });
+  addStudioAsset(env.database, { hash: asset.hash, provider: "elevenlabs", model: "music_v2_5", licenseRef: "owner-confirmation-2026-11-13", storageKey: "media", mimeType: "audio/mpeg", sizeBytes: asset.sizeBytes });
+  addWorkVersion(env.database, { workId: "song-reviewed", studioId: "studio-a", version: 1, kind: "song", state: "review", title: "Morning", assetHash: asset.hash, metadataHash: metadata.hash, priceYocto: "10000000000000000000000", split: [{ agentId: "lyricist", basisPoints: 5000 }, { agentId: "composer", basisPoints: 5000 }] });
+  const now = Date.now();
+  env.database.prepare("INSERT INTO studio_external_operations(id,logical_key,operation_type,status,created_at_ms,updated_at_ms) VALUES ('review-op','review-op','near_ai_creative','finalized',?,?),('audio-op','audio-op','music_generation','finalized',?,?)").run(now, now, now, now);
+  env.database.prepare("INSERT INTO studio_model_outputs(operation_id,project_id,agent_id,role,model,provider_mode,input_hash,output_hash,output_json,created_at_ms) VALUES ('review-op','project-a','reviewer','review','fixture','live',?,?,?,?)").run("a".repeat(64), "b".repeat(64), '{"content":"ACCEPT: ready"}', now);
+  env.database.prepare("INSERT INTO studio_audio_generations(operation_id,project_id,agent_id,work_id,work_version,revision,input_hash,prompt_hash,asset_hash,provider,model,license_ref,duration_ms,created_at_ms) VALUES ('audio-op','project-a','composer','song-reviewed',1,0,?,?,?,'elevenlabs','music_v2_5',?,20000,?)").run("c".repeat(64), "d".repeat(64), asset.hash, "owner-confirmation-2026-11-13", now);
+  prepareAgentReviewedSong(env.database, media, "studio.testnet", "song-reviewed", 1, "reviewer", permissionPath);
+  prepareAgentReviewedSong(env.database, media, "studio.testnet", "song-reviewed", 1, "reviewer", permissionPath);
+  assert.equal((env.database.prepare("SELECT state FROM studio_work_versions WHERE work_id = 'song-reviewed'").get() as { state: string }).state, "accepted");
+  assert.equal((env.database.prepare("SELECT provider_permission_ref FROM studio_asset_rights WHERE asset_hash = ?").get(asset.hash) as { provider_permission_ref: string }).provider_permission_ref, "owner-confirmation-2026-11-13");
+  assert.equal((env.database.prepare("SELECT COUNT(*) AS n FROM studio_media_reviews WHERE asset_hash = ?").get(asset.hash) as { n: number }).n, 1);
+  env.database.close();
+});
 
 test("AGT-04 a completed reasoning-only response records its provider ID without retry", async () => {
   const env = setup();

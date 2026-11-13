@@ -2,6 +2,8 @@
 
 This guide records **manual checks to perform**, not passing evidence. Run it on a local testnet deployment with the studio contract configured. Testnet tokens have no cash value. Keep wallet seed phrases and API keys outside screenshots and issue reports.
 
+> The administrator-driven release and payout steps below describe the previous deployment. After the agent-run upgrade, use [STUDIO_AGENT_OPERATIONS.md](STUDIO_AGENT_OPERATIONS.md) for the guardian, autonomous release and revenue checks.
+
 ## Before opening the app
 
 1. Confirm `.env` points `NEXT_PUBLIC_STUDIO_CONTRACT_ID` to `studio-rd-fa315759.testnet` and `STUDIO_CATALOGUE_DB_PATH` to `private/studio-v2/phase05/studio.sqlite`. Set `NEAR_RPC_URL` to a reachable testnet RPC.

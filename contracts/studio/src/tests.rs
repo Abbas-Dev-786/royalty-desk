@@ -33,6 +33,47 @@ fn auth_policy_epoch_and_admin_are_enforced() {
 }
 
 #[test]
+fn guardian_handover_removes_bootstrap_policy_authority_and_does_not_grant_publishing() {
+    context("studio.testnet", 0);
+    let mut contract = StudioContract::new("studio.testnet".parse().unwrap());
+    context("studio.testnet", 1);
+    contract.transfer_guardian("sickhat6192.testnet".parse().unwrap());
+    assert_eq!(contract.get_guardian().as_str(), "sickhat6192.testnet");
+    assert!(catch_unwind(AssertUnwindSafe(|| contract.transfer_guardian("other.testnet".parse().unwrap()))).is_err());
+    let next = || PolicyInput { epoch: 2, human_review: false, paused: false, max_price_yocto: U128(10_u128.pow(23)), max_tip_yocto: U128(10_u128.pow(24)) };
+    assert!(catch_unwind(AssertUnwindSafe(|| contract.set_policy(next()))).is_err());
+    context("sickhat6192.testnet", 1);
+    contract.set_policy(next());
+    assert!(!contract.get_policy().human_review);
+    context("sickhat6192.testnet", 0);
+    let empty = ReleaseInput { work_id: "guardian-song".to_string(), version: 1, kind: "song".to_string(), media_hash: "a".repeat(64), metadata_hash: "b".repeat(64), split_hash: "c".repeat(64), track_order_hash: "d".repeat(64), price_yocto: U128(1), shares: vec![], tracks: vec![], policy_epoch: 2 };
+    assert!(catch_unwind(AssertUnwindSafe(|| contract.create_release(empty))).is_err());
+}
+
+#[test]
+fn guardian_can_extend_only_an_active_agent_without_resetting_used_actions() {
+    context("studio.testnet", 0);
+    let mut contract = StudioContract::new("studio.testnet".parse().unwrap());
+    context("studio.testnet", 10_u128.pow(23));
+    contract.register_agent("producer.testnet".parse().unwrap(), "producer".to_string(), 10_000, 5);
+    context("studio.testnet", 1);
+    contract.transfer_guardian("guardian.testnet".parse().unwrap());
+    context("outsider.testnet", 1);
+    assert!(catch_unwind(AssertUnwindSafe(|| contract.renew_agent("producer.testnet".parse().unwrap(), 20_000, 10))).is_err());
+    context("guardian.testnet", 1);
+    assert!(catch_unwind(AssertUnwindSafe(|| contract.renew_agent("producer.testnet".parse().unwrap(), 9_999, 10))).is_err());
+    assert!(catch_unwind(AssertUnwindSafe(|| contract.renew_agent("producer.testnet".parse().unwrap(), 20_000, 4))).is_err());
+    contract.renew_agent("producer.testnet".parse().unwrap(), 20_000, 10);
+    let agent = contract.get_agent("producer.testnet".parse().unwrap()).unwrap();
+    assert_eq!(agent.role, "producer");
+    assert_eq!(agent.max_actions, 10);
+    assert_eq!(agent.actions_used, 0);
+    assert_eq!(agent.expires_at_ms, 20_000);
+    contract.revoke_agent("producer.testnet".parse().unwrap());
+    assert!(catch_unwind(AssertUnwindSafe(|| contract.renew_agent("producer.testnet".parse().unwrap(), 30_000, 20))).is_err());
+}
+
+#[test]
 fn auth_storage_reserve_rejects_underfunded_state() {
     context("studio.testnet", 0);
     let mut contract = StudioContract::new("admin.testnet".parse().unwrap());
@@ -49,7 +90,7 @@ fn auth_storage_reserve_rejects_underfunded_state() {
 fn draft_album_can_reference_unpublished_songs_but_cannot_publish() {
     context("studio.testnet", 0);
     let mut contract = StudioContract::new("admin.testnet".parse().unwrap());
-    for (account, role) in [("lyricist.testnet", "lyricist"), ("composer.testnet", "composer")] {
+    for (account, role) in [("lyricist.testnet", "lyricist"), ("composer.testnet", "composer"), ("producer.testnet", "producer")] {
         context("admin.testnet", 100_000_000_000_000_000_000_000);
         contract.register_agent(account.parse().unwrap(), role.to_string(), 100_000_000_000, 20);
     }
@@ -66,7 +107,7 @@ fn draft_album_can_reference_unpublished_songs_but_cannot_publish() {
         track_order_hash: digest(near_sdk::serde_json::to_vec(&tracks).unwrap()),
         price_yocto: U128(10_000_000_000_000_000_000_000), shares: shares.clone(), tracks, policy_epoch: 1,
     };
-    context("admin.testnet", 0);
+    context("producer.testnet", 0);
     contract.create_release(input("song-one", "song", vec![]));
     contract.create_release(input("song-two", "song", vec![]));
     let album_tracks = vec![

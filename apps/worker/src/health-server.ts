@@ -55,6 +55,12 @@ export function createWorkerHealthServer(config: WorkerConfig, agentService?: Wo
             const result = await releaseService.accept(acceptance[1]!, body.version ?? 0);
             response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" }); response.end(JSON.stringify(result)); return;
           }
+          const finalization = /^\/studio\/releases\/([a-z0-9][a-z0-9._-]{0,63})\/finalize$/.exec(request.url ?? "");
+          if (request.method === "POST" && finalization && releaseService) {
+            const body = await readJson(request) as { version?: number; reviewerId?: string };
+            const result = await releaseService.finalize(finalization[1]!, body.version ?? 0, body.reviewerId ?? "");
+            response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" }); response.end(JSON.stringify(result)); return;
+          }
           if (request.method === "POST" && request.url === "/studio/songs/generate" && songService) {
             const body = await readJson(request) as SongProductionRequest;
             const result = await songService.generate(body);

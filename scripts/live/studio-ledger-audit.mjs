@@ -11,7 +11,15 @@ const contractId = deployment.accountId;
 assert.equal(commerce.contractId, contractId);
 assert.equal(payouts.contractId, contractId);
 const provider = new JsonRpcProvider({ url: process.env.NEAR_RPC_URL ?? "https://testnet-rpc.intea.rs" });
-const view = (method, args = {}) => provider.callFunction({ contractId, method, args, blockQuery: { finality: "final" } });
+async function retryRead(read) {
+  let lastError;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try { return await read(); }
+    catch (error) { lastError = error; await new Promise((done) => setTimeout(done, 1_500 * (attempt + 1))); }
+  }
+  throw lastError;
+}
+const view = (method, args = {}) => retryRead(() => provider.callFunction({ contractId, method, args, blockQuery: { finality: "final" } }));
 const paymentIds = ["real-phase03-song-purchase", "real-phase03-album-purchase", "real-phase03-song-tip", "real-phase03-album-tip"];
 const expected = new Map();
 let total = 0n;
@@ -31,7 +39,7 @@ for (const paymentId of paymentIds) {
   const payment = await view("get_payment", { payment_id: paymentId });
   assert.ok(payment?.status === "finalized" && payment.allocated_yocto === payment.gross_yocto, `Unallocated payment: ${paymentId}`);
   assert.ok(commerce.payments[paymentId]?.transactionHash, `Missing transaction journal: ${paymentId}`);
-  const receipt = await provider.viewTransactionStatus({ txHash: commerce.payments[paymentId].transactionHash, accountId: payment.buyer_id, waitUntil: "FINAL" });
+  const receipt = await retryRead(() => provider.viewTransactionStatus({ txHash: commerce.payments[paymentId].transactionHash, accountId: payment.buyer_id, waitUntil: "FINAL" }));
   assert.ok(typeof receipt.status === "object" && ("SuccessValue" in receipt.status || "SuccessReceiptId" in receipt.status), `Transaction not final: ${paymentId}`);
   assert.equal(receipt.transaction.receiver_id, contractId);
   const release = await view("get_release", { work_id: payment.work_id, version: payment.version });
@@ -60,7 +68,7 @@ for (const [recipientId, amount] of expected) {
   assert.ok(payout?.status === "paid" && payout.recipient_id === recipientId && BigInt(payout.amount_yocto) === amount);
   const txHash = payouts.operations[`payout:${payoutId}`]?.transactionHash;
   assert.ok(txHash, `Missing payout journal: ${payoutId}`);
-  const receipt = await provider.viewTransactionStatus({ txHash, accountId: contractId, waitUntil: "FINAL" });
+  const receipt = await retryRead(() => provider.viewTransactionStatus({ txHash, accountId: contractId, waitUntil: "FINAL" }));
   assert.ok(typeof receipt.status === "object" && ("SuccessValue" in receipt.status || "SuccessReceiptId" in receipt.status));
   assert.equal(receipt.transaction.receiver_id, contractId);
   const earnings = await view("get_earnings", { account_id: recipientId });

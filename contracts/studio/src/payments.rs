@@ -33,12 +33,15 @@ impl StudioContract {
         Self::event("payment_finalized", near_sdk::serde_json::json!({"payment_id": payment_id, "kind": kind, "work_id": work_id, "version": version, "gross_yocto": U128(amount), "commitment": commitment}));
     }
 
-    /// An admin correction can refund only funds that have not been allocated to creators.
+    /// A buyer can reclaim an unavailable release before allocation; the guardian can correct
+    /// an unallocated payment during an incident. No allocated earnings can be refunded.
     #[payable]
     pub fn refund_payment(&mut self, payment_id: String) -> Promise {
-        self.require_admin_one_yocto();
+        require!(env::attached_deposit().as_yoctonear() == 1, "ONE_YOCTO_REQUIRED");
         let mut payment = self.payments.get(&payment_id).cloned().expect("PAYMENT_MISSING");
         require!(payment.status == "finalized" && payment.allocated_yocto == 0, "REFUND_ALREADY_ACTIVE_OR_ALLOCATED");
+        let unavailable = self.releases.get(&Self::release_key(&payment.work_id, payment.version)).is_none_or(|release| !release.published);
+        require!(env::predecessor_account_id() == self.admin_id || env::predecessor_account_id() == payment.buyer_id && unavailable, "REFUND_CALLER_FORBIDDEN");
         payment.status = "refund_pending".to_string();
         self.payments.insert(payment_id.clone(), payment.clone());
         self.require_storage_reserve();

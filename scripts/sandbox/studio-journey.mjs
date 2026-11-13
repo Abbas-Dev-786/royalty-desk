@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { Account, JsonRpcProvider, KeyPair, actions, getTransactionLastResult, parseNearAmount } from "near-api-js";
 import { runSandboxCommand, startSandbox, stopSandbox } from "./process.mjs";
-import { addStudioAgent, addStudioAsset, addStudioPolicy, addWorkVersion, attestStudioAssetRights, createStudio, createStudioProject, createStudioWork, openDatabase, reviewStudioAsset } from "@royaltydesk/persistence";
+import { addStudioAgent, addStudioAsset, addStudioPolicy, addWorkVersion, attestStudioAssetRights, createStudio, createStudioProject, createStudioWork, openDatabase, reviewStudioAsset, StudioMediaStore } from "@royaltydesk/persistence";
 import { StudioReleaseAgentService } from "../../apps/worker/src/studio/release-agents.ts";
 
 const wasmPath = resolve("contracts/studio/target/near/studio_contract.wasm");
@@ -59,7 +59,7 @@ try {
   await contract.deployContract(contractBytes);
   await send(contract, contractId, "new", { admin_id: rootId });
   const expiry = Date.now() + 24 * 60 * 60 * 1000;
-  for (const [who, role] of [[lyricist, "lyricist"], [composer, "composer"], [producer, "producer"]]) await send(root, contractId, "register_agent", { account_id: who.accountId, role, expires_at_ms: expiry, max_actions: who === producer ? 5 : 12 }, 100_000_000_000_000_000_000_000n);
+  for (const [who, role] of [[lyricist, "lyricist"], [composer, "composer"], [producer, "producer"]]) await send(root, contractId, "register_agent", { account_id: who.accountId, role, expires_at_ms: expiry, max_actions: who === producer ? 11 : 12 }, 100_000_000_000_000_000_000_000n);
   const restricted = new Map();
   for (const who of [lyricist, composer, producer]) {
     const key = KeyPair.fromRandom("ed25519");
@@ -67,9 +67,13 @@ try {
     await who.addFunctionCallAccessKey({ publicKey: key.getPublicKey(), contractId, methodNames: methods, allowance: parseNearAmount("0.5") });
     restricted.set(who.accountId, { account: new Account(who.accountId, provider, key.toString()), key: key.getPublicKey().toString(), secretKey: key.toString(), methods });
   }
+  const createKey = KeyPair.fromRandom("ed25519");
+  await producer.addFunctionCallAccessKey({ publicKey: createKey.getPublicKey(), contractId, methodNames: ["create_release"], allowance: parseNearAmount("0.5") });
+  const mediaPath = join(home, "media");
+  const media = new StudioMediaStore(mediaPath);
   const shares = [{ account_id: lyricist.accountId, basis_points: 5000 }, { account_id: composer.accountId, basis_points: 5000 }];
   async function publish(input, human = true) {
-    const created = await send(root, contractId, "create_release", { input });
+    const created = await send(producer, contractId, "create_release", { input });
     const commitment = created.result;
     for (const who of [lyricist, composer]) {
       assert.equal(await provider.callFunction({ contractId, method: "has_accepted_split", args: { work_id: input.work_id, version: input.version, account_id: who.accountId } }), false);
@@ -101,10 +105,10 @@ try {
   addWorkVersion(local, { workId: "agent-service-song", studioId: "sandbox-studio", version: 1, kind: "song", state: "accepted", title: "Scoped signer test", assetHash: hash("e"), metadataHash: hash("b"), priceYocto: "10000000000000000000000", split: [{ agentId: "lyricist-service", basisPoints: 5000 }, { agentId: "composer-service", basisPoints: 5000 }] });
   local.close();
   const serviceRelease = release("agent-service-song", 1, "song", hash("e"), "10000000000000000000000", shares, [], 1);
-  await send(root, contractId, "create_release", { input: serviceRelease });
+  await send(producer, contractId, "create_release", { input: serviceRelease });
   const keyPath = join(home, "scoped-keys.json");
-  await writeFile(keyPath, JSON.stringify({ accounts: Object.fromEntries([[lyricist, "lyricist"], [composer, "composer"], [producer, "producer"]].map(([who, role]) => [`${role}Scoped`, { accountId: who.accountId, publicKey: restricted.get(who.accountId).key, secretKey: restricted.get(who.accountId).secretKey, methods: restricted.get(who.accountId).methods }])) }));
-  const acceptanceService = new StudioReleaseAgentService(localPath, contractId, "http://127.0.0.1:3030", keyPath);
+  await writeFile(keyPath, JSON.stringify({ accounts: { ...Object.fromEntries([[lyricist, "lyricist"], [composer, "composer"], [producer, "producer"]].map(([who, role]) => [`${role}Scoped`, { accountId: who.accountId, publicKey: restricted.get(who.accountId).key, secretKey: restricted.get(who.accountId).secretKey, methods: restricted.get(who.accountId).methods }])), producerCreateScoped: { accountId: producer.accountId, publicKey: createKey.getPublicKey().toString(), secretKey: createKey.toString(), methods: ["create_release"] } } }));
+  const acceptanceService = new StudioReleaseAgentService(localPath, contractId, "http://127.0.0.1:3030", keyPath, mediaPath);
   assert.equal((await acceptanceService.accept("agent-service-song", 1)).acceptedAccounts.length, 2);
   assert.equal((await acceptanceService.accept("agent-service-song", 1)).acceptedAccounts.length, 2);
   const checked = openDatabase(localPath);
@@ -127,18 +131,17 @@ try {
   const refunded = await provider.callFunction({ contractId, method: "get_payment", args: { payment_id: "order-song" } });
   assert.equal(refunded.status, "refunded");
   assert.equal(await provider.callFunction({ contractId, method: "get_escrow_yocto", args: {} }), (BigInt(album.price_yocto) + tipAmount * 2n).toString());
-  assert.match(await rejected(outsider, contractId, "allocate_payment", { payment_id: "order-album" }), /ADMIN_REQUIRED/);
-  for (const paymentId of ["order-album", "tip-song", "tip-album"]) await send(root, contractId, "allocate_payment", { payment_id: paymentId });
+  await send(outsider, contractId, "allocate_payment", { payment_id: "order-album" });
+  for (const paymentId of ["tip-song", "tip-album"]) await send(producer, contractId, "allocate_payment", { payment_id: paymentId });
   assert.match(await rejected(root, contractId, "allocate_payment", { payment_id: "order-album" }), /PAYMENT_NOT_ALLOCATABLE/);
   assert.match(await rejected(root, contractId, "refund_payment", { payment_id: "order-album" }, 1n), /REFUND_ALREADY_ACTIVE_OR_ALLOCATED/);
   const expectedEach = (BigInt(album.price_yocto) + tipAmount * 2n) / 2n;
   for (const recipient of [lyricist, composer]) {
     const earnings = await provider.callFunction({ contractId, method: "get_earnings", args: { account_id: recipient.accountId } });
     assert.equal(earnings.owed_yocto, expectedEach.toString());
-    assert.match(await rejected(outsider, contractId, "request_payout", { payout_id: `forbidden-${recipient.accountId}`, recipient_id: recipient.accountId }, 1n), /PAYOUT_CALLER_FORBIDDEN/);
-    assert.match(await rejected(recipient, contractId, "request_payout", { payout_id: `approval-required-${recipient.accountId}`, recipient_id: recipient.accountId }, 1n), /PAYOUT_CALLER_FORBIDDEN/);
+    assert.match(await rejected(outsider, contractId, "request_payout", { payout_id: `forbidden-${recipient.accountId}`, recipient_id: recipient.accountId }), /PAYOUT_CALLER_FORBIDDEN/);
     const payoutId = `sandbox-${recipient === lyricist ? "lyricist" : "composer"}`;
-    await send(root, contractId, "request_payout", { payout_id: payoutId, recipient_id: recipient.accountId }, 1n);
+    await send(recipient, contractId, "request_payout", { payout_id: payoutId, recipient_id: recipient.accountId });
     const payout = await provider.callFunction({ contractId, method: "get_payout", args: { payout_id: payoutId } });
     assert.equal(payout.status, "paid");
     assert.equal(payout.amount_yocto, expectedEach.toString());
@@ -146,15 +149,15 @@ try {
     assert.equal(settled.owed_yocto, "0");
     assert.equal(settled.pending_yocto, "0");
     assert.equal(settled.paid_yocto, expectedEach.toString());
-    assert.match(await rejected(root, contractId, "request_payout", { payout_id: payoutId, recipient_id: recipient.accountId }, 1n), /PAYOUT_DUPLICATE_OR_LIMIT/);
+    assert.match(await rejected(root, contractId, "request_payout", { payout_id: payoutId, recipient_id: recipient.accountId }), /PAYOUT_DUPLICATE_OR_LIMIT/);
   }
   assert.equal(await provider.callFunction({ contractId, method: "get_escrow_yocto", args: {} }), "0");
   assert.equal(await provider.callFunction({ contractId, method: "get_paid_payout_yocto", args: {} }), (expectedEach * 2n).toString());
   await send(root, contractId, "unpublish_release", { work_id: songTwo.work_id, version: 1 }, 1n);
-  assert.match(await rejected(root, contractId, "publish_release", { work_id: songTwo.work_id, version: 1, commitment: second.commitment, policy_epoch: 1 }), /PUBLICATION_STALE/);
+  assert.match(await rejected(producer, contractId, "publish_release", { work_id: songTwo.work_id, version: 1, commitment: second.commitment, policy_epoch: 1 }), /PUBLICATION_STALE/);
   assert.match(await rejected(buyer, contractId, "purchase", { payment_id: "unpublished", work_id: album.work_id, version: 1, commitment: albumPublished.commitment, quote_expires_at_ms: now }, BigInt(album.price_yocto)), /ALBUM_SONG_UNPUBLISHED/);
   await send(root, contractId, "set_policy", { input: { epoch: 2, human_review: false, paused: false, max_price_yocto: "100000000000000000000000", max_tip_yocto: "1000000000000000000000000" } }, 1n);
-  assert.match(await rejected(root, contractId, "create_release", { input: release("x".repeat(65), 1, "song", hash("a"), songOne.price_yocto, shares, [], 2) }), /WORK_ID_INVALID/);
+  assert.match(await rejected(producer, contractId, "create_release", { input: release("x".repeat(65), 1, "song", hash("a"), songOne.price_yocto, shares, [], 2) }), /WORK_ID_INVALID/);
   const revised = release(songOne.work_id, 2, "song", hash("e"), songOne.price_yocto, shares, [], 2);
   const revision = await publish(revised, false);
   const autonomousLocal = openDatabase(localPath);
@@ -162,13 +165,14 @@ try {
   addStudioAgent(autonomousLocal, { id: "producer-service", studioId: "sandbox-studio", accountId: producer.accountId, controllerAccountId: rootId, role: "producer", active: true });
   addStudioAgent(autonomousLocal, { id: "reviewer-service", studioId: "sandbox-studio", accountId: `reviewer.${contractId}`, controllerAccountId: rootId, role: "reviewer", active: true, allowedTools: ["review"] });
   createStudioWork(autonomousLocal, { id: "autonomous-song", studioId: "sandbox-studio", projectId: "project-service", kind: "song" });
-  addStudioAsset(autonomousLocal, { hash: hash("f"), provider: "test", model: "test", licenseRef: "test", storageKey: "test.bin", mimeType: "audio/mpeg", sizeBytes: 4096 });
-  addWorkVersion(autonomousLocal, { workId: "autonomous-song", studioId: "sandbox-studio", version: 1, kind: "song", state: "accepted", title: "Autonomous song", assetHash: hash("f"), metadataHash: hash("b"), priceYocto: "10000000000000000000000", split: [{ agentId: "lyricist-service", basisPoints: 5000 }, { agentId: "composer-service", basisPoints: 5000 }] });
-  reviewStudioAsset(autonomousLocal, { assetHash: hash("f"), studioId: "sandbox-studio", reviewerAgentId: "reviewer-service", decision: "accept", notesHash: hash("c") });
-  attestStudioAssetRights(autonomousLocal, { assetHash: hash("f"), studioId: "sandbox-studio", adminAccountId: rootId, licenseRef: "test", publicPlayback: true, paidPurchase: true, tips: true, downloads: true });
+  const autonomousAsset = media.put(new Uint8Array(4096).fill(7));
+  addStudioAsset(autonomousLocal, { hash: autonomousAsset.hash, provider: "test", model: "test", licenseRef: "test", storageKey: "sandbox-media", mimeType: "audio/mpeg", sizeBytes: 4096 });
+  addWorkVersion(autonomousLocal, { workId: "autonomous-song", studioId: "sandbox-studio", version: 1, kind: "song", state: "accepted", title: "Autonomous song", assetHash: autonomousAsset.hash, metadataHash: hash("b"), priceYocto: "10000000000000000000000", split: [{ agentId: "lyricist-service", basisPoints: 5000 }, { agentId: "composer-service", basisPoints: 5000 }] });
+  reviewStudioAsset(autonomousLocal, { assetHash: autonomousAsset.hash, studioId: "sandbox-studio", reviewerAgentId: "reviewer-service", decision: "accept", notesHash: hash("c") });
+  attestStudioAssetRights(autonomousLocal, { assetHash: autonomousAsset.hash, studioId: "sandbox-studio", adminAccountId: rootId, licenseRef: "test", publicPlayback: true, paidPurchase: true, tips: true, downloads: true });
   autonomousLocal.close();
-  const autonomousRelease = release("autonomous-song", 1, "song", hash("f"), songOne.price_yocto, shares, [], 2);
-  await send(root, contractId, "create_release", { input: autonomousRelease });
+  const autonomousRelease = release("autonomous-song", 1, "song", autonomousAsset.hash, songOne.price_yocto, shares, [], 2);
+  assert.equal((await acceptanceService.commit("autonomous-song", 1)).commitment, digest(autonomousRelease));
   const autonomousResult = await acceptanceService.accept("autonomous-song", 1);
   assert.equal(autonomousResult.published, true);
   assert.equal((await acceptanceService.accept("autonomous-song", 1)).published, true);
@@ -192,8 +196,8 @@ try {
   await send(buyer, contractId, "tip", { payment_id: "tip-failure-probe", work_id: songOne.work_id, version: 2, commitment: revision.commitment, quote_expires_at_ms: Date.now() + 180_000 }, tipAmount);
   await send(root, contractId, "allocate_payment", { payment_id: "tip-failure-probe" });
   const competingPayouts = await Promise.allSettled([
-    send(root, contractId, "request_payout", { payout_id: "race-admin-lyricist", recipient_id: lyricist.accountId }, 1n),
-    send(lyricist, contractId, "request_payout", { payout_id: "race-agent-lyricist", recipient_id: lyricist.accountId }, 1n)
+    send(root, contractId, "request_payout", { payout_id: "race-guardian-lyricist", recipient_id: lyricist.accountId }),
+    send(lyricist, contractId, "request_payout", { payout_id: "race-agent-lyricist", recipient_id: lyricist.accountId })
   ]);
   assert.equal(competingPayouts.filter((entry) => entry.status === "fulfilled").length, 1);
   assert.equal(competingPayouts.filter((entry) => entry.status === "rejected").length, 1);
@@ -201,7 +205,7 @@ try {
   assert.equal(racedEarnings.owed_yocto, "0");
   assert.equal(racedEarnings.paid_yocto, (expectedEach + tipAmount / 2n).toString());
   await composer.signAndSendTransaction({ receiverId: composer.accountId, actions: [actions.deleteAccount(rootId)], waitUntil: "FINAL" });
-  await send(root, contractId, "request_payout", { payout_id: "failed-composer-transfer", recipient_id: composer.accountId }, 1n);
+  await send(root, contractId, "request_payout", { payout_id: "failed-composer-transfer", recipient_id: composer.accountId });
   const failedPayout = await provider.callFunction({ contractId, method: "get_payout", args: { payout_id: "failed-composer-transfer" } });
   assert.equal(failedPayout.status, "failed");
   const restored = await provider.callFunction({ contractId, method: "get_earnings", args: { account_id: composer.accountId } });

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { acceptStudioSplit, addStudioAgent, addStudioAsset, addWorkVersion, createStudio, createStudioProject, createStudioWork, JobStore, openDatabase, StudioMediaStore } from "@studio/persistence";
 import { createNearAiAgentModel, NearAiCompletionError, type AgentModel } from "../src/near-ai/model.ts";
-import { createCreativeGraph } from "../src/studio/creative-graph.ts";
+import { createCreativeGraph, parseSplitDecision } from "../src/studio/creative-graph.ts";
 import { runCreativeModelStep } from "../src/studio/creative-model.ts";
 import { StudioCreativeService } from "../src/studio/creative-service.ts";
 import { DurableJobRunner } from "../src/jobs/runner.ts";
@@ -75,6 +75,78 @@ test("AGT-04 a completed reasoning-only response records its provider ID without
   } finally { globalThis.fetch = originalFetch; env.database.close(); }
 });
 
+test("AGT-04 an empty completed response without a body ID remains a known failure", async () => {
+  const env = setup();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ choices: [{ finish_reason: "stop", message: { content: null } }] }, { headers: { "inference-id": "billing-test-1" } });
+  try {
+    const model = createNearAiAgentModel({ baseUrl: "https://example.test/v1", apiKey: "fixture-key", model: "z-ai/glm-5.3-flash" });
+    await assert.rejects(runCreativeModelStep(env.database, model, { projectId: "project-a", agentId: "lyricist", role: "lyrics", revision: 0, brief: "An original song about morning", context: "Write original lyrics.", maxCalls: 6, maxOutputTokens: 4000 }), /ERR_NEAR_AI_CONTENT/);
+    const operation = env.database.prepare("SELECT status, provider_request_id FROM studio_external_operations").get() as { status: string; provider_request_id: string };
+    assert.equal(operation.status, "failed");
+    assert.equal(operation.provider_request_id, "billing-test-1");
+  } finally { globalThis.fetch = originalFetch; env.database.close(); }
+});
+
+test("AGT-04 an empty completed response without any provider ID is still classified as completed", async () => {
+  const env = setup();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ choices: [{ finish_reason: "stop", message: { content: null } }] });
+  try {
+    const model = createNearAiAgentModel({ baseUrl: "https://example.test/v1", apiKey: "fixture-key", model: "z-ai/glm-5.3-flash" });
+    await assert.rejects(runCreativeModelStep(env.database, model, { projectId: "project-a", agentId: "lyricist", role: "lyrics", revision: 0, brief: "An original song about morning", context: "Write original lyrics.", maxCalls: 6, maxOutputTokens: 4000 }), /ERR_NEAR_AI_CONTENT/);
+    const operation = env.database.prepare("SELECT status, provider_request_id FROM studio_external_operations").get() as { status: string; provider_request_id: string | null };
+    assert.equal(operation.status, "failed");
+    assert.equal(operation.provider_request_id, null);
+  } finally { globalThis.fetch = originalFetch; env.database.close(); }
+});
+
+test("AGT-04 successful output keeps its chat ID and the separate billing ID", async () => {
+  const env = setup();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ id: "chat-test-2", choices: [{ finish_reason: "stop", message: { content: '{"content":"Original chorus"}' } }] }, { headers: { "inference-id": "billing-test-2" } });
+  try {
+    const model = createNearAiAgentModel({ baseUrl: "https://example.test/v1", apiKey: "fixture-key", model: "z-ai/glm-5.3-flash" });
+    const content = await runCreativeModelStep(env.database, model, { projectId: "project-a", agentId: "lyricist", role: "lyrics", revision: 0, brief: "An original song about morning", context: "Write original lyrics.", maxCalls: 6, maxOutputTokens: 4000 });
+    assert.equal(content, "Original chorus");
+    const operation = env.database.prepare("SELECT status, provider_request_id FROM studio_external_operations").get() as { status: string; provider_request_id: string };
+    const output = env.database.prepare("SELECT response_id FROM studio_model_outputs").get() as { response_id: string };
+    assert.equal(operation.status, "finalized");
+    assert.equal(operation.provider_request_id, "billing-test-2");
+    assert.equal(output.response_id, "chat-test-2");
+  } finally { globalThis.fetch = originalFetch; env.database.close(); }
+});
+
+test("AGT-04 an explicitly retried malformed reply preserves the paid attempt and replays the valid answer", async () => {
+  const env = setup();
+  let calls = 0;
+  const model: AgentModel = { mode: "live", complete: async () => {
+    calls += 1;
+    return { model: "fixture/studio", content: calls === 1 ? "not json" : '{"content":"Accepted split"}', responseId: `chat-${calls}`, billingRequestId: `billing-${calls}` };
+  } };
+  const step = { projectId: "project-a", agentId: "composer", role: "split_response" as const, revision: 0, brief: "An original song about morning", context: "Accept the proposed split.", maxCalls: 6, maxOutputTokens: 4000 };
+  try {
+    await assert.rejects(runCreativeModelStep(env.database, model, step), /ERR_CREATIVE_MODEL_FORMAT/);
+    await assert.rejects(runCreativeModelStep(env.database, model, step), /ERR_CREATIVE_OUTCOME_UNKNOWN/);
+    assert.equal(await runCreativeModelStep(env.database, model, { ...step, retryKnownFailure: 1 }), "Accepted split");
+    assert.equal(await runCreativeModelStep(env.database, model, step), "Accepted split");
+    assert.equal(calls, 2);
+    const operations = env.database.prepare("SELECT status, provider_request_id FROM studio_external_operations ORDER BY created_at_ms, logical_key").all() as { status: string; provider_request_id: string }[];
+    assert.deepEqual(operations.map((operation) => operation.status).sort(), ["failed", "finalized"]);
+    assert.deepEqual(operations.map((operation) => operation.provider_request_id).sort(), ["billing-1", "billing-2"]);
+  } finally { env.database.close(); }
+});
+
+test("AGT-04 a split response returned as a direct JSON object is retained as agent content", async () => {
+  const env = setup();
+  const model: AgentModel = { mode: "live", complete: async () => ({ model: "fixture/studio", content: '{"decision":"accept","lyricistBasisPoints":3500,"composerBasisPoints":6500}', responseId: "chat-direct", billingRequestId: "billing-direct" }) };
+  try {
+    const content = await runCreativeModelStep(env.database, model, { projectId: "project-a", agentId: "composer", role: "split_response", revision: 0, brief: "An original song about morning", context: "Accept the proposed split.", maxCalls: 6, maxOutputTokens: 4000 });
+    assert.deepEqual(JSON.parse(content), { decision: "accept", lyricistBasisPoints: 3500, composerBasisPoints: 6500 });
+    assert.equal((env.database.prepare("SELECT status FROM studio_external_operations").get() as { status: string }).status, "finalized");
+  } finally { env.database.close(); }
+});
+
 test("AGT-01 lyricist hands lyrics to composer before review and split negotiation", async () => {
   const setupResult = setup();
   let calls = 0;
@@ -142,11 +214,11 @@ test("AGT-03 repeated rejection reaches unresolved state without invented accept
   env.database.close();
 });
 
-test("AGT-03 a countered split remains unresolved", async () => {
+test("AGT-03 a rejected composer counter remains unresolved", async () => {
   const env = setup();
   const model: AgentModel = { mode: "fixture", complete: async (request) => {
     const role = request.system.match(/You are the (\S+) agent/)?.[1];
-    const content = role === "review" ? "ACCEPT: ready" : role === "split_proposal" ? '{"lyricistBasisPoints":5000,"composerBasisPoints":5000}' : role === "split_response" ? '{"decision":"counter","lyricistBasisPoints":6000,"composerBasisPoints":4000}' : "original content";
+    const content = role === "review" ? "ACCEPT: ready" : role === "split_proposal" ? request.user.includes("Composer countered") ? '{"decision":"counter","lyricistBasisPoints":5000,"composerBasisPoints":5000}' : '{"lyricistBasisPoints":5000,"composerBasisPoints":5000}' : role === "split_response" ? '{"decision":"counter","lyricistBasisPoints":6000,"composerBasisPoints":4000}' : "original content";
     return { model: "fixture/studio", content: JSON.stringify({ content }) };
   } };
   const created = createCreativeGraph({ database: env.database, checkpointPath: env.checkpointPath, model, lyricistId: "lyricist", composerId: "composer", reviewerId: "composer", maxCalls: 5, maxOutputTokens: 100, maxRevisions: 0 });
@@ -155,6 +227,27 @@ test("AGT-03 a countered split remains unresolved", async () => {
   assert.match(state.splitDecision, /counter/);
   created.close();
   env.database.close();
+});
+
+test("AGT-03 the lyricist can accept the composer's exact counteroffer", async () => {
+  const env = setup();
+  const model: AgentModel = { mode: "fixture", complete: async (request) => {
+    const role = request.system.match(/You are the (\S+) agent/)?.[1];
+    const content = role === "review" ? "ACCEPT: ready" : role === "split_proposal" ? request.user.includes("Composer countered") ? '{"decision":"accept","lyricistBasisPoints":4000,"composerBasisPoints":6000}' : '{"lyricistBasisPoints":3500,"composerBasisPoints":6500}' : role === "split_response" ? '{"decision":"counter","lyricistBasisPoints":4000,"composerBasisPoints":6000}' : "original content";
+    return { model: "fixture/studio", content: JSON.stringify({ content }) };
+  } };
+  const created = createCreativeGraph({ database: env.database, checkpointPath: env.checkpointPath, model, lyricistId: "lyricist", composerId: "composer", reviewerId: "composer", maxCalls: 5, maxOutputTokens: 100, maxRevisions: 0 });
+  const state = await created.graph.invoke({ projectId: "project-a", brief: "Original song" }, { configurable: { thread_id: "project-a:counter-accepted" } });
+  assert.equal(state.status, "awaiting_acceptance");
+  assert.deepEqual(JSON.parse(state.splitDecision), { decision: "accept", lyricistBasisPoints: 4000, composerBasisPoints: 6000 });
+  assert.equal((env.database.prepare("SELECT COUNT(*) AS n FROM studio_model_outputs WHERE role = 'split_proposal'").get() as { n: number }).n, 2);
+  created.close();
+  env.database.close();
+});
+
+test("AGT-03 split decisions accept unambiguous basis-point aliases", () => {
+  assert.deepEqual(parseSplitDecision('{"decision":"accept","lyricist_bp":4000,"composer_bp":6000}'), { decision: "accept", lyricistBasisPoints: 4000, composerBasisPoints: 6000 });
+  assert.throws(() => parseSplitDecision('{"decision":"accept","lyricistBasisPoints":3000,"lyricist_bp":4000,"composer_bp":6000}'), /ERR_CREATIVE_SPLIT_RESPONSE_FORMAT/);
 });
 
 test("AGT-04 repeated logical creative step after restart reuses stored output", async () => {

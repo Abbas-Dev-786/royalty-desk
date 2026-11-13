@@ -216,7 +216,7 @@ test("MED-08 accepted live agent outputs create one review song without a second
   for (const [agentId, role] of steps) await runCreativeModelStep(database, model, { projectId: "project-a", agentId, role, revision: 0, brief, context: role, maxCalls: 6, maxOutputTokens: 100 });
   database.close();
   let calls = 0;
-  const provider: ElevenLabsMusicProvider = { compose: async (plan) => { calls += 1; return { bytes: synthesizeMp3(440, 4000, 20), contentType: "audio/mpeg", requestId: "test-request", planHash: musicPlanHash(plan) }; } };
+  const provider: ElevenLabsMusicProvider = { compose: async (plan) => { calls += 1; return { bytes: synthesizeMp3(440 + calls, 4000, 20), contentType: "audio/mpeg", requestId: `test-request-${calls}`, planHash: musicPlanHash(plan) }; } };
   const service = new StudioSongProductionService(databasePath, join(root, "media"), provider, "owner-confirmation-testnet");
   const request = { projectId: "project-a", brief, title: "River Light", lyricistId: "lyricist", composerId: "composer", reviewerId: "reviewer" };
   const first = await service.generate(request);
@@ -227,6 +227,23 @@ test("MED-08 accepted live agent outputs create one review song without a second
   try {
     assert.equal((reopened.prepare("SELECT COUNT(*) AS n FROM studio_contributions WHERE work_id = ?").get(first.workId) as { n: number }).n, 2);
     assert.equal((reopened.prepare("SELECT COUNT(*) AS n FROM studio_work_versions WHERE work_id = ?").get(first.workId) as { n: number }).n, 1);
+    createStudioProject(reopened, { id: "project-counter", studioId: "studio-a", title: "Countered song" });
+    const counterSteps = [
+      { agentId: "lyricist", role: "lyrics" as const, revision: 0, content: "Original counter song lyrics" },
+      { agentId: "composer", role: "composition" as const, revision: 0, content: "Warm original jazz arrangement" },
+      { agentId: "reviewer", role: "review" as const, revision: 0, content: "ACCEPT: ready" },
+      { agentId: "lyricist", role: "split_proposal" as const, revision: 0, content: '{"lyricistBasisPoints":3500,"composerBasisPoints":6500}' },
+      { agentId: "composer", role: "split_response" as const, revision: 0, content: '{"decision":"counter","lyricistBasisPoints":4000,"composerBasisPoints":6000}' },
+      { agentId: "lyricist", role: "split_proposal" as const, revision: 1, content: '{"decision":"accept","lyricistBasisPoints":4000,"composerBasisPoints":6000}' }
+    ];
+    for (const step of counterSteps) {
+      const counterModel: AgentModel = { mode: "live", complete: async () => ({ model: "test/live", content: JSON.stringify({ content: step.content }), responseId: `chat-${step.role}-${step.revision}` }) };
+      await runCreativeModelStep(reopened, counterModel, { projectId: "project-counter", agentId: step.agentId, role: step.role, revision: step.revision, brief, context: `${step.role}:${step.revision}`, maxCalls: 6, maxOutputTokens: 100 });
+    }
+    const counterSong = await service.generate({ ...request, projectId: "project-counter", title: "Countered River" });
+    const split = JSON.parse((reopened.prepare("SELECT split_json FROM studio_work_versions WHERE work_id = ? AND version = 1").get(counterSong.workId) as { split_json: string }).split_json) as { agentId: string; basisPoints: number }[];
+    assert.deepEqual(split.map((share) => share.basisPoints), [4000, 6000]);
+    assert.equal(calls, 2);
   } finally { reopened.close(); }
 });
 

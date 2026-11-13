@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { walletConnector } from "@/components/wallet-session";
 
 interface GuestStep { readonly role: string; readonly agentId: string; readonly model: string; readonly content: string; readonly outputHash: string; }
 interface GuestDemo { readonly projectId: string; readonly title: string; readonly brief: string; readonly sessionId: string | null; readonly status: string; readonly error: string | null; readonly steps: readonly GuestStep[]; readonly song: { readonly workId: string; readonly version: number; readonly state: string; readonly published: boolean; readonly durationMs: number | null; readonly assetHash: string } | null; }
+interface GuestApproval { readonly contractId: string; readonly guardianId: string; readonly workId: string; readonly version: number; readonly commitment: string; readonly policyEpoch: number; readonly approved: boolean; readonly requiresApproval: boolean; readonly error?: string; }
 const labels: Readonly<Record<string, string>> = { lyrics: "Lyricist", composition: "Composer", review: "Reviewer", revision: "Revision", split_proposal: "Split proposal", split_response: "Split response" };
 function explainError(error: string): string {
   if (error === "ERR_CREATIVE_OUTCOME_UNKNOWN" || error.includes("Multiple errors occurred during superstep")) return "The first NEAR AI request has an uncertain outcome. This song is paused to avoid charging credits twice. The operator must inspect provider usage before retrying.";
@@ -52,6 +54,32 @@ export function StudioGuestDemo() {
     finally { setBusy(false); await refresh().catch(() => undefined); }
   }
 
+  async function approveAndPublish(): Promise<void> {
+    if (!demo?.song || !accountId) return;
+    setBusy(true);
+    setMessage("Checking the saved release and studio policy.");
+    try {
+      const response = await fetch("/api/studio/guest/approval", { cache: "no-store" });
+      const approval = await response.json() as GuestApproval;
+      if (!response.ok) throw new Error(approval.error === "ERR_GUARDIAN_APPROVAL_REQUIRED" ? "Your recording is ready. The studio guardian must approve it before publication." : approval.error ?? "Could not verify the saved release.");
+      if (approval.guardianId !== accountId || approval.workId !== demo.song.workId || approval.version !== demo.song.version || !/^[0-9a-f]{64}$/.test(approval.commitment) || !Number.isSafeInteger(approval.policyEpoch)) throw new Error("The release changed. Refresh before approving it.");
+      if (approval.requiresApproval && !approval.approved) {
+        const wallet = await walletConnector().wallet();
+        if (!(await wallet.getAccounts({ network: "testnet" })).some((account) => account.accountId === accountId)) throw new Error("Connect the same guardian wallet before approving this song.");
+        setMessage("Confirm approval of this exact song in your NEAR wallet.");
+        const result = await wallet.signAndSendTransaction({ signerId: accountId, receiverId: approval.contractId, network: "testnet", actions: [{ type: "FunctionCall", params: { methodName: "approve_release", args: { work_id: approval.workId, version: approval.version, commitment: approval.commitment, policy_epoch: approval.policyEpoch }, gas: "100000000000000", deposit: "1" } }] });
+        if (!result.transaction?.hash || typeof result.status === "object" && "Failure" in result.status) throw new Error("Wallet outcome is uncertain. Refresh status and check your wallet receipt before approving again.");
+      }
+      setMessage("Approval complete. Asking the agents to publish the saved recording.");
+      const publishedResponse = await fetch("/api/studio/guest/song", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+      const published = await publishedResponse.json() as { demo?: GuestDemo; error?: string };
+      if (published.demo) setDemo(published.demo);
+      if (!publishedResponse.ok) throw new Error("Your approval is saved. Publication is still processing; refresh status and try this button again. The audio will not be generated again.");
+      setMessage(published.demo?.song?.published ? "Your song is published. Open it in the catalogue." : "Your approval is saved. The agents are finishing publication.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not finish publication."); }
+    finally { setBusy(false); await refresh().catch(() => undefined); }
+  }
+
   return <div className="studio-guest-demo">
     {!accountId ? <p>Connect a NEAR testnet wallet using the button above to create one private song and see the agents work together.</p> : <p>Signed in as <strong>{accountId}</strong>. This wallet can create one private song. Agents publish it after review and split acceptance, or wait for guardian approval if the policy requires it.</p>}
     <div className="studio-guest-form">
@@ -59,7 +87,7 @@ export function StudioGuestDemo() {
       <label>Music brief<textarea value={brief} maxLength={2000} rows={5} disabled={busy || !!demo || !accountId} onChange={(event) => setBrief(event.target.value)} placeholder="Describe the mood, theme, tempo, and lyrics you want the agents to explore" /></label>
       <button type="button" disabled={busy || !accountId || (!!demo && (demo.status === "awaiting_human" || ["ERR_CREATIVE_OUTCOME_UNKNOWN", "ERR_NEAR_AI_OUTPUT_LIMIT", "ERR_NEAR_AI_CONTENT", "ERR_CREATIVE_MODEL_FORMAT"].includes(demo.error ?? ""))) || title.trim().length < 1 || brief.trim().length < 20} onClick={() => void send("/api/studio/guest", { title: title.trim(), brief: brief.trim() })}>{demo ? "Resume my agent run" : "Create my song with agents"}</button>
       {demo?.status === "awaiting_human" && !demo.song && <button type="button" disabled={busy} onClick={() => void send("/api/studio/guest/song")}>Generate my 20-second song</button>}
-      {demo?.song && !demo.song.published && <button type="button" disabled={busy} onClick={() => void send("/api/studio/guest/song")}>Ask agents to finalize release</button>}
+      {demo?.song && !demo.song.published && <button type="button" disabled={busy} onClick={() => void approveAndPublish()}>Approve and publish</button>}
       <button type="button" disabled={busy || !accountId} onClick={() => void refresh().catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Refresh failed"))}>Refresh status</button>
     </div>
     {message && <p role="status">{message}</p>}

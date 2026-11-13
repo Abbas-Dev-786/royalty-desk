@@ -21,9 +21,9 @@ export type SongProductionRequest = z.infer<typeof requestSchema>;
 interface ModelOutput { readonly content: string; readonly hash: string; }
 interface ProducedSong { readonly workId: string; readonly version: number; readonly title: string; readonly assetHash: string; readonly metadataHash: string; readonly durationMs: number; readonly state: "review"; }
 
-function output(database: DatabaseSync, request: SongProductionRequest, agentId: string, role: string): ModelOutput {
-  const prefix = `creative:${request.projectId}:${digest(request.brief)}:${agentId}:${role}:0`;
-  const row = database.prepare("SELECT o.output_json, o.output_hash FROM studio_model_outputs o JOIN studio_external_operations e ON e.id = o.operation_id WHERE e.logical_key = ? AND e.status = 'finalized' AND o.provider_mode = 'live'").get(prefix) as { output_json: string; output_hash: string } | undefined;
+function output(database: DatabaseSync, request: SongProductionRequest, agentId: string, role: string, revision = 0): ModelOutput {
+  const prefix = `creative:${request.projectId}:${digest(request.brief)}:${agentId}:${role}:${revision}`;
+  const row = database.prepare("SELECT o.output_json, o.output_hash FROM studio_model_outputs o JOIN studio_external_operations e ON e.id = o.operation_id WHERE e.logical_key IN (?, ?) AND e.status = 'finalized' AND o.provider_mode = 'live' ORDER BY CASE WHEN e.logical_key = ? THEN 0 ELSE 1 END LIMIT 1").get(prefix, `${prefix}:retry:1`, prefix) as { output_json: string; output_hash: string } | undefined;
   if (!row) throw new Error(`ERR_SONG_LIVE_OUTPUT_MISSING:${role}`);
   const parsed = z.object({ content: z.string().min(1).max(12_000) }).strict().parse(JSON.parse(row.output_json) as unknown);
   return { content: parsed.content, hash: row.output_hash };
@@ -69,8 +69,13 @@ export class StudioSongProductionService {
       const response = output(database, request, request.composerId, "split_response");
       if (!review.content.startsWith("ACCEPT:")) throw new Error("ERR_SONG_REVIEW_NOT_ACCEPTED");
       const proposed = z.object({ lyricistBasisPoints: z.number().int().min(0).max(10_000), composerBasisPoints: z.number().int().min(0).max(10_000) }).passthrough().parse(JSON.parse(proposal.content) as unknown);
-      const accepted = parseSplitDecision(response.content);
-      if (accepted.decision !== "accept" || accepted.lyricistBasisPoints !== proposed.lyricistBasisPoints || accepted.composerBasisPoints !== proposed.composerBasisPoints || accepted.lyricistBasisPoints + accepted.composerBasisPoints !== 10_000) throw new Error("ERR_SONG_SPLIT_NOT_ACCEPTED");
+      const composerDecision = parseSplitDecision(response.content);
+      const counterAcceptance = composerDecision.decision === "counter" ? output(database, request, request.lyricistId, "split_proposal", 1) : null;
+      const accepted = counterAcceptance ? parseSplitDecision(counterAcceptance.content) : composerDecision;
+      const agreed = counterAcceptance
+        ? accepted.decision === "accept" && accepted.lyricistBasisPoints === composerDecision.lyricistBasisPoints && accepted.composerBasisPoints === composerDecision.composerBasisPoints
+        : accepted.decision === "accept" && accepted.lyricistBasisPoints === proposed.lyricistBasisPoints && accepted.composerBasisPoints === proposed.composerBasisPoints;
+      if (!agreed || accepted.lyricistBasisPoints + accepted.composerBasisPoints !== 10_000) throw new Error("ERR_SONG_SPLIT_NOT_ACCEPTED");
       const workId = `song-${digest(`${request.projectId}:${request.brief}`).slice(0, 24)}`;
       const existing = database.prepare("SELECT w.studio_id, w.project_id, w.kind FROM studio_works w WHERE w.id = ?").get(workId) as { studio_id: string; project_id: string; kind: string } | undefined;
       if (existing && (existing.studio_id !== project.studio_id || existing.project_id !== request.projectId || existing.kind !== "song")) throw new Error("ERR_SONG_WORK_COLLISION");
@@ -78,7 +83,7 @@ export class StudioSongProductionService {
       const plan: ElevenLabsSongRequest = { model: "music_v2_5", chunks: [{ text: `[Verse]\n${lyrics.content}`.slice(0, 4000), durationMs: 20_000, positiveStyles: [composition.content.replace(/\s+/g, " ").slice(0, 160), "clear sung English vocals", "polished original recording"], negativeStyles: ["spoken word", "named artist imitation", "existing song melody"], contextAdherence: "high" }] };
       const media = new StudioMediaStore(this.#mediaPath);
       const generated = await generateElevenLabsSong(database, media, this.#provider, { projectId: request.projectId, workId, workVersion: 1, revision: 0, agentId: request.composerId, plan, licenseRef: this.#licenseRef });
-      const metadata = { title: request.title, briefHash: digest(request.brief), lyrics: lyrics.content, composition: composition.content, lyricSourceHash: lyrics.hash, compositionSourceHash: composition.hash, reviewSourceHash: review.hash, splitProposalSourceHash: proposal.hash, splitResponseHash: response.hash, planHash: generated.planHash, assetHash: generated.assetHash };
+      const metadata = { title: request.title, briefHash: digest(request.brief), lyrics: lyrics.content, composition: composition.content, lyricSourceHash: lyrics.hash, compositionSourceHash: composition.hash, reviewSourceHash: review.hash, splitProposalSourceHash: proposal.hash, splitResponseHash: response.hash, ...(counterAcceptance ? { counterAcceptanceHash: counterAcceptance.hash } : {}), planHash: generated.planHash, assetHash: generated.assetHash };
       const metadataHash = media.put(new TextEncoder().encode(JSON.stringify(metadata))).hash;
       const existingVersion = database.prepare("SELECT title, asset_hash, metadata_hash, state FROM studio_work_versions WHERE work_id = ? AND version = 1").get(workId) as { title: string; asset_hash: string; metadata_hash: string; state: string } | undefined;
       if (existingVersion && (existingVersion.title !== request.title || existingVersion.asset_hash !== generated.assetHash || existingVersion.metadata_hash !== metadataHash)) throw new Error("ERR_SONG_VERSION_CHANGED");

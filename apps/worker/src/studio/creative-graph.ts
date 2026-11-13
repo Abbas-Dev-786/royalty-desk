@@ -16,7 +16,7 @@ const CreativeState = new StateSchema({
   splitProposal: z.string().default(""),
   splitDecision: z.string().default(""),
   revisionCount: z.number().int().default(0),
-  status: z.enum(["running", "accepted", "awaiting_acceptance", "unresolved"]).default("running")
+  status: z.enum(["running", "accepted", "countered", "awaiting_acceptance", "unresolved"]).default("running")
 });
 
 const splitSchema = z.object({ lyricistBasisPoints: z.number().int().min(0).max(10_000), composerBasisPoints: z.number().int().min(0).max(10_000) });
@@ -24,7 +24,14 @@ const decisionSchema = splitSchema.extend({ decision: z.enum(["accept", "counter
 
 export function parseSplitDecision(raw: string): z.infer<typeof decisionSchema> {
   try {
-    return decisionSchema.parse(JSON.parse(raw) as unknown);
+    const decoded: unknown = JSON.parse(raw);
+    if (typeof decoded === "object" && decoded !== null) {
+      const fields = decoded as Record<string, unknown>;
+      if (fields.lyricistBasisPoints !== undefined && fields.lyricist_bp !== undefined && fields.lyricistBasisPoints !== fields.lyricist_bp) throw new Error("ERR_CREATIVE_SPLIT_RESPONSE_FORMAT");
+      if (fields.composerBasisPoints !== undefined && fields.composer_bp !== undefined && fields.composerBasisPoints !== fields.composer_bp) throw new Error("ERR_CREATIVE_SPLIT_RESPONSE_FORMAT");
+      return decisionSchema.parse({ decision: fields.decision, lyricistBasisPoints: fields.lyricistBasisPoints ?? fields.lyricist_bp, composerBasisPoints: fields.composerBasisPoints ?? fields.composer_bp });
+    }
+    return decisionSchema.parse(decoded);
   } catch (error) {
     if (!(error instanceof SyntaxError)) throw error;
   }
@@ -51,11 +58,11 @@ export function createCreativeGraph(options: CreativeGraphOptions) {
   if (options.lyricistId === options.composerId) throw new Error("ERR_CREATIVE_DISTINCT_AGENTS_REQUIRED");
   mkdirSync(dirname(options.checkpointPath), { recursive: true });
   const saver = SqliteSaver.fromConnString(options.checkpointPath);
-  const step = (role: "lyrics" | "composition" | "review" | "revision" | "split_proposal" | "split_response", agentId: string, state: typeof CreativeState.State, context: string) => runCreativeModelStep(options.database, options.model, {
+  const step = (role: "lyrics" | "composition" | "review" | "revision" | "split_proposal" | "split_response", agentId: string, state: typeof CreativeState.State, context: string, revision = state.revisionCount) => runCreativeModelStep(options.database, options.model, {
     projectId: state.projectId,
     agentId,
     role,
-    revision: state.revisionCount,
+    revision,
     brief: state.brief,
     context,
     maxCalls: options.maxCalls,
@@ -82,7 +89,15 @@ export function createCreativeGraph(options: CreativeGraphOptions) {
       const proposal = splitSchema.parse(JSON.parse(state.splitProposal) as unknown);
       if (response.lyricistBasisPoints + response.composerBasisPoints !== 10_000) throw new Error("ERR_CREATIVE_SPLIT_TOTAL");
       const matches = response.lyricistBasisPoints === proposal.lyricistBasisPoints && response.composerBasisPoints === proposal.composerBasisPoints;
-      return { splitDecision: JSON.stringify(response), status: response.decision === "accept" && matches ? "awaiting_acceptance" as const : "unresolved" as const };
+      return { splitDecision: JSON.stringify(response), status: response.decision === "accept" && matches ? "awaiting_acceptance" as const : response.decision === "counter" ? "countered" as const : "unresolved" as const };
+    })
+    .addNode("accept_counter", async (state) => {
+      const counter = decisionSchema.parse(JSON.parse(state.splitDecision) as unknown);
+      const raw = await step("split_proposal", options.lyricistId, state, `Composer countered your split with ${counter.lyricistBasisPoints} lyricist basis points and ${counter.composerBasisPoints} composer basis points. Return JSON inside content with decision accept and those exact values if you agree, or decision counter with your alternative values totaling 10000.`, state.revisionCount + 1);
+      const answer = parseSplitDecision(raw);
+      if (answer.lyricistBasisPoints + answer.composerBasisPoints !== 10_000) throw new Error("ERR_CREATIVE_SPLIT_TOTAL");
+      const agreed = answer.decision === "accept" && answer.lyricistBasisPoints === counter.lyricistBasisPoints && answer.composerBasisPoints === counter.composerBasisPoints;
+      return { splitDecision: JSON.stringify(answer), status: agreed ? "awaiting_acceptance" as const : "unresolved" as const };
     })
     .addEdge(START, "write_lyrics")
     .addEdge("write_lyrics", "plan_composition")
@@ -90,7 +105,8 @@ export function createCreativeGraph(options: CreativeGraphOptions) {
     .addConditionalEdges("review_work", (state) => state.status === "running" ? "revise_lyrics" : state.status === "accepted" ? "propose_split" : END, ["revise_lyrics", "propose_split", END])
     .addEdge("revise_lyrics", "review_work")
     .addEdge("propose_split", "respond_split")
-    .addEdge("respond_split", END)
+    .addConditionalEdges("respond_split", (state) => state.status === "countered" ? "accept_counter" : END, ["accept_counter", END])
+    .addEdge("accept_counter", END)
     .compile({ checkpointer: saver });
   return { graph, close: () => saver.db.close() };
 }

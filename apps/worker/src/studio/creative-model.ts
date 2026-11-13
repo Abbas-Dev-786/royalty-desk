@@ -16,6 +16,7 @@ export interface CreativeModelStep {
   readonly maxCalls: number;
   readonly maxOutputTokens: number;
   readonly deadlineAtMs?: number;
+  readonly retryKnownFailure?: 1;
 }
 
 export function createCreativeNearAiModel(config: { readonly baseUrl: string; readonly apiKey: string; readonly model: string; readonly timeoutMs?: number }): AgentModel {
@@ -37,13 +38,25 @@ export async function runCreativeModelStep(database: DatabaseSync, model: AgentM
   const user = `Brief: ${step.brief}\nContext: ${step.context}`;
   const inputHash = digest(`${system}\n${user}`);
   const briefHash = digest(step.brief);
-  const logicalKey = `creative:${step.projectId}:${briefHash}:${step.agentId}:${step.role}:${step.revision}`;
+  const baseLogicalKey = `creative:${step.projectId}:${briefHash}:${step.agentId}:${step.role}:${step.revision}`;
+  const logicalKey = step.retryKnownFailure === 1 ? `${baseLogicalKey}:retry:1` : baseLogicalKey;
   const operationId = digest(logicalKey);
+  if (step.retryKnownFailure === 1) {
+    const failed = database.prepare("SELECT o.status, o.provider_request_id, r.operation_id AS output_id FROM studio_external_operations o LEFT JOIN studio_model_outputs r ON r.operation_id = o.id WHERE o.logical_key = ?").get(baseLogicalKey) as { status: string; provider_request_id: string | null; output_id: string | null } | undefined;
+    if (!failed || failed.status !== "failed" || !failed.provider_request_id || failed.output_id) throw new Error("ERR_CREATIVE_RETRY_NOT_AUTHORIZED");
+  }
   const previous = database.prepare("SELECT o.status, r.output_json, r.input_hash FROM studio_external_operations o LEFT JOIN studio_model_outputs r ON r.operation_id = o.id WHERE o.logical_key = ?").get(logicalKey) as { status: string; output_json: string | null; input_hash: string | null } | undefined;
   if (previous) {
     if (previous.status === "finalized" && previous.output_json) {
       if (previous.input_hash !== inputHash) throw new Error("ERR_CREATIVE_INPUT_CHANGED");
       return outputSchema.parse(JSON.parse(previous.output_json)).content;
+    }
+    if (step.retryKnownFailure !== 1 && previous.status === "failed") {
+      const retry = database.prepare("SELECT o.status, r.output_json, r.input_hash FROM studio_external_operations o LEFT JOIN studio_model_outputs r ON r.operation_id = o.id WHERE o.logical_key = ?").get(`${baseLogicalKey}:retry:1`) as { status: string; output_json: string | null; input_hash: string | null } | undefined;
+      if (retry?.status === "finalized" && retry.output_json) {
+        if (retry.input_hash !== inputHash) throw new Error("ERR_CREATIVE_INPUT_CHANGED");
+        return outputSchema.parse(JSON.parse(retry.output_json)).content;
+      }
     }
     throw new Error("ERR_CREATIVE_OUTCOME_UNKNOWN");
   }
@@ -52,18 +65,27 @@ export async function runCreativeModelStep(database: DatabaseSync, model: AgentM
   if (count.n >= Math.min(step.maxCalls, agent.max_calls)) throw new Error("ERR_CREATIVE_BUDGET");
   database.prepare("INSERT INTO studio_external_operations(id, logical_key, operation_type, status, created_at_ms, updated_at_ms) VALUES (?, ?, 'near_ai_creative', 'requested', ?, ?)").run(operationId, logicalKey, Date.now(), Date.now());
   let responseId: string | null = null;
+  let billingRequestId: string | null = null;
   try {
     const result = await model.complete({ system, user, inputDigest: inputHash, maxOutputTokens: step.maxOutputTokens });
     responseId = result.responseId ?? null;
+    billingRequestId = result.billingRequestId ?? null;
     let parsed: z.infer<typeof outputSchema>;
-    try { parsed = outputSchema.parse(JSON.parse(result.content) as unknown); }
+    try {
+      const decoded: unknown = JSON.parse(result.content);
+      if (step.role === "split_response" && typeof decoded === "object" && decoded !== null && "decision" in decoded && "lyricistBasisPoints" in decoded && "composerBasisPoints" in decoded) {
+        parsed = outputSchema.parse({ content: JSON.stringify(decoded) });
+      } else {
+        parsed = outputSchema.parse(decoded);
+      }
+    }
     catch { throw new Error("ERR_CREATIVE_MODEL_FORMAT"); }
     if (step.role === "review" && !/^(ACCEPT|REVISE):/.test(parsed.content)) throw new Error("ERR_CREATIVE_REVIEW_FORMAT");
     const outputJson = JSON.stringify(parsed);
     database.exec("BEGIN IMMEDIATE");
     try {
       database.prepare("INSERT INTO studio_model_outputs(operation_id, project_id, agent_id, role, model, provider_mode, input_hash, output_hash, output_json, response_id, input_tokens, output_tokens, created_at_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(operationId, step.projectId, step.agentId, step.role, result.model, model.mode, inputHash, digest(outputJson), outputJson, result.responseId ?? null, result.inputTokens ?? null, result.outputTokens ?? null, Date.now());
-      database.prepare("UPDATE studio_external_operations SET status = 'finalized', result_hash = ?, provider_request_id = ?, updated_at_ms = ? WHERE id = ?").run(digest(outputJson), result.responseId ?? null, Date.now(), operationId);
+      database.prepare("UPDATE studio_external_operations SET status = 'finalized', result_hash = ?, provider_request_id = ?, updated_at_ms = ? WHERE id = ?").run(digest(outputJson), billingRequestId ?? responseId, Date.now(), operationId);
       database.exec("COMMIT");
     } catch (error) {
       database.exec("ROLLBACK");
@@ -71,8 +93,8 @@ export async function runCreativeModelStep(database: DatabaseSync, model: AgentM
     }
     return parsed.content;
   } catch (error) {
-    const completed = error instanceof NearAiCompletionError || responseId !== null;
-    const providerId = error instanceof NearAiCompletionError ? error.responseId : responseId;
+    const completed = error instanceof NearAiCompletionError || responseId !== null || billingRequestId !== null || (error instanceof Error && (error.message === "ERR_NEAR_AI_CONTENT" || error.message === "ERR_NEAR_AI_OUTPUT_LIMIT"));
+    const providerId = error instanceof NearAiCompletionError ? error.billingRequestId ?? error.responseId : billingRequestId ?? responseId;
     database.prepare("UPDATE studio_external_operations SET status = ?, provider_request_id = COALESCE(?, provider_request_id), updated_at_ms = ? WHERE id = ? AND status = 'requested'").run(completed ? "failed" : "unknown", providerId, Date.now(), operationId);
     throw error;
   }

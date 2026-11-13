@@ -74,7 +74,7 @@ export class StudioCreativeService {
     if (job.state === "failed") {
       if (job.attempts >= 3) throw new Error("ERR_CREATIVE_RETRY_LIMIT");
       const prefix = `creative:${request.projectId}:`;
-      const unsafe = this.#database.prepare("SELECT 1 FROM studio_external_operations WHERE operation_type = 'near_ai_creative' AND substr(logical_key, 1, ?) = ? AND status != 'finalized' LIMIT 1").get(prefix.length, prefix);
+      const unsafe = this.#database.prepare("SELECT 1 FROM studio_external_operations o WHERE o.operation_type = 'near_ai_creative' AND substr(o.logical_key, 1, ?) = ? AND o.status != 'finalized' AND NOT (o.status = 'failed' AND EXISTS (SELECT 1 FROM studio_external_operations retry WHERE retry.logical_key = o.logical_key || ':retry:1' AND retry.status = 'finalized')) LIMIT 1").get(prefix.length, prefix);
       if (unsafe) throw new Error("ERR_CREATIVE_OUTCOME_UNKNOWN");
       if (!this.#jobs.requeueFailed(sessionId)) throw new Error("ERR_CREATIVE_REQUEUE_FAILED");
     }

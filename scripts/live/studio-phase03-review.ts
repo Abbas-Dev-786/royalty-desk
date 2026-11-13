@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { openDatabase, StudioMediaStore, reviewStudioAsset, attestStudioAssetRights, addWorkVersion, addAlbumTracks } from "@royaltydesk/persistence";
+import { openDatabase, StudioMediaStore, reviewStudioAsset, attestStudioAssetRights, addWorkVersion, addAlbumTracks } from "@studio/persistence";
 import { validateMusicMp3 } from "../../apps/worker/src/studio/media-validation.ts";
 
 const root = resolve("private/studio-v2/phase03");

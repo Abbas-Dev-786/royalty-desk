@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { addStudioAsset, StudioMediaStore } from "@royaltydesk/persistence";
+import { addStudioAsset, StudioMediaStore } from "@studio/persistence";
 import { ElevenLabsMusicHttpError, musicPlanHash, validateMusicPlan, type ElevenLabsMusicProvider, type ElevenLabsSongRequest } from "./elevenlabs-music-provider.ts";
 import { validateMusicMp3 } from "./media-validation.ts";
 

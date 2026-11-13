@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { resolve } from "node:path";
-import { addStudioAgent, addStudioContribution, addStudioPolicy, addWorkVersion, createStudio, createStudioProject, createStudioWork, openDatabase, StudioMediaStore } from "@royaltydesk/persistence";
+import { addStudioAgent, addStudioContribution, addStudioPolicy, addWorkVersion, createStudio, createStudioProject, createStudioWork, openDatabase, StudioMediaStore } from "@studio/persistence";
 import { createStabilityMusicProvider } from "../../apps/worker/src/studio/music-provider.ts";
 import { generateDraftMusic } from "../../apps/worker/src/studio/music-service.ts";
 

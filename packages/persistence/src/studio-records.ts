@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
-import { parseYocto, requireAccountId, requireStudioId, studioSplitDigest } from "@royaltydesk/domain";
-import type { WorkVersion } from "@royaltydesk/domain";
+import { parseYocto, requireAccountId, requireStudioId, studioSplitDigest } from "@studio/domain";
+import type { WorkVersion } from "@studio/domain";
 
 const hashPattern = /^[0-9a-f]{64}$/;
 

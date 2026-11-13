@@ -1,5 +1,5 @@
 {
-  "name": "@royaltydesk/chain",
+  "name": "@studio/chain",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,6 +10,6 @@
   },
   "dependencies": {
     "near-api-js": "7.3.0",
-    "@royaltydesk/persistence": "0.1.0"
+    "@studio/persistence": "0.1.0"
   }
 }

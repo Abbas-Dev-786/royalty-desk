@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { createStudioProject } from "@royaltydesk/persistence";
+import { createStudioProject } from "@studio/persistence";
 import { requireOrigin } from "@/server/runtime";
 import { requireStudioAdmin } from "@/server/studio-admin";
 import { openStudioCatalogueDatabase } from "@/server/studio-catalogue";

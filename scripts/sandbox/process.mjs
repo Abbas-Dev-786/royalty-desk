@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 
-const useDocker = process.platform === "win32" || process.env.STUDIO_SANDBOX_DOCKER === "1" || process.env.ROYALTYDESK_SANDBOX_DOCKER === "1";
+const useDocker = process.platform === "win32" || process.env.STUDIO_SANDBOX_DOCKER === "1";
 const command = useDocker ? (process.platform === "win32" ? "docker.exe" : "docker") : "npx";
 const sandboxImage = "nearprotocol/sandbox:2.13.1";
 

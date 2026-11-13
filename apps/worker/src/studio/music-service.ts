@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { addStudioAsset, StudioMediaStore } from "@royaltydesk/persistence";
+import { addStudioAsset, StudioMediaStore } from "@studio/persistence";
 import { MusicProviderHttpError, type MusicComposeRequest, type MusicProvider } from "./music-provider.ts";
 import { validateMusicMp3 } from "./media-validation.ts";
 

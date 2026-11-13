@@ -89,18 +89,18 @@ test("MED-05 permission record must cover every catalogue use and the studio acc
   assert.throws(() => readStudioPermissionReference(file, "studio.testnet"), /SCOPE/);
 });
 
-test("DOM-05 backup and restore preserves legacy and studio records", () => {
+test("DOM-05 backup and restore preserves studio records", () => {
   const source = path();
   const db = openDatabase(source);
   createStudio(db, "studio-a", "admin.testnet");
-  db.prepare("INSERT INTO release_memberships(release_id, account_id, role, status, created_at_ms) VALUES (?, ?, ?, ?, ?)").run("legacy", "owner.testnet", "owner", "accepted", 1);
   db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
   db.close();
   const target = path();
   copyFileSync(source, target);
   const restored = openDatabase(target);
   assert.equal((restored.prepare("SELECT COUNT(*) AS n FROM studios").get() as { n: number }).n, 1);
-  assert.equal((restored.prepare("SELECT COUNT(*) AS n FROM release_memberships").get() as { n: number }).n, 1);
+  assert.equal((restored.prepare("SELECT COUNT(*) AS n FROM schema_migrations").get() as { n: number }).n, 1);
+  assert.equal((restored.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'release_memberships'").get() as { n: number }).n, 0);
   restored.close();
 });
 
@@ -231,12 +231,16 @@ test("DOM-04 two connections serialize a competing economic ID", () => {
   first.close();
 });
 
-test("DOM-01 upgrades a version-4 legacy database to current schema without changing membership", () => {
+test("DOM-01 migrates version-14 data to the studio-only schema", () => {
   const file = path();
   const old = new DatabaseSync(file);
   old.exec(`
     CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at_ms INTEGER NOT NULL) STRICT;
-    INSERT INTO schema_migrations VALUES (4, 1);
+    INSERT INTO schema_migrations VALUES (14, 1);
+    CREATE TABLE studios (id TEXT PRIMARY KEY, admin_account_id TEXT NOT NULL, created_at_ms INTEGER NOT NULL) STRICT;
+    INSERT INTO studios VALUES ('studio-a', 'admin.testnet', 1);
+    CREATE TABLE studio_orders (payment_id TEXT PRIMARY KEY, work_id TEXT NOT NULL, work_version INTEGER NOT NULL, buyer_account_id TEXT NOT NULL, kind TEXT NOT NULL, amount_yocto TEXT NOT NULL, commitment TEXT NOT NULL, quote_expires_at_ms INTEGER NOT NULL, status TEXT NOT NULL, transaction_hash TEXT, created_at_ms INTEGER NOT NULL, updated_at_ms INTEGER NOT NULL) STRICT;
+    INSERT INTO studio_orders VALUES ('order-a', 'song-a', 1, 'buyer.testnet', 'purchase', '100', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 1, 'finalized', NULL, 1, 1);
     CREATE TABLE release_memberships (
       release_id TEXT NOT NULL, account_id TEXT NOT NULL, role TEXT NOT NULL,
       status TEXT NOT NULL, created_at_ms INTEGER NOT NULL, accepted_at_ms INTEGER,
@@ -245,9 +249,15 @@ test("DOM-01 upgrades a version-4 legacy database to current schema without chan
     INSERT INTO release_memberships VALUES ('legacy', 'owner.testnet', 'owner', 'accepted', 1, 1);
   `);
   old.close();
+  assert.throws(() => openDatabase(file), /historical data/);
+  const cleared = new DatabaseSync(file);
+  cleared.exec("DELETE FROM release_memberships");
+  cleared.close();
   const upgraded = openDatabase(file);
   assert.equal((upgraded.prepare("SELECT MAX(version) AS version FROM schema_migrations").get() as { version: number }).version, CURRENT_SCHEMA_VERSION);
-  assert.equal((upgraded.prepare("SELECT COUNT(*) AS n FROM release_memberships WHERE release_id = 'legacy'").get() as { n: number }).n, 1);
-  assert.equal((upgraded.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name = 'studio_works'").get() as { n: number }).n, 1);
+  assert.equal((upgraded.prepare("SELECT COUNT(*) AS n FROM schema_migrations").get() as { n: number }).n, 1);
+  assert.equal((upgraded.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name = 'release_memberships'").get() as { n: number }).n, 0);
+  assert.equal((upgraded.prepare("SELECT COUNT(*) AS n FROM studios").get() as { n: number }).n, 1);
+  assert.equal((upgraded.prepare("SELECT COUNT(*) AS n FROM studio_orders").get() as { n: number }).n, 1);
   upgraded.close();
 });

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { quarantineStudioAsset } from "@royaltydesk/persistence";
+import { quarantineStudioAsset } from "@studio/persistence";
 import { currentUser, requireOrigin } from "@/server/runtime";
 import { openStudioCatalogueDatabase, studioContractClient } from "@/server/studio-catalogue";
 

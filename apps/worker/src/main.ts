@@ -1,6 +1,6 @@
 import { readWorkerConfig } from "./config.ts";
 import { createWorkerHealthServer } from "./health-server.ts";
-import { openDatabase } from "@royaltydesk/persistence";
+import { openDatabase } from "@studio/persistence";
 import { reconcileSignedOperations } from "./reconciliation/signed-operations.ts";
 import { createCreativeNearAiModel } from "./studio/creative-model.ts";
 import { StudioCreativeService } from "./studio/creative-service.ts";

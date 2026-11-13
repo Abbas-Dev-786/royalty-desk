@@ -1,9 +1,12 @@
 {
-  "name": "@royaltydesk/persistence",
+  "name": "@studio/persistence",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "exports": "./src/index.ts",
+  "dependencies": {
+    "@studio/domain": "0.1.0"
+  },
   "scripts": {
     "build": "tsc --noEmit --pretty false",
     "check": "tsc --noEmit --pretty false",

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import type { DatabaseSync } from "node:sqlite";
 import { KeyPair, type KeyPairString } from "near-api-js";
-import { requireAccountId, requireStudioId } from "@royaltydesk/domain";
+import { requireAccountId, requireStudioId } from "@studio/domain";
 
 interface AccessKeyView {
   readonly block_height: number;

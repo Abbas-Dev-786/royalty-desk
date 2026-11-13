@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { StudioMediaStore } from "@royaltydesk/persistence";
+import { StudioMediaStore } from "@studio/persistence";
 import { parseSingleByteRange } from "@/server/media-range";
 import { requireStudioAdmin } from "@/server/studio-admin";
 import { openStudioCatalogueDatabase } from "@/server/studio-catalogue";

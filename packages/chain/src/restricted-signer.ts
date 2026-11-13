@@ -1,7 +1,7 @@
 import type { Account } from "near-api-js";
 import { createHash } from "node:crypto";
 import { actions, baseEncode } from "near-api-js";
-import { createChainOperation, getChainOperation, updateChainOperation } from "@royaltydesk/persistence";
+import { createChainOperation, getChainOperation, updateChainOperation } from "@studio/persistence";
 import type { DatabaseSync } from "node:sqlite";
 
 export interface RestrictedSignerOptions { readonly account: Account; readonly contractId: string; readonly allowedMethods: readonly string[]; readonly database: DatabaseSync; readonly keyId: string; }

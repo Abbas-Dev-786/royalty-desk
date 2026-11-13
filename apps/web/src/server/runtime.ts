@@ -1,8 +1,8 @@
 import "server-only";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { openDatabase, type UserRecord } from "@royaltydesk/persistence";
-import { findSession } from "@royaltydesk/persistence";
+import { openDatabase, type UserRecord } from "@studio/persistence";
+import { findSession } from "@studio/persistence";
 import { cookies } from "next/headers";
 
 let database: ReturnType<typeof openDatabase> | undefined;
@@ -10,7 +10,7 @@ let database: ReturnType<typeof openDatabase> | undefined;
 export function getAppDatabase(): ReturnType<typeof openDatabase> {
   if (!database) {
     // The database location is intentionally runtime-configurable and is never bundled as an asset.
-    const path = resolve(/* turbopackIgnore: true */ process.cwd(), "../..", process.env.STUDIO_APP_DB_PATH ?? process.env.ROYALTYDESK_DB_PATH ?? process.env.ROYALTYDESK_DATABASE_PATH ?? "data/studio-app.sqlite");
+    const path = resolve(/* turbopackIgnore: true */ process.cwd(), "../..", process.env.STUDIO_APP_DB_PATH ?? "data/studio-app.sqlite");
     mkdirSync(dirname(path), { recursive: true });
     database = openDatabase(path);
   }
@@ -18,7 +18,7 @@ export function getAppDatabase(): ReturnType<typeof openDatabase> {
 }
 
 export async function currentUser(): Promise<UserRecord | undefined> {
-  const token = (await cookies()).get("royaltydesk_session")?.value;
+  const token = (await cookies()).get("studio_session")?.value;
   return token ? findSession(getAppDatabase(), token) : undefined;
 }
 
@@ -34,5 +34,5 @@ export function configuredNetwork(): "testnet" {
 }
 
 export function authOrigin(request: Request): string {
-  return process.env.STUDIO_AUTH_ORIGIN ?? process.env.ROYALTYDESK_AUTH_ORIGIN ?? new URL(request.url).origin;
+  return process.env.STUDIO_AUTH_ORIGIN ?? new URL(request.url).origin;
 }

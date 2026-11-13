@@ -1,5 +1,5 @@
 import { JsonRpcProvider } from "near-api-js";
-import { addStudioPolicy } from "@royaltydesk/persistence";
+import { addStudioPolicy } from "@studio/persistence";
 import { currentUser, requireOrigin } from "@/server/runtime";
 import { openStudioCatalogueDatabase, studioContractClient } from "@/server/studio-catalogue";
 

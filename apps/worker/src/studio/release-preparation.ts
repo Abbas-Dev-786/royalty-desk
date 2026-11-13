@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import { attestStudioAssetRights, readStudioPermissionReference, reviewStudioAsset, StudioMediaStore, transitionStudioWorkState } from "@royaltydesk/persistence";
+import { attestStudioAssetRights, readStudioPermissionReference, reviewStudioAsset, StudioMediaStore, transitionStudioWorkState } from "@studio/persistence";
 
 interface DraftRow { readonly studio_id: string; readonly admin_account_id: string; readonly project_id: string; readonly kind: "song" | "album"; readonly state: string; readonly asset_hash: string; readonly license_ref: string; readonly provider: string; readonly metadata_hash: string; }
 

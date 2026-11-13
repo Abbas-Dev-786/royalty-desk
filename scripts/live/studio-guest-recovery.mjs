@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { backup } from "node:sqlite";
-import { createStudioProject, openDatabase } from "@royaltydesk/persistence";
+import { createStudioProject, openDatabase } from "@studio/persistence";
 
 const argument = (name) => process.argv.find((value) => value.startsWith(`${name}=`))?.slice(name.length + 1);
 const accountId = argument("--account-id");

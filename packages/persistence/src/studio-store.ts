@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { AlbumTrack, RevenueEvent, StudioAgent, StudioPolicy, WorkVersion } from "@royaltydesk/domain";
-import { assertWorkTransition, requireAccountId, requireStudioId, validateAlbumTracks, validateRevenueEvent, validateStudioAgent, validateStudioPolicy, validateWorkVersion } from "@royaltydesk/domain";
+import type { AlbumTrack, RevenueEvent, StudioAgent, StudioPolicy, WorkVersion } from "@studio/domain";
+import { assertWorkTransition, requireAccountId, requireStudioId, validateAlbumTracks, validateRevenueEvent, validateStudioAgent, validateStudioPolicy, validateWorkVersion } from "@studio/domain";
 
 export function createStudio(database: DatabaseSync, id: string, adminAccountId: string, nowMs = Date.now()): void {
   database.prepare("INSERT INTO studios(id, admin_account_id, created_at_ms) VALUES (?, ?, ?)").run(requireStudioId(id), requireAccountId(adminAccountId), nowMs);

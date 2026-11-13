@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { JsonRpcProvider } from "near-api-js";
-import { StudioContractClient } from "@royaltydesk/chain";
+import { StudioContractClient } from "@studio/chain";
 import { getAppDatabase } from "./runtime";
 import { listCatalogue } from "./studio-catalogue";
 

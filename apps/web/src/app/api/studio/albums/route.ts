@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { createStudioAlbumDraft, StudioMediaStore } from "@royaltydesk/persistence";
+import { createStudioAlbumDraft, StudioMediaStore } from "@studio/persistence";
 import { requireOrigin } from "@/server/runtime";
 import { requireStudioAdmin } from "@/server/studio-admin";
 import { openStudioCatalogueDatabase } from "@/server/studio-catalogue";

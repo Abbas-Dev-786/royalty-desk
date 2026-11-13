@@ -6,7 +6,7 @@ import test from "node:test";
 import { openJobStore } from "../src/job-store.ts";
 
 test("P00-PERSIST-01 queued jobs survive database restart", () => {
-  const directory = mkdtempSync(join(tmpdir(), "royaltydesk-persistence-"));
+  const directory = mkdtempSync(join(tmpdir(), "studio-persistence-"));
   const databasePath = join(directory, "jobs.sqlite");
   const digest = "a".repeat(64);
 

@@ -1,4 +1,4 @@
-import { openDatabase } from "@royaltydesk/persistence";
+import { openDatabase } from "@studio/persistence";
 import type { AgentModel } from "../../src/near-ai/model.ts";
 import { runCreativeModelStep } from "../../src/studio/creative-model.ts";
 

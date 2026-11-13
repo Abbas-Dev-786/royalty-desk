@@ -1,6 +1,6 @@
 import "server-only";
-import { validateStudioReleaseInput, studioDigest, type StudioReleaseInput } from "@royaltydesk/chain";
-import { StudioMediaStore } from "@royaltydesk/persistence";
+import { validateStudioReleaseInput, studioDigest, type StudioReleaseInput } from "@studio/chain";
+import { StudioMediaStore } from "@studio/persistence";
 import { resolve } from "node:path";
 import { openStudioCatalogueDatabase } from "./studio-catalogue";
 

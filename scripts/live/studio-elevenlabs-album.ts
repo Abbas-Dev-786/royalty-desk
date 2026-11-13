@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { resolve } from "node:path";
 import { writeFileSync, mkdirSync } from "node:fs";
-import { addAlbumTracks, addStudioAgent, addStudioAsset, addStudioContribution, addStudioPolicy, addWorkVersion, createStudio, createStudioProject, createStudioWork, openDatabase, StudioMediaStore } from "@royaltydesk/persistence";
+import { addAlbumTracks, addStudioAgent, addStudioAsset, addStudioContribution, addStudioPolicy, addWorkVersion, createStudio, createStudioProject, createStudioWork, openDatabase, StudioMediaStore } from "@studio/persistence";
 import { createElevenLabsMusicProvider, musicPlanHash, type ElevenLabsSongRequest } from "../../apps/worker/src/studio/elevenlabs-music-provider.ts";
 import { generateElevenLabsSong } from "../../apps/worker/src/studio/elevenlabs-music-service.ts";
 

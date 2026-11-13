@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { addStudioAgent, createStudio, createStudioProject, openDatabase } from "@royaltydesk/persistence";
+import { addStudioAgent, createStudio, createStudioProject, openDatabase } from "@studio/persistence";
 import { createCreativeNearAiModel, runCreativeModelStep } from "../../apps/worker/src/studio/creative-model.ts";
 
 const apiKey = process.env.NEAR_AI_API_KEY;

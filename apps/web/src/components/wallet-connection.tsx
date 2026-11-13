@@ -16,8 +16,8 @@ export function WalletConnection() {
       }).catch(() => setAccountId(null));
     };
     refresh();
-    window.addEventListener("royaltydesk-session-changed", refresh);
-    return () => window.removeEventListener("royaltydesk-session-changed", refresh);
+    window.addEventListener("studio-session-changed", refresh);
+    return () => window.removeEventListener("studio-session-changed", refresh);
   }, []);
 
   async function connect(): Promise<void> {

@@ -25,10 +25,9 @@ test("P00-WORKER-01 health server starts, reports testnet, and stops", async () 
 test("P00-WORKER-02 configuration rejects mainnet and weak production tokens", () => {
   assert.throws(() => readWorkerConfig({ NEXT_PUBLIC_NEAR_NETWORK: "mainnet" }));
   assert.throws(() => readWorkerConfig({ NEXT_PUBLIC_NEAR_NETWORK: "testnet", NODE_ENV: "production", STUDIO_WORKER_TOKEN: "short" }));
-  const preferred = readWorkerConfig({ STUDIO_APP_DB_PATH: "data/studio.sqlite", ROYALTYDESK_DB_PATH: "data/legacy.sqlite", STUDIO_WORKER_TOKEN: "a".repeat(32), ROYALTYDESK_WORKER_TOKEN: "b".repeat(32) });
-  assert.ok(preferred.databasePath.endsWith("studio.sqlite"));
-  assert.equal(preferred.workerApiToken, "a".repeat(32));
-  const legacy = readWorkerConfig({ ROYALTYDESK_DB_PATH: "data/legacy.sqlite", ROYALTYDESK_WORKER_TOKEN: "b".repeat(32) });
-  assert.ok(legacy.databasePath.endsWith("legacy.sqlite"));
-  assert.equal(legacy.workerApiToken, "b".repeat(32));
+  const configured = readWorkerConfig({ STUDIO_APP_DB_PATH: "data/studio.sqlite", STUDIO_WORKER_TOKEN: "a".repeat(32) });
+  assert.ok(configured.databasePath.endsWith("studio.sqlite"));
+  assert.equal(configured.workerApiToken, "a".repeat(32));
+  const defaults = readWorkerConfig({});
+  assert.ok(defaults.databasePath.endsWith("studio-app.sqlite"));
 });

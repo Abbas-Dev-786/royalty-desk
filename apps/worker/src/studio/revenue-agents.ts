@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Account, JsonRpcProvider, KeyPair, KeyPairSigner, actions, baseEncode, type KeyPairString } from "near-api-js";
-import { StudioContractClient } from "@royaltydesk/chain";
-import { openDatabase } from "@royaltydesk/persistence";
+import { StudioContractClient } from "@studio/chain";
+import { openDatabase } from "@studio/persistence";
 import type { DatabaseSync } from "node:sqlite";
 
 interface ScopedKey { readonly accountId: string; readonly publicKey: string; readonly secretKey: string; readonly methods: readonly string[]; }

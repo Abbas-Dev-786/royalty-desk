@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
-import { createStudioProject } from "@royaltydesk/persistence";
+import { createStudioProject } from "@studio/persistence";
 import { currentUser } from "./runtime";
 import { openStudioCatalogueDatabase, studioContractClient } from "./studio-catalogue";
 

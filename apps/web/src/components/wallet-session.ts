@@ -8,5 +8,5 @@ export function walletConnector(): NearConnector {
 }
 
 export function notifyWalletSession(): void {
-  window.dispatchEvent(new Event("royaltydesk-session-changed"));
+  window.dispatchEvent(new Event("studio-session-changed"));
 }

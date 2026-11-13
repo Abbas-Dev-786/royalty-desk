@@ -1,9 +1,7 @@
-# Studio v2 database and media recovery
+# Studio database and media recovery
 
-SQLite schema version 5 adds `studio_*` tables without changing legacy release/settlement tables. The migration runs on `openDatabase`, records version 5 in `schema_migrations`, and rolls back on failure. A newer database version is rejected.
+SQLite schema version 15 creates only the studio and shared infrastructure tables. `openDatabase` upgrades a version 14 database in a transaction: it checks every retired table, rejects the upgrade if any contains rows, drops empty retired tables, and records version 15. Newer versions and older versions without an intermediate version 14 upgrade are rejected. Export or archive any retired data separately before retrying; do not clear populated tables just to make an upgrade pass.
 
-For local backup, stop web and worker, run `PRAGMA wal_checkpoint(TRUNCATE)` on the source database, close it, then copy the SQLite file and `StudioMediaStore` root together to a separate durable backup directory. Restore both to a stopped instance. Verify schema version, studio/legacy row counts and representative media hashes before resuming. Keep backup files and agent keys outside the repository.
+For backup, stop web and worker. Checkpoint each SQLite database with `PRAGMA wal_checkpoint(TRUNCATE)`, close it, then copy the application database, studio catalogue database, and `StudioMediaStore` root to a durable backup directory. Restore them together to a stopped instance. Check database integrity, schema version, studio row counts, and representative media hashes before resuming. Keep backups and agent keys outside version control.
 
-The first hackathon deployment uses one persistent host/volume for web, worker, SQLite and media, with a separate durable directory or volume for checkpointed backups. Configure volume paths and retention in deployment. Local tests cover closed-file copy/restore, legacy row preservation, media copy/restore and corruption rejection. A live deployment backup drill is a Phase 10 check.
-
-Code rollback after schema 5 requires a compatible binary or restoration of a pre-migration backup. Do not delete new tables in place. Local restore cannot reverse on-chain financial history; reconcile chain events before resuming payments.
+Use persistent storage for web, worker, databases, and media, with separate durable backups. A live deployment backup drill remains a Phase 10 check. Restoring local files does not reverse on-chain transactions; reconcile contract events before resuming payment operations.

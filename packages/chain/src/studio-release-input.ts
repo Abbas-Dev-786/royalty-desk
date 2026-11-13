@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { StudioMediaStore } from "@royaltydesk/persistence";
+import { StudioMediaStore } from "@studio/persistence";
 import { studioDigest, validateStudioReleaseInput, type StudioReleaseInput } from "./studio.ts";
 
 interface VersionRow {

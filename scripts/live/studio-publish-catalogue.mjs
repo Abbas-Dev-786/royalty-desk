@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Account, JsonRpcProvider, actions } from "near-api-js";
-import { addStudioPublication, openDatabase, recordStudioProviderPermission, recordStudioPublicationReceipt, StudioMediaStore } from "@royaltydesk/persistence";
+import { addStudioPublication, openDatabase, recordStudioProviderPermission, recordStudioPublicationReceipt, StudioMediaStore } from "@studio/persistence";
 
 const root = resolve("private/studio-v2");
 const permissionPath = resolve(root, "rights/elevenlabs-permission.json");

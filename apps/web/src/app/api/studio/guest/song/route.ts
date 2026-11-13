@@ -6,9 +6,9 @@ export const maxDuration = 300;
 const headers = { "cache-control": "private, no-store" };
 
 async function finalizeGuestSong(accountId: string, workId: string, reviewerId: string): Promise<Response> {
-  const token = process.env.STUDIO_WORKER_TOKEN ?? process.env.ROYALTYDESK_WORKER_TOKEN;
+  const token = process.env.STUDIO_WORKER_TOKEN;
   if (!token || token.length < 32) return Response.json({ error: "ERR_WORKER_NOT_CONFIGURED", demo: guestSnapshot(accountId) }, { status: 503, headers });
-  const workerUrl = process.env.STUDIO_WORKER_URL ?? process.env.ROYALTYDESK_WORKER_URL ?? "http://127.0.0.1:3101";
+  const workerUrl = process.env.STUDIO_WORKER_URL ?? "http://127.0.0.1:3101";
   const upstream = await fetch(`${workerUrl}/studio/releases/${encodeURIComponent(workId)}/finalize`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ version: 1, reviewerId }), cache: "no-store" });
   const result = await upstream.json() as { published?: boolean; error?: string };
   return Response.json({ demo: guestSnapshot(accountId), ...(upstream.ok ? { published: result.published === true } : { error: result.error ?? "ERR_GUEST_FINALIZE" }) }, { status: upstream.ok ? 200 : 409, headers });
@@ -31,9 +31,9 @@ export async function POST(request: Request): Promise<Response> {
     try { ready = Boolean(row.session_id && database.prepare("SELECT 1 FROM jobs WHERE id = ? AND state = 'awaiting_human'").get(row.session_id)); }
     finally { database.close(); }
     if (!ready) return Response.json({ error: "ERR_GUEST_AGENTS_NOT_READY", demo: guestSnapshot(accountId) }, { status: 409, headers });
-    const token = process.env.STUDIO_WORKER_TOKEN ?? process.env.ROYALTYDESK_WORKER_TOKEN;
+    const token = process.env.STUDIO_WORKER_TOKEN;
     if (!token || token.length < 32) return Response.json({ error: "ERR_WORKER_NOT_CONFIGURED" }, { status: 503, headers });
-    const workerUrl = process.env.STUDIO_WORKER_URL ?? process.env.ROYALTYDESK_WORKER_URL ?? "http://127.0.0.1:3101";
+    const workerUrl = process.env.STUDIO_WORKER_URL ?? "http://127.0.0.1:3101";
     const upstream = await fetch(`${workerUrl}/studio/songs/generate`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ projectId: row.project_id, brief: row.brief, title: row.title, lyricistId: row.lyricist_id, composerId: row.composer_id, reviewerId: row.reviewer_id }), cache: "no-store" });
     const result = await upstream.json() as { workId?: string; error?: string };
     if (!upstream.ok || !result.workId) return Response.json({ error: result.error ?? "ERR_GUEST_AUDIO", demo: guestSnapshot(accountId) }, { status: 409, headers });

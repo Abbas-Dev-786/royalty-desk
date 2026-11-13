@@ -45,7 +45,7 @@ Dependency completion requires passing evidence at the tested revision. An imple
 | New studio contract under `contracts/` | Agent/policy authority, publication commitments, payable purchase/tip ledger and payouts |
 | Media storage | Durable audio/artwork blobs, content hashes, access control and backup/recovery |
 
-The older royalty-administration source, plans, and documentation were removed after the owner chose the studio as the sole active product. Deployed accounts and database records were not changed. The shared SQLite migration path still reads historical rows; never map a CSV-funded `release` to a catalogue song or reuse its identifiers with different financial meaning.
+The studio is the sole active product. Local application and catalogue databases use studio schema version 15. The migration removes retired tables only when they are empty and rejects databases with data in those tables. Deployed databases and on-chain accounts were not changed by the local cleanup. Dated phase evidence describes the revision tested at that time.
 
 ## Global invariants
 

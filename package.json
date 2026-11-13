@@ -16,8 +16,8 @@
     "typescript": "7.0.2"
   },
   "scripts": {
-    "dev:web": "npm run dev --workspace @royaltydesk/web",
-    "dev:worker": "npm run dev --workspace @royaltydesk/worker",
+    "dev:web": "npm run dev --workspace @studio/web",
+    "dev:worker": "npm run dev --workspace @studio/worker",
     "check": "node scripts/require-install.mjs && npm run check --workspaces --if-present && node scripts/check-workspace.mjs",
     "check:offline": "node scripts/check-workspace.mjs && node --experimental-strip-types scripts/import-check.ts",
     "build": "node scripts/build.mjs",

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { JobStore, type JobState, type StoredJob } from "@royaltydesk/persistence";
+import { JobStore, type JobState, type StoredJob } from "@studio/persistence";
 
 export interface JobExecutionContext { readonly job: StoredJob; readonly workerId: string; readonly heartbeat: () => boolean; }
 export type JobHandler = (context: JobExecutionContext) => Promise<{ readonly resultJson?: string; readonly awaitingHuman?: boolean }>;

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { Account, JsonRpcProvider, KeyPair, actions, getTransactionLastResult, parseNearAmount } from "near-api-js";
 import { runSandboxCommand, startSandbox, stopSandbox } from "./process.mjs";
-import { addStudioAgent, addStudioAsset, addStudioPolicy, addWorkVersion, attestStudioAssetRights, createStudio, createStudioProject, createStudioWork, openDatabase, reviewStudioAsset, StudioMediaStore } from "@royaltydesk/persistence";
+import { addStudioAgent, addStudioAsset, addStudioPolicy, addWorkVersion, attestStudioAssetRights, createStudio, createStudioProject, createStudioWork, openDatabase, reviewStudioAsset, StudioMediaStore } from "@studio/persistence";
 import { StudioReleaseAgentService } from "../../apps/worker/src/studio/release-agents.ts";
 
 const wasmPath = resolve("contracts/studio/target/near/studio_contract.wasm");

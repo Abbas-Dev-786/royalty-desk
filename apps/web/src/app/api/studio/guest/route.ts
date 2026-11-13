@@ -17,11 +17,11 @@ export async function POST(request: Request): Promise<Response> {
     const body = await request.json() as { title?: unknown; brief?: unknown };
     if (typeof body.title !== "string" || body.title.trim().length < 1 || body.title.length > 160 || typeof body.brief !== "string" || body.brief.trim().length < 20 || body.brief.length > 2000) return Response.json({ error: "ERR_GUEST_INPUT" }, { status: 400, headers });
     if ((await studioContractClient().policy()).paused) return Response.json({ error: "ERR_STUDIO_PAUSED" }, { status: 409, headers });
-    const token = process.env.STUDIO_WORKER_TOKEN ?? process.env.ROYALTYDESK_WORKER_TOKEN;
+    const token = process.env.STUDIO_WORKER_TOKEN;
     if (!token || token.length < 32) return Response.json({ error: "ERR_WORKER_NOT_CONFIGURED" }, { status: 503, headers });
     const row = await reserveGuestSong(accountId, body.title.trim(), body.brief.trim());
     if (row.title !== body.title.trim() || row.brief !== body.brief.trim()) return Response.json({ error: "ERR_GUEST_ONE_SONG_PER_WALLET", demo: guestSnapshot(accountId) }, { status: 409, headers });
-    const workerUrl = process.env.STUDIO_WORKER_URL ?? process.env.ROYALTYDESK_WORKER_URL ?? "http://127.0.0.1:3101";
+    const workerUrl = process.env.STUDIO_WORKER_URL ?? "http://127.0.0.1:3101";
     const input = { projectId: row.project_id, brief: row.brief, lyricistId: row.lyricist_id, composerId: row.composer_id, reviewerId: row.reviewer_id, maxCalls: 6, maxOutputTokens: 4000, maxRevisions: 0, deadlineAtMs: row.deadline_at_ms };
     const workerHeaders = { "content-type": "application/json", authorization: `Bearer ${token}` };
     const createdResponse = await fetch(`${workerUrl}/studio/sessions`, { method: "POST", headers: workerHeaders, body: JSON.stringify(input), cache: "no-store" });

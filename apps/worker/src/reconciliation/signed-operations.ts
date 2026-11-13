@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { JsonRpcProvider, SignedTransaction } from "near-api-js";
-import { updateChainOperation } from "@royaltydesk/persistence";
-import { interpretTransfer } from "@royaltydesk/chain";
+import { updateChainOperation } from "@studio/persistence";
+import { interpretTransfer } from "@studio/chain";
 
 interface SettlementView {
   readonly entitlements: readonly { readonly owner_id: string; readonly status: string; readonly amount_yocto: string; readonly attempt_id: string }[];

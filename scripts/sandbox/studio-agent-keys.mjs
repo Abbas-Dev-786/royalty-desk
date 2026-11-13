@@ -3,7 +3,7 @@ import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { Account, JsonRpcProvider, KeyPair, parseNearAmount } from "near-api-js";
-import { addStudioAgent, createStudio, openDatabase } from "@royaltydesk/persistence";
+import { addStudioAgent, createStudio, openDatabase } from "@studio/persistence";
 import { verifyStudioAgentKey } from "../../apps/worker/src/studio/agent-key-proof.ts";
 import { runSandboxCommand, startSandbox, stopSandbox } from "./process.mjs";
 

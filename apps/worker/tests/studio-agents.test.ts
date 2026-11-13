@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { acceptStudioSplit, addStudioAgent, addStudioAsset, addWorkVersion, createStudio, createStudioProject, createStudioWork, JobStore, openDatabase, StudioMediaStore } from "@royaltydesk/persistence";
+import { acceptStudioSplit, addStudioAgent, addStudioAsset, addWorkVersion, createStudio, createStudioProject, createStudioWork, JobStore, openDatabase, StudioMediaStore } from "@studio/persistence";
 import { createNearAiAgentModel, NearAiCompletionError, type AgentModel } from "../src/near-ai/model.ts";
 import { createCreativeGraph } from "../src/studio/creative-graph.ts";
 import { runCreativeModelStep } from "../src/studio/creative-model.ts";

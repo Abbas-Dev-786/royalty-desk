@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { resolve } from "node:path";
 
-const app = new DatabaseSync(resolve(process.env.STUDIO_APP_DB_PATH ?? process.env.ROYALTYDESK_DB_PATH ?? "data/studio-app.sqlite"), { readOnly: true });
+const app = new DatabaseSync(resolve(process.env.STUDIO_APP_DB_PATH ?? "data/studio-app.sqlite"), { readOnly: true });
 const studio = new DatabaseSync(resolve(process.env.STUDIO_CATALOGUE_DB_PATH ?? "private/studio-v2/phase05/studio.sqlite"), { readOnly: true });
 try {
   const orders = app.prepare("SELECT status, COUNT(1) AS count FROM studio_orders GROUP BY status ORDER BY status").all();

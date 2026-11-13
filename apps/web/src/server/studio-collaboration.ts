@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { StudioMediaStore } from "@royaltydesk/persistence";
+import { StudioMediaStore } from "@studio/persistence";
 import { openStudioCatalogueDatabase, studioContractClient, type CatalogueItem } from "./studio-catalogue";
 
 interface OutputRow { readonly agent_id: string; readonly role: string; readonly model: string; readonly provider_mode: string; readonly output_hash: string; readonly output_json: string; readonly created_at_ms: number; }

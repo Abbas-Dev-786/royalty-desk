@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Account, JsonRpcProvider, KeyPair, actions, parseNearAmount } from "near-api-js";
-import { openDatabase } from "@royaltydesk/persistence";
+import { openDatabase } from "@studio/persistence";
 
 const root = resolve("private/studio-v2/testnet");
 const deployment = JSON.parse(readFileSync(resolve(root, "bootstrap.json"), "utf8"));

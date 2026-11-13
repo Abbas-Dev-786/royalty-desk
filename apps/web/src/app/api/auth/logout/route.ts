@@ -1,4 +1,4 @@
-import { revokeSession } from "@royaltydesk/persistence";
+import { revokeSession } from "@studio/persistence";
 import { cookies } from "next/headers";
 import { getAppDatabase, requireOrigin } from "@/server/runtime";
 
@@ -6,9 +6,9 @@ export async function POST(request: Request): Promise<Response> {
   try {
     requireOrigin(request);
     const cookieStore = await cookies();
-    const token = cookieStore.get("royaltydesk_session")?.value;
+    const token = cookieStore.get("studio_session")?.value;
     if (token) revokeSession(getAppDatabase(), token);
-    cookieStore.delete("royaltydesk_session");
+    cookieStore.delete("studio_session");
     return Response.json({ status: "ok" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "logout_failed";

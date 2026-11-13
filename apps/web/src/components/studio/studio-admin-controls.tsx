@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { StudioPolicyView } from "@royaltydesk/chain";
+import type { StudioPolicyView } from "@studio/chain";
 import { walletConnector } from "@/components/wallet-session";
 import { yoctoToNear } from "@/lib/studio-money";
 

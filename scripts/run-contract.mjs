@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 const operation = process.argv[2] ?? "test";
 const contractName = process.argv[3] ?? "studio";
 const root = process.cwd();
-const image = process.env.STUDIO_CONTRACT_IMAGE ?? process.env.ROYALTYDESK_CONTRACT_IMAGE ?? "studio-contract-toolchain:dev";
+const image = process.env.STUDIO_CONTRACT_IMAGE ?? "studio-contract-toolchain:dev";
 if (contractName !== "studio") throw new Error("Unsupported contract name");
 const lockfile = resolve(root, `contracts/${contractName}/Cargo.lock`);
 
@@ -61,9 +61,9 @@ const result = run("docker", [
   "--mount",
   `type=bind,source=${root},target=/workspace`,
   "--mount",
-  "type=volume,source=royaltydesk-cargo-registry,target=/usr/local/cargo/registry",
+  "type=volume,source=studio-cargo-registry,target=/usr/local/cargo/registry",
   "--mount",
-  "type=volume,source=royaltydesk-cargo-git,target=/usr/local/cargo/git",
+  "type=volume,source=studio-cargo-git,target=/usr/local/cargo/git",
   "--workdir",
   `/workspace/contracts/${contractName}`,
   "--env",

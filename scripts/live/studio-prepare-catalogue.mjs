@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { DatabaseSync, backup } from "node:sqlite";
-import { addStudioAgent, openDatabase } from "@royaltydesk/persistence";
+import { addStudioAgent, openDatabase } from "@studio/persistence";
 
 const sourcePath = resolve("private/studio-v2/phase03/studio.sqlite");
 const destinationRoot = resolve("private/studio-v2/phase05");

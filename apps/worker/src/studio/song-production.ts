@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { z } from "zod";
-import { addStudioContribution, addWorkVersion, createStudioWork, openDatabase, readStudioPermissionReference, StudioMediaStore } from "@royaltydesk/persistence";
+import { addStudioContribution, addWorkVersion, createStudioWork, openDatabase, readStudioPermissionReference, StudioMediaStore } from "@studio/persistence";
 import type { DatabaseSync } from "node:sqlite";
 import { createElevenLabsMusicProvider, type ElevenLabsMusicProvider, type ElevenLabsSongRequest } from "./elevenlabs-music-provider.ts";
 import { generateElevenLabsSong } from "./elevenlabs-music-service.ts";

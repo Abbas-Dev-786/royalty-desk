@@ -1,7 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { addStudioAgent, createStudio, createStudioProject, openDatabase } from "@royaltydesk/persistence";
+import { addStudioAgent, createStudio, createStudioProject, openDatabase } from "@studio/persistence";
 import { createCreativeNearAiModel } from "../../apps/worker/src/studio/creative-model.ts";
 import { StudioCreativeService } from "../../apps/worker/src/studio/creative-service.ts";
 

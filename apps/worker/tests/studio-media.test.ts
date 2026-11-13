@@ -5,7 +5,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Mp3Encoder } from "@breezystack/lamejs";
-import { addStudioAgent, addStudioPolicy, createStudio, createStudioProject, createStudioWork, openDatabase, StudioMediaStore } from "@royaltydesk/persistence";
+import { addStudioAgent, addStudioPolicy, createStudio, createStudioProject, createStudioWork, openDatabase, StudioMediaStore } from "@studio/persistence";
 import { validateMusicMp3 } from "../src/studio/media-validation.ts";
 import { MusicProviderHttpError, createStabilityMusicProvider, type MusicProvider } from "../src/studio/music-provider.ts";
 import { generateDraftMusic } from "../src/studio/music-service.ts";

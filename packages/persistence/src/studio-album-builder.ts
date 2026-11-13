@@ -3,7 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { addAlbumTracks, addWorkVersion, createStudioWork } from "./studio-store.ts";
 import { addStudioAsset } from "./studio-records.ts";
 import { StudioMediaStore } from "./studio-media-store.ts";
-import { requireStudioId, validateShares, type ContributionShare } from "@royaltydesk/domain";
+import { requireStudioId, validateShares, type ContributionShare } from "@studio/domain";
 
 const digest = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
 const xml = (value: string): string => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");

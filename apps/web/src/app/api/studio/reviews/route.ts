@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { attestStudioAssetRights, readStudioPermissionReference, reviewStudioAsset, StudioMediaStore, transitionStudioWorkState } from "@royaltydesk/persistence";
+import { attestStudioAssetRights, readStudioPermissionReference, reviewStudioAsset, StudioMediaStore, transitionStudioWorkState } from "@studio/persistence";
 import { requireOrigin } from "@/server/runtime";
 import { requireStudioAdmin } from "@/server/studio-admin";
 import { openStudioCatalogueDatabase, studioContractClient } from "@/server/studio-catalogue";

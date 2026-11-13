@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Account, JsonRpcProvider, KeyPair, KeyPairSigner, actions, baseEncode, type KeyPairString } from "near-api-js";
-import { acceptedStudioReleaseInputFromDatabase, studioDigest, StudioContractClient, type StudioReleaseView } from "@royaltydesk/chain";
-import { acceptStudioSplit, addStudioPublication, openDatabase, recordStudioPublicationReceipt, StudioMediaStore } from "@royaltydesk/persistence";
+import { acceptedStudioReleaseInputFromDatabase, studioDigest, StudioContractClient, type StudioReleaseView } from "@studio/chain";
+import { acceptStudioSplit, addStudioPublication, openDatabase, recordStudioPublicationReceipt, StudioMediaStore } from "@studio/persistence";
 import type { DatabaseSync } from "node:sqlite";
-import type { WorkVersion } from "@royaltydesk/domain";
+import type { WorkVersion } from "@studio/domain";
 import { prepareAgentReviewedSong } from "./release-preparation.ts";
 
 interface ScopedKey { readonly accountId: string; readonly publicKey: string; readonly secretKey: string; readonly methods: readonly string[]; }

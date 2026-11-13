@@ -1,7 +1,7 @@
 import { JsonRpcProvider } from "near-api-js";
 import { verifyMessage } from "near-api-js/nep413";
 import { randomBytes } from "node:crypto";
-import { consumeChallenge, createChallenge, createSession, upsertUser, type AuthChallenge } from "@royaltydesk/persistence";
+import { consumeChallenge, createChallenge, createSession, upsertUser, type AuthChallenge } from "@studio/persistence";
 import { authOrigin, configuredNetwork, getAppDatabase } from "./runtime";
 
 const ACCOUNT_ID = /^[a-z0-9][a-z0-9._-]{1,63}$/;

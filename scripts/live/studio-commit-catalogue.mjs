@@ -4,8 +4,8 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Account, JsonRpcProvider, actions } from "near-api-js";
-import { studioDigest } from "@royaltydesk/chain";
-import { acceptStudioSplit, openDatabase } from "@royaltydesk/persistence";
+import { studioDigest } from "@studio/chain";
+import { acceptStudioSplit, openDatabase } from "@studio/persistence";
 
 const root = resolve("private/studio-v2");
 const databasePath = resolve(root, "phase05/studio.sqlite");

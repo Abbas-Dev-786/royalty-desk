@@ -2,8 +2,8 @@ import "server-only";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { JsonRpcProvider } from "near-api-js";
-import { StudioContractClient, studioDigest, type StudioReleaseView } from "@royaltydesk/chain";
-import { openDatabase, StudioMediaStore } from "@royaltydesk/persistence";
+import { StudioContractClient, studioDigest, type StudioReleaseView } from "@studio/chain";
+import { openDatabase, StudioMediaStore } from "@studio/persistence";
 
 export interface CatalogueTrack { readonly workId: string; readonly version: number; readonly title: string; readonly assetHash: string; readonly basisPoints: number; }
 export interface CatalogueItem { readonly workId: string; readonly version: number; readonly kind: "song" | "album"; readonly title: string; readonly assetHash: string; readonly metadataHash: string; readonly priceYocto: string; readonly commitment: string; readonly credits: readonly { readonly accountId: string; readonly basisPoints: number }[]; readonly tracks: readonly CatalogueTrack[]; }

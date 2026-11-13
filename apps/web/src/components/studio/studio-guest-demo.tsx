@@ -35,8 +35,8 @@ export function StudioGuestDemo() {
   useEffect(() => {
     void refresh().catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Could not load your song"));
     const changed = () => { void refresh().catch(() => setMessage("Could not refresh wallet session")); };
-    window.addEventListener("royaltydesk-session-changed", changed);
-    return () => window.removeEventListener("royaltydesk-session-changed", changed);
+    window.addEventListener("studio-session-changed", changed);
+    return () => window.removeEventListener("studio-session-changed", changed);
   }, []);
 
   async function send(path: string, body: Record<string, unknown> = {}): Promise<void> {

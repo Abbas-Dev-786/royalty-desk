@@ -21,7 +21,7 @@ Date: 2026-11-11. Source: Git baseline `a381d13` plus the working-tree v2 change
 | BASE-03 | `npm run test:studio-agents` | Missing suite reported; exit 1 | pass for empty-suite rejection |
 | BASE-04 | `npm ci --ignore-scripts --no-audit --no-fund` | Added 352 pinned packages; exit 0 | pass |
 | BASE-04 | `npm run check` | All workspace type/source checks passed; exit 0 | pass |
-| BASE-04 | `npm run build` with Docker access | Web, worker, packages and **legacy** RoyaltyDesk contract built; exit 0. Legacy WASM SHA-256 `c319324997714c43ba10712a00487cfb125bd5ee7e8d7e49e5154b61604b7a3f` | pass for current workspace build only |
+| BASE-04 | `npm run build` with Docker access | Web, worker, packages and the now-retired contract built; exit 0. Retired WASM SHA-256 `c319324997714c43ba10712a00487cfb125bd5ee7e8d7e49e5154b61604b7a3f` | pass for the workspace build at that revision only |
 | BASE-04 | `npm run test:studio-domain` | Media copy/restore and corruption rejection included; 14/14 passed | pass |
 | BASE-05 | `npm run probe:studio-testnet` outside sandbox | RPC identified `testnet`, block height 277214411; exit 0 | pass |
 | BASE-05 | `npm run test:live` outside sandbox | Live NEAR AI response from `z-ai/glm-5.3-flash`, `needs_human`, 32 input/113 output tokens; exit 0 | pass for connectivity, not studio collaboration |

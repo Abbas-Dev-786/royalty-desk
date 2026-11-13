@@ -12,7 +12,7 @@ The [studio master plan](plan-v2/MASTER_PLAN.md) and its [evidence](plan-v2/evid
 - `packages/domain`, `packages/chain`, `packages/persistence`: studio rules, contract client, SQLite storage, and shared infrastructure.
 - `fixtures/studio` and `tests/studio`: studio vectors and integration checks.
 
-The former royalty-administration application and its documentation were retired. SQLite migrations still preserve existing historical records; studio purchases and tips use the studio contract. Some `@royaltydesk/*` package and `ROYALTYDESK_*` environment names remain as compatibility identifiers for existing deployments.
+The former royalty-administration application and its documentation were retired. The active workspaces, settings, authentication cookie, and local database now use studio names. Studio purchases and tips use the studio contract.
 
 ## Setup
 
@@ -40,6 +40,6 @@ npm run verify:studio
 
 This runs type and workspace checks, builds the web and studio contract, then runs studio domain, agent, media, contract, sandbox, server, and built-web HTTP suites. Docker is required for the contract and sandbox steps. Live testnet transactions and paid inference are separate checks; see the phase evidence before treating them as passed.
 
-## Historical data
+## Database and media
 
-Do not delete an existing SQLite database or on-chain account as part of source cleanup. The current migrations retain old records and the studio remains bound to its separate contract account. Back up the application database, studio catalogue database, and media together before changing a deployed instance; [migration and storage guidance](plan-v2/MIGRATION_AND_STORAGE.md) describes the restore boundary.
+Fresh databases use studio schema version 15. Opening a version 14 database removes retired tables only when they are empty; a database containing records in those tables requires a separate export decision. Back up the application database, studio catalogue database, and media together before changing a deployed instance. The local studio databases have been migrated; deployed databases and on-chain accounts require separate handling. See [migration and storage guidance](plan-v2/MIGRATION_AND_STORAGE.md).

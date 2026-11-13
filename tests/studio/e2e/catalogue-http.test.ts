@@ -50,7 +50,7 @@ test("CAT-02/PAY-04 built web app hides drafts and rejects anonymous downloads",
   const webRoot = resolve("apps/web");
   const child = spawn(process.execPath, [resolve("node_modules/next/dist/bin/next"), "start", "-p", String(port), "-H", "127.0.0.1"], {
     cwd: webRoot,
-    env: { ...process.env, STUDIO_CATALOGUE_DB_PATH: dbPath, STUDIO_MEDIA_PATH: join(root, "media"), ROYALTYDESK_DB_PATH: join(root, "app.sqlite"), NEXT_PUBLIC_STUDIO_CONTRACT_ID: "studio.example.testnet" },
+    env: { ...process.env, STUDIO_CATALOGUE_DB_PATH: dbPath, STUDIO_MEDIA_PATH: join(root, "media"), STUDIO_APP_DB_PATH: join(root, "app.sqlite"), NEXT_PUBLIC_STUDIO_CONTRACT_ID: "studio.example.testnet" },
     stdio: "ignore"
   });
   try {
@@ -104,19 +104,19 @@ test("CAT-02/PAY-04 built web app hides drafts and rejects anonymous downloads",
     assert.match(await guestPage.text(), /Make a song with the agents/);
     const guestStatus = await fetch(`${base}/api/studio/guest`);
     assert.equal(guestStatus.status, 401);
-    const ownGuestStatus = await fetch(`${base}/api/studio/guest`, { headers: { cookie: `royaltydesk_session=${aliceSession}` } });
+    const ownGuestStatus = await fetch(`${base}/api/studio/guest`, { headers: { cookie: `studio_session=${aliceSession}` } });
     assert.equal(ownGuestStatus.status, 200);
     const ownGuest = await ownGuestStatus.json() as { demo: { title: string; error: string } };
     assert.equal(ownGuest.demo.title, "Alice private song");
     assert.equal(ownGuest.demo.error, "ERR_CREATIVE_OUTCOME_UNKNOWN");
-    const otherGuestStatus = await fetch(`${base}/api/studio/guest`, { headers: { cookie: `royaltydesk_session=${bobSession}` } });
+    const otherGuestStatus = await fetch(`${base}/api/studio/guest`, { headers: { cookie: `studio_session=${bobSession}` } });
     assert.equal(otherGuestStatus.status, 200);
     assert.deepEqual(await otherGuestStatus.json(), { demo: null });
-    const ownGuestMedia = await fetch(`${base}/api/studio/guest/song/media`, { headers: { cookie: `royaltydesk_session=${aliceSession}` } });
+    const ownGuestMedia = await fetch(`${base}/api/studio/guest/song/media`, { headers: { cookie: `studio_session=${aliceSession}` } });
     assert.equal(ownGuestMedia.status, 200);
     assert.equal(ownGuestMedia.headers.get("content-type"), "audio/mpeg");
     assert.equal((await ownGuestMedia.arrayBuffer()).byteLength, 8);
-    const otherGuestMedia = await fetch(`${base}/api/studio/guest/song/media`, { headers: { cookie: `royaltydesk_session=${bobSession}` } });
+    const otherGuestMedia = await fetch(`${base}/api/studio/guest/song/media`, { headers: { cookie: `studio_session=${bobSession}` } });
     assert.equal(otherGuestMedia.status, 404);
     const guestStart = await fetch(`${base}/api/studio/guest`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "Unauthorized", brief: "A new original song about dawn" }) });
     assert.equal(guestStart.status, 401);

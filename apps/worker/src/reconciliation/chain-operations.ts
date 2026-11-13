@@ -1,4 +1,4 @@
-import { getChainOperation, type ChainOperation, updateChainOperation } from "@royaltydesk/persistence";
+import { getChainOperation, type ChainOperation, updateChainOperation } from "@studio/persistence";
 import type { DatabaseSync } from "node:sqlite";
 
 export interface ReconciliationAdapter { readonly lookup: (transactionHash: string) => Promise<"success" | "failure" | "unknown">; }

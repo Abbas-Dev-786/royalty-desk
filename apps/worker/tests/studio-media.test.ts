@@ -9,8 +9,9 @@ import { addStudioAgent, addStudioPolicy, createStudio, createStudioProject, cre
 import { validateMusicMp3 } from "../src/studio/media-validation.ts";
 import { MusicProviderHttpError, createStabilityMusicProvider, type MusicProvider } from "../src/studio/music-provider.ts";
 import { generateDraftMusic } from "../src/studio/music-service.ts";
-import { createElevenLabsMusicProvider, musicPlanHash, type ElevenLabsMusicProvider, type ElevenLabsSongRequest } from "../src/studio/elevenlabs-music-provider.ts";
+import { createElevenLabsMusicProvider, ElevenLabsMusicHttpError, musicPlanHash, validateMusicPlan, type ElevenLabsMusicProvider, type ElevenLabsSongRequest } from "../src/studio/elevenlabs-music-provider.ts";
 import { generateElevenLabsSong } from "../src/studio/elevenlabs-music-service.ts";
+import { selectSongPreviewLyrics } from "../src/studio/song-preview.ts";
 import { StudioSongProductionService } from "../src/studio/song-production.ts";
 import { runCreativeModelStep } from "../src/studio/creative-model.ts";
 import type { AgentModel } from "../src/near-ai/model.ts";
@@ -47,6 +48,14 @@ function setup(maxGenerationCalls = 2, maxMusicTotalDurationMs = 120_000, maxMus
 const draft = { projectId: "project-a", workId: "song-a", workVersion: 1, revision: 0, agentId: "composer", prompt: "Original instrumental acoustic river song", durationMs: 4000, model: "stable-audio-3" as const, licenseRef: "stability-ai-api-commercial" };
 const generationId = "b".repeat(64);
 const vocalPlan: ElevenLabsSongRequest = { model: "music_v2_5", chunks: [{ text: "[Verse]\nRiver light begins to glow", durationMs: 4000, positiveStyles: ["acoustic folk", "clear sung English vocals", "fingerpicked guitar", "warm strings", "gentle 6/8", "soft delivery", "polished recording"], negativeStyles: ["spoken word", "a cappella"], contextAdherence: "high" }] };
+
+test("MED-02 short previews fit ElevenLabs chunk limits even when agents write a full song", () => {
+  const longLyrics = `Verse 1:\n${Array.from({ length: 32 }, (_, index) => `Verse lyric ${index + 1}`).join("\n")}\n\nChorus:\nMoon knows my sorrow\nIt hums in a minor key\nEvery raga of the evening\nYou loved and left me\n\nBridge:\nAnother life`;
+  assert.throws(() => validateMusicPlan({ ...vocalPlan, chunks: [{ ...vocalPlan.chunks[0]!, text: `[Verse]\n${longLyrics}` }] }), /LYRICS_FORMAT/);
+  const text = selectSongPreviewLyrics(longLyrics);
+  assert.equal(text, "[Chorus]\nMoon knows my sorrow\nIt hums in a minor key\nEvery raga of the evening\nYou loved and left me");
+  assert.equal(validateMusicPlan({ ...vocalPlan, chunks: [{ ...vocalPlan.chunks[0]!, text }] }), 4000);
+});
 
 test("MED-02 Stability AI adapter starts and polls an async MP3 generation", async () => {
   const bytes = synthesizeMp3();
@@ -173,6 +182,26 @@ test("MED-02 ElevenLabs adapter submits exact lyrics and accepts bounded MP3", a
   assert.equal(result.requestId, "request-1");
   assert.deepEqual(result.bytes, bytes);
   assert.equal(calls, 1);
+});
+
+test("MED-03 rejected ElevenLabs plan can be corrected while keeping the failed journal entry", async () => {
+  const env = setup(1, 4_000, 4_000);
+  const request = { projectId: "project-a", workId: "song-a", workVersion: 1, revision: 0, agentId: "composer", plan: vocalPlan, licenseRef: "owner-attested-elevenlabs-hackathon" };
+  let calls = 0;
+  const provider: ElevenLabsMusicProvider = { compose: async (plan) => {
+    calls += 1;
+    if (calls === 1) throw new ElevenLabsMusicHttpError(422, ["body.composition_plan.chunks.0.text"]);
+    return { bytes: synthesizeMp3(), contentType: "audio/mpeg", requestId: "request-corrected", planHash: musicPlanHash(plan) };
+  } };
+  try {
+    await assert.rejects(() => generateElevenLabsSong(env.database, env.media, provider, request), /HTTP_422/);
+    const corrected = { ...request, plan: { ...vocalPlan, chunks: [{ ...vocalPlan.chunks[0]!, text: "[Chorus]\nRiver light begins to glow" }] } };
+    const result = await generateElevenLabsSong(env.database, env.media, provider, corrected);
+    assert.ok(env.media.get(result.assetHash).length > 4096);
+    assert.equal(calls, 2);
+    const rows = env.database.prepare("SELECT status FROM studio_external_operations WHERE operation_type = 'elevenlabs_music' ORDER BY created_at_ms").all() as { status: string }[];
+    assert.deepEqual(rows.map((row) => row.status).sort(), ["failed", "finalized"]);
+  } finally { env.database.close(); }
 });
 
 test("MED-07 ElevenLabs song generation reserves credits, caches output and blocks uncertain retry", async () => {

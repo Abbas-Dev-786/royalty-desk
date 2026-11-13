@@ -48,7 +48,7 @@ export async function generateElevenLabsSong(database: DatabaseSync, media: Stud
     const policy = database.prepare("SELECT max_generation_calls, max_music_request_duration_ms, max_music_total_duration_ms, paused FROM studio_policies WHERE studio_id = ? ORDER BY version DESC LIMIT 1").get(agent.studio_id) as { max_generation_calls: number; max_music_request_duration_ms: number; max_music_total_duration_ms: number; paused: number } | undefined;
     if (!policy || policy.paused) throw new Error("ERR_MUSIC_POLICY");
     if (durationMs > policy.max_music_request_duration_ms) throw new Error("ERR_MUSIC_REQUEST_DURATION_BUDGET");
-    if (!prior && database.prepare("SELECT 1 FROM studio_external_operations WHERE substr(logical_key, 1, ?) = ? LIMIT 1").get(slotPrefix.length, slotPrefix)) throw new Error("ERR_MUSIC_INPUT_CHANGED");
+    if (!prior && database.prepare("SELECT 1 FROM studio_external_operations WHERE status != 'failed' AND substr(logical_key, 1, ?) = ? LIMIT 1").get(slotPrefix.length, slotPrefix)) throw new Error("ERR_MUSIC_INPUT_CHANGED");
     const reserved = database.prepare("SELECT COUNT(*) AS calls, COALESCE(SUM(requested_duration_ms), 0) AS duration_ms FROM studio_external_operations WHERE operation_type IN ('stability_music','elevenlabs_music') AND status != 'failed' AND substr(logical_key, 1, ?) = ?").get(prefix.length, prefix) as { calls: number; duration_ms: number };
     if (reserved.calls >= policy.max_generation_calls) throw new Error("ERR_MUSIC_BUDGET");
     if (reserved.duration_ms + durationMs > policy.max_music_total_duration_ms) throw new Error("ERR_MUSIC_DURATION_BUDGET");

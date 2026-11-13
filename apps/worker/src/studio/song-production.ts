@@ -6,6 +6,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { createElevenLabsMusicProvider, type ElevenLabsMusicProvider, type ElevenLabsSongRequest } from "./elevenlabs-music-provider.ts";
 import { generateElevenLabsSong } from "./elevenlabs-music-service.ts";
 import { parseSplitDecision } from "./creative-graph.ts";
+import { selectSongPreviewLyrics } from "./song-preview.ts";
 
 const digest = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
 const requestSchema = z.object({
@@ -80,7 +81,7 @@ export class StudioSongProductionService {
       const existing = database.prepare("SELECT w.studio_id, w.project_id, w.kind FROM studio_works w WHERE w.id = ?").get(workId) as { studio_id: string; project_id: string; kind: string } | undefined;
       if (existing && (existing.studio_id !== project.studio_id || existing.project_id !== request.projectId || existing.kind !== "song")) throw new Error("ERR_SONG_WORK_COLLISION");
       if (!existing) createStudioWork(database, { id: workId, studioId: project.studio_id, projectId: request.projectId, kind: "song" });
-      const plan: ElevenLabsSongRequest = { model: "music_v2_5", chunks: [{ text: `[Verse]\n${lyrics.content}`.slice(0, 4000), durationMs: 20_000, positiveStyles: [composition.content.replace(/\s+/g, " ").slice(0, 160), "clear sung English vocals", "polished original recording"], negativeStyles: ["spoken word", "named artist imitation", "existing song melody"], contextAdherence: "high" }] };
+      const plan: ElevenLabsSongRequest = { model: "music_v2_5", chunks: [{ text: selectSongPreviewLyrics(lyrics.content), durationMs: 20_000, positiveStyles: [composition.content.replace(/\s+/g, " ").slice(0, 160), "clear sung English vocals", "polished original recording"], negativeStyles: ["spoken word", "named artist imitation", "existing song melody"], contextAdherence: "high" }] };
       const media = new StudioMediaStore(this.#mediaPath);
       const generated = await generateElevenLabsSong(database, media, this.#provider, { projectId: request.projectId, workId, workVersion: 1, revision: 0, agentId: request.composerId, plan, licenseRef: this.#licenseRef });
       const metadata = { title: request.title, briefHash: digest(request.brief), lyrics: lyrics.content, composition: composition.content, lyricSourceHash: lyrics.hash, compositionSourceHash: composition.hash, reviewSourceHash: review.hash, splitProposalSourceHash: proposal.hash, splitResponseHash: response.hash, ...(counterAcceptance ? { counterAcceptanceHash: counterAcceptance.hash } : {}), planHash: generated.planHash, assetHash: generated.assetHash };

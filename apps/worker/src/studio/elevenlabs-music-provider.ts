@@ -26,8 +26,18 @@ export interface ElevenLabsMusicProvider {
 
 export class ElevenLabsMusicHttpError extends Error {
   readonly status: number;
-  constructor(status: number) { super(`ERR_ELEVENLABS_HTTP_${status}`); this.status = status; }
+  readonly validationFields: readonly string[];
+  constructor(status: number, validationFields: readonly string[] = []) { super(`ERR_ELEVENLABS_HTTP_${status}`); this.status = status; this.validationFields = validationFields; }
   get definitiveRejection(): boolean { return [400, 401, 402, 403, 404, 422].includes(this.status); }
+}
+
+function validationFields(body: unknown): string[] {
+  if (!body || typeof body !== "object" || !("detail" in body) || !Array.isArray(body.detail)) return [];
+  return body.detail.slice(0, 5).flatMap((issue: unknown) => {
+    if (!issue || typeof issue !== "object" || !("loc" in issue) || !Array.isArray(issue.loc)) return [];
+    const path = issue.loc.filter((part: unknown) => typeof part === "number" || typeof part === "string" && /^[a-z_]+$/i.test(part)).join(".");
+    return path ? [path.slice(0, 120)] : [];
+  });
 }
 
 export function validateMusicPlan(request: ElevenLabsSongRequest): number {
@@ -35,6 +45,8 @@ export function validateMusicPlan(request: ElevenLabsSongRequest): number {
   let durationMs = 0;
   for (const chunk of request.chunks) {
     if (!chunk.text.trim() || chunk.text.length > 4000 || !Number.isSafeInteger(chunk.durationMs) || chunk.durationMs < 3000 || chunk.durationMs > 120_000) throw new Error("ERR_ELEVENLABS_CHUNK");
+    const lines = chunk.text.split(/\r?\n/);
+    if (lines.length > 30 || lines.some((line) => line.length > 200)) throw new Error("ERR_ELEVENLABS_LYRICS_FORMAT");
     if (chunk.positiveStyles.length < 1 || chunk.positiveStyles.length > 50 || chunk.negativeStyles.length > 50 || chunk.contextAdherence !== "high" && chunk.contextAdherence !== "medium" && chunk.contextAdherence !== "low") throw new Error("ERR_ELEVENLABS_STYLES");
     if ([...chunk.positiveStyles, ...chunk.negativeStyles].some((style) => !style.trim() || style.length > 160)) throw new Error("ERR_ELEVENLABS_STYLES");
     durationMs += chunk.durationMs;
@@ -73,7 +85,13 @@ export function createElevenLabsMusicProvider(config: { readonly apiKey: string;
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(config.timeoutMs ?? 180_000)
       });
-      if (!response.ok) throw new ElevenLabsMusicHttpError(response.status);
+      if (!response.ok) {
+        let fields: string[] = [];
+        try { fields = validationFields(JSON.parse(await response.text()) as unknown); }
+        catch { /* Keep provider response bodies out of logs. */ }
+        if (fields.length) console.warn("ElevenLabs rejected music plan fields", { status: response.status, fields });
+        throw new ElevenLabsMusicHttpError(response.status, fields);
+      }
       const contentType = response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
       if (!(["audio/mpeg", "audio/mp3", "application/octet-stream"] as readonly string[]).includes(contentType)) throw new Error("ERR_ELEVENLABS_CONTENT_TYPE");
       if (!response.body) throw new Error("ERR_ELEVENLABS_EMPTY_BODY");

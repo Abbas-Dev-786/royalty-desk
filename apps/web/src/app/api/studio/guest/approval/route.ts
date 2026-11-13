@@ -8,7 +8,7 @@ export async function GET(): Promise<Response> {
     const guest = guestSong(accountId);
     if (!guest?.work_id) return Response.json({ error: "ERR_GUEST_SONG_NOT_READY" }, { status: 409, headers });
     const chain = studioContractClient();
-    if (await chain.guardian() !== accountId) return Response.json({ error: "ERR_GUARDIAN_APPROVAL_REQUIRED" }, { status: 403, headers });
+    const guardianId = await chain.guardian();
     const database = openStudioCatalogueDatabase();
     let assetHash: string | undefined;
     try {
@@ -18,7 +18,7 @@ export async function GET(): Promise<Response> {
     const [policy, release] = await Promise.all([chain.policy(), chain.release(guest.work_id, 1)]);
     if (!release || release.media_hash !== assetHash || release.published || policy.paused || release.policy_epoch !== policy.epoch) return Response.json({ error: "ERR_GUEST_RELEASE_CHANGED" }, { status: 409, headers });
     const approved = await chain.hasApprovedRelease(guest.work_id, 1, release.policy_epoch);
-    return Response.json({ contractId: chain.contractId, guardianId: accountId, workId: guest.work_id, version: 1, commitment: release.commitment, policyEpoch: release.policy_epoch, approved, requiresApproval: policy.human_review }, { headers });
+    return Response.json({ contractId: chain.contractId, guardianId, workId: guest.work_id, version: 1, commitment: release.commitment, policyEpoch: release.policy_epoch, approved, requiresApproval: policy.human_review }, { headers });
   } catch (error) {
     const message = error instanceof Error ? error.message : "ERR_GUEST_APPROVAL";
     return Response.json({ error: message }, { status: message === "ERR_UNAUTHORIZED" ? 401 : 503, headers });

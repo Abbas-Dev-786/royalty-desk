@@ -3,6 +3,12 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { notifyWalletSession, walletConnector } from "./wallet-session";
+import { notifyStudio } from "./studio/studio-notifications";
+
+function walletErrorMessage(cause: unknown): string {
+  const message = cause instanceof Error ? cause.message : "Wallet connection failed.";
+  return /^ERR_[A-Z0-9_]+$/.test(message) ? "We could not verify your wallet. Please reconnect and sign the login message again." : message;
+}
 
 export function WalletConnection() {
   const [accountId, setAccountId] = useState<string | null>(null);
@@ -23,6 +29,7 @@ export function WalletConnection() {
   async function connect(): Promise<void> {
     setWorking(true);
     setError("");
+    notifyStudio({ id: "wallet-session", tone: "progress", title: "Connecting wallet", description: "Choose your NEAR testnet wallet and sign the login message. No payment is made." });
     try {
       const connector = walletConnector();
       await connector.whenManifestLoaded;
@@ -40,8 +47,11 @@ export function WalletConnection() {
       if (!verifiedResponse.ok || !verified.accountId) throw new Error(verified.error ?? "The server could not verify this wallet.");
       setAccountId(verified.accountId);
       notifyWalletSession();
+      notifyStudio({ id: "wallet-session", tone: "success", title: "Wallet connected", description: `Signed in as ${verified.accountId}. You can now create a song, buy a download, or send a tip.` });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Wallet connection failed.");
+      const description = walletErrorMessage(cause);
+      setError(description);
+      notifyStudio({ id: "wallet-session", tone: "error", title: "Wallet connection failed", description });
     } finally {
       setWorking(false);
     }
@@ -50,9 +60,15 @@ export function WalletConnection() {
   async function disconnect(): Promise<void> {
     setWorking(true);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (!response.ok) throw new Error("Could not sign out. Please try again.");
       setAccountId(null);
       notifyWalletSession();
+      notifyStudio({ id: "wallet-session", tone: "success", title: "Signed out", description: "Your studio session has ended on this browser." });
+    } catch (cause) {
+      const description = walletErrorMessage(cause);
+      setError(description);
+      notifyStudio({ id: "wallet-session", tone: "error", title: "Sign out failed", description });
     } finally {
       setWorking(false);
     }

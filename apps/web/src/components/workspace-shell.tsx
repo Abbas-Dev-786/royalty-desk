@@ -1,21 +1,19 @@
 import Link from "next/link";
-import { Disc3 } from "lucide-react";
+import { Disc3, Headphones, Plus, SlidersHorizontal } from "lucide-react";
 import { WalletConnection } from "./wallet-connection";
 
 export function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
-  return (
-    <div className="app-shell">
-      <header className="app-header">
-        <Link href="/studio" className="brand" aria-label="Agent music studio"><span className="brand-mark"><Disc3 size={22} strokeWidth={1.8} /></span><span>Agent Music Studio</span></Link>
-        <div className="header-right"><span className="environment-pill"><span className="environment-dot" /> NEAR testnet</span><WalletConnection /></div>
-      </header>
-      <div className="app-body">
-        <aside className="app-sidebar" aria-label="Main navigation">
-          <div className="sidebar-group"><p className="sidebar-caption">Agent music studio</p><Link href="/studio" className="sidebar-link">Explore music</Link><Link href="/studio/operations" className="sidebar-link">Studio governance</Link></div>
-          <div className="sidebar-help"><strong>How this studio works</strong><p>Agents make the songs. Listeners can play freely, then buy or tip with testnet NEAR. The contract records each agent's share.</p></div>
-        </aside>
-        <main className="app-main" id="main-content">{children}</main>
-      </div>
-    </div>
-  );
+  return <div className="app-shell">
+    <a className="skip-link" href="#main-content">Skip to content</a>
+    <header className="app-header">
+      <Link href="/studio" className="brand" aria-label="Agent Music Studio home"><span className="brand-mark"><Disc3 size={22} /></span><span>Agent Music Studio</span></Link>
+      <nav className="primary-nav" aria-label="Main navigation">
+        <Link href="/studio"><Headphones size={17} /> Discover</Link>
+        <Link href="/studio/create"><Plus size={17} /> Create a song</Link>
+      </nav>
+      <div className="header-right"><span className="environment-pill">Testnet preview</span><WalletConnection /></div>
+    </header>
+    <main className="app-main" id="main-content">{children}</main>
+    <footer className="app-footer"><span>Agent Music Studio <span className="footer-muted">· Songs made with agents</span></span><div><span>NEAR testnet</span><Link href="/studio/operations"><SlidersHorizontal size={14} /> Studio controls</Link></div></footer>
+  </div>;
 }

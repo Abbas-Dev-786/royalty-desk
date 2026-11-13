@@ -14,7 +14,9 @@ import { notifyStudio } from "./studio-notifications";
 interface GuestStep { readonly role: string; readonly agentId: string; readonly model: string; readonly content: string; readonly outputHash: string; readonly createdAtMs: number; }
 interface GuestDemo { readonly projectId: string; readonly title: string; readonly brief: string; readonly sessionId: string | null; readonly status: string; readonly error: string | null; readonly steps: readonly GuestStep[]; readonly song: { readonly workId: string; readonly version: number; readonly state: string; readonly published: boolean; readonly durationMs: number | null; readonly assetHash: string } | null; }
 interface GuestSongSummary { readonly projectId: string; readonly title: string; readonly createdAtMs: number; readonly status: string; readonly hasRecording: boolean; readonly published: boolean; }
-interface GuestApproval { readonly contractId: string; readonly guardianId: string; readonly workId: string; readonly version: number; readonly commitment: string; readonly policyEpoch: number; readonly approved: boolean; readonly requiresApproval: boolean; readonly error?: string; }
+interface GuestApprovalPending { readonly published: false; readonly contractId: string; readonly guardianId: string; readonly workId: string; readonly version: number; readonly commitment: string; readonly policyEpoch: number; readonly approved: boolean; readonly requiresApproval: boolean; }
+interface GuestApprovalPublished { readonly published: true; readonly workId: string; readonly version: number; }
+type GuestApprovalResponse = GuestApprovalPending | GuestApprovalPublished | { readonly error: string };
 const labels: Readonly<Record<string, string>> = { lyrics: "Lyricist", composition: "Composer", review: "Reviewer", revision: "Revision", split_proposal: "Split proposal", split_response: "Split response" };
 function explainError(error: string): string {
   if (error === "ERR_GUEST_WORKER_UNAVAILABLE") return "The studio worker is offline. Your song brief is saved. Continue this song after the worker starts.";
@@ -39,7 +41,7 @@ export function StudioGuestDemo() {
   const [brief, setBrief] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<StudioNoticeData | null>(null);
-  const [approvalInfo, setApprovalInfo] = useState<GuestApproval | null>(null);
+  const [approvalInfo, setApprovalInfo] = useState<GuestApprovalPending | null>(null);
   const [approvalIssue, setApprovalIssue] = useState<string | null>(null);
 
   function showNotice(tone: StudioNoticeTone, title: string, description: string): void {
@@ -88,9 +90,10 @@ export function StudioGuestDemo() {
   useEffect(() => {
     if (!demo?.song || demo.song.published) { setApprovalInfo(null); setApprovalIssue(null); return; }
     void fetch("/api/studio/guest/approval?" + new URLSearchParams({ projectId: demo.projectId }), { cache: "no-store" }).then(async (response) => {
-      const result = await response.json() as GuestApproval;
-      if (response.ok) { setApprovalInfo(result); setApprovalIssue(null); }
-      else if (result.error === "ERR_GUEST_RELEASE_POLICY_STALE") { setApprovalInfo(null); setApprovalIssue(explainError(result.error)); }
+      const result = await response.json() as GuestApprovalResponse;
+      if (response.ok && "published" in result && result.published) { setApprovalInfo(null); setApprovalIssue(null); await refresh(demo.projectId); }
+      else if (response.ok && "published" in result && result.published === false) { setApprovalInfo(result); setApprovalIssue(null); }
+      else if ("error" in result && result.error === "ERR_GUEST_RELEASE_POLICY_STALE") { setApprovalInfo(null); setApprovalIssue(explainError(result.error)); }
     }).catch(() => undefined);
   }, [demo?.projectId, demo?.song?.workId, demo?.song?.published]);
 
@@ -136,8 +139,14 @@ export function StudioGuestDemo() {
     showNotice("progress", "Checking your release", "Verifying the saved recording and current studio policy before publication.");
     try {
       const response = await fetch("/api/studio/guest/approval?" + new URLSearchParams({ projectId: demo.projectId }), { cache: "no-store" });
-      const approval = await response.json() as GuestApproval;
-      if (!response.ok) throw new Error(approval.error ?? "Could not verify the saved release.");
+      const approval = await response.json() as GuestApprovalResponse;
+      if (!response.ok) throw new Error("error" in approval ? approval.error : "Could not verify the saved release.");
+      if ("published" in approval && approval.published) {
+        showNotice("success", "Song published", "Your song is now available in Discover.");
+        notifyStudio({ id: "song-action", tone: "success", title: "Song published", description: "Your song is now available in Discover." });
+        return;
+      }
+      if (!("published" in approval) || approval.published !== false) throw new Error("Could not verify the saved release.");
       if (approval.workId !== demo.song.workId || approval.version !== demo.song.version || !/^[0-9a-f]{64}$/.test(approval.commitment) || !Number.isSafeInteger(approval.policyEpoch)) throw new Error("The release changed. Refresh before publishing it.");
       if (approval.requiresApproval && !approval.approved) {
         if (approval.guardianId !== accountId) throw new Error("Your song is ready, but only the studio guardian can approve public release.");

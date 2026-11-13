@@ -7,9 +7,8 @@ import { createWorkerHealthServer } from "../src/health-server.ts";
 test("P00-WORKER-01 health server starts, reports testnet, and stops", async () => {
   const config = readWorkerConfig({
     NEXT_PUBLIC_NEAR_NETWORK: "testnet",
-    NEXT_PUBLIC_CONTRACT_ID: "royaltydesk.testnet",
-    ROYALTYDESK_WORKER_HOST: "127.0.0.1",
-    ROYALTYDESK_WORKER_PORT: "3101"
+    STUDIO_WORKER_HOST: "127.0.0.1",
+    STUDIO_WORKER_PORT: "3101"
   });
   const server = createWorkerHealthServer(config);
   await new Promise<void>((resolve, reject) => {
@@ -23,7 +22,13 @@ test("P00-WORKER-01 health server starts, reports testnet, and stops", async () 
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 });
 
-test("P00-WORKER-02 configuration rejects mainnet and malformed contract ids", () => {
-  assert.throws(() => readWorkerConfig({ NEXT_PUBLIC_NEAR_NETWORK: "mainnet", NEXT_PUBLIC_CONTRACT_ID: "royaltydesk.near" }));
-  assert.throws(() => readWorkerConfig({ NEXT_PUBLIC_NEAR_NETWORK: "testnet", NEXT_PUBLIC_CONTRACT_ID: "royaltydesk.near" }));
+test("P00-WORKER-02 configuration rejects mainnet and weak production tokens", () => {
+  assert.throws(() => readWorkerConfig({ NEXT_PUBLIC_NEAR_NETWORK: "mainnet" }));
+  assert.throws(() => readWorkerConfig({ NEXT_PUBLIC_NEAR_NETWORK: "testnet", NODE_ENV: "production", STUDIO_WORKER_TOKEN: "short" }));
+  const preferred = readWorkerConfig({ STUDIO_APP_DB_PATH: "data/studio.sqlite", ROYALTYDESK_DB_PATH: "data/legacy.sqlite", STUDIO_WORKER_TOKEN: "a".repeat(32), ROYALTYDESK_WORKER_TOKEN: "b".repeat(32) });
+  assert.ok(preferred.databasePath.endsWith("studio.sqlite"));
+  assert.equal(preferred.workerApiToken, "a".repeat(32));
+  const legacy = readWorkerConfig({ ROYALTYDESK_DB_PATH: "data/legacy.sqlite", ROYALTYDESK_WORKER_TOKEN: "b".repeat(32) });
+  assert.ok(legacy.databasePath.endsWith("legacy.sqlite"));
+  assert.equal(legacy.workerApiToken, "b".repeat(32));
 });

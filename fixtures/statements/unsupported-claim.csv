@@ -1,4 +1,0 @@
-statement_id,line_id,period,recording_id,platform,row_type,amount,currency,deduction_code,evidence_ref
-stmt-001,rev-001,2026-10,ISRC-DEMO-001,Spotify,revenue,7.5,NEAR,,report-page-1
-stmt-001,rev-002,2026-10,ISRC-DEMO-001,Bandcamp,revenue,2.5,NEAR,,report-page-2
-stmt-001,ded-001,2026-10,ISRC-DEMO-001,Label,deduction_claim,1,NEAR,unapproved-marketing,invoice-7

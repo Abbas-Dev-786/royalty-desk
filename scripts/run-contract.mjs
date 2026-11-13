@@ -3,10 +3,10 @@ import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
 const operation = process.argv[2] ?? "test";
-const contractName = process.argv[3] ?? "royaltydesk";
+const contractName = process.argv[3] ?? "studio";
 const root = process.cwd();
-const image = process.env.ROYALTYDESK_CONTRACT_IMAGE ?? "royaltydesk-contract-toolchain:dev";
-if (!new Set(["royaltydesk", "studio"]).has(contractName)) throw new Error("Unsupported contract name");
+const image = process.env.STUDIO_CONTRACT_IMAGE ?? process.env.ROYALTYDESK_CONTRACT_IMAGE ?? "studio-contract-toolchain:dev";
+if (contractName !== "studio") throw new Error("Unsupported contract name");
 const lockfile = resolve(root, `contracts/${contractName}/Cargo.lock`);
 
 if (!new Set(["test", "build"]).has(operation)) {

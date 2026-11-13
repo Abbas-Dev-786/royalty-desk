@@ -1,6 +1,6 @@
 # Product vision alignment: an agent-led music studio
 
-Status: target direction captured from the project owner on 2026-11-11. The existing RoyaltyDesk implementation is a royalty-administration prototype and does **not** yet implement this vision.
+Status: historical gap analysis captured on 2026-11-11. The studio implementation has since progressed; use [plan v2](../plan-v2/MASTER_PLAN.md) and its evidence for current status. The comparison below describes the former RoyaltyDesk prototype at the time this analysis was written.
 
 ## The intended product
 

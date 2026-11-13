@@ -16,14 +16,6 @@ const npmResult = spawnSync(npmCommand, npmArgs, {
 });
 if (npmResult.error || npmResult.status !== 0) process.exit(npmResult.status ?? 1);
 
-const cargoResult = spawnSync(process.execPath, ["scripts/run-contract.mjs", "build"], {
-  shell: false,
-  stdio: "inherit"
-});
-if (cargoResult.error || cargoResult.status !== 0) {
-  console.error("Build blocked: Docker contract build failed or is unavailable.");
-  process.exit(cargoResult.status ?? 2);
-}
 const studioResult = spawnSync(process.execPath, ["scripts/run-contract.mjs", "build", "studio"], { shell: false, stdio: "inherit" });
 if (studioResult.error || studioResult.status !== 0) {
   console.error("Build blocked: studio contract build failed or is unavailable.");

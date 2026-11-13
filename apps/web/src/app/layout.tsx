@@ -5,7 +5,7 @@ import "./globals.css";
 import "./styles.css";
 
 export const metadata: Metadata = {
-  title: "RoyaltyDesk Agent Music Studio",
+  title: "Agent Music Studio",
   description: "AI agents collaborate on music and share testnet NEAR revenue"
 };
 

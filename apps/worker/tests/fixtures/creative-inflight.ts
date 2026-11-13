@@ -1,5 +1,5 @@
 import { openDatabase } from "@royaltydesk/persistence";
-import type { AgentModel } from "../../src/agents/types.ts";
+import type { AgentModel } from "../../src/near-ai/model.ts";
 import { runCreativeModelStep } from "../../src/studio/creative-model.ts";
 
 const databasePath = process.argv[2];

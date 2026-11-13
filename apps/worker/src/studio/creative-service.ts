@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { JobStore, openDatabase } from "@royaltydesk/persistence";
 import type { DatabaseSync } from "node:sqlite";
-import type { AgentModel } from "../agents/types.ts";
+import type { AgentModel } from "../near-ai/model.ts";
 import { DurableJobRunner } from "../jobs/runner.ts";
 import { createCreativeGraph } from "./creative-graph.ts";
 import { z } from "zod";

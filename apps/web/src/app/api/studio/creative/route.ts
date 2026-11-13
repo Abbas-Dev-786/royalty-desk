@@ -16,9 +16,9 @@ export async function POST(request: Request): Promise<Response> {
       const agentRoles: readonly (readonly [string, string])[] = [[body.lyricistId, "lyricist"], [body.composerId, "composer"], [body.reviewerId, "reviewer"]];
       for (const [agentId, role] of agentRoles) if (!database.prepare("SELECT 1 FROM studio_agents WHERE id = ? AND studio_id = ? AND role = ? AND active = 1 AND revoked_at_ms IS NULL").get(agentId, studioId, role)) return Response.json({ error: `ERR_AGENT_SCOPE:${role}` }, { status: 409 });
     } finally { database.close(); }
-    const token = process.env.ROYALTYDESK_WORKER_TOKEN;
+    const token = process.env.STUDIO_WORKER_TOKEN ?? process.env.ROYALTYDESK_WORKER_TOKEN;
     if (!token || token.length < 32) return Response.json({ error: "ERR_WORKER_NOT_CONFIGURED" }, { status: 503 });
-    const workerUrl = process.env.ROYALTYDESK_WORKER_URL ?? "http://127.0.0.1:3101";
+    const workerUrl = process.env.STUDIO_WORKER_URL ?? process.env.ROYALTYDESK_WORKER_URL ?? "http://127.0.0.1:3101";
     const input = { projectId: body.projectId, brief: body.brief.trim(), lyricistId: body.lyricistId, composerId: body.composerId, reviewerId: body.reviewerId, maxCalls: 6, maxOutputTokens: 900, maxRevisions: 0, deadlineAtMs: body.deadlineAtMs };
     const headers = { "content-type": "application/json", authorization: `Bearer ${token}` };
     const createdResponse = await fetch(`${workerUrl}/studio/sessions`, { method: "POST", headers, body: JSON.stringify(input), cache: "no-store" });

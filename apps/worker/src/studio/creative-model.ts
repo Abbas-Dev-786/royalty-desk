@@ -1,9 +1,7 @@
 import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
-import { createNearAiAgentModel } from "../agents/model.ts";
-import { NearAiCompletionError } from "../agents/model.ts";
-import type { AgentModel } from "../agents/types.ts";
+import { createNearAiAgentModel, NearAiCompletionError, type AgentModel } from "../near-ai/model.ts";
 
 const outputSchema = z.object({ content: z.string().min(1).max(12_000) }).strict();
 export type CreativeRole = "lyrics" | "composition" | "review" | "revision" | "split_proposal" | "split_response";

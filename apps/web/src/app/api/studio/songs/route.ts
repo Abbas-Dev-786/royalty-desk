@@ -18,9 +18,9 @@ export async function POST(request: Request): Promise<Response> {
         if (!database.prepare("SELECT 1 FROM studio_agents WHERE id = ? AND studio_id = ? AND role = ? AND active = 1 AND revoked_at_ms IS NULL AND (expires_at_ms IS NULL OR expires_at_ms > ?)").get(id, studioId, role, Date.now())) return Response.json({ error: `ERR_SONG_AGENT_SCOPE:${role}` }, { status: 409 });
       }
     } finally { database.close(); }
-    const token = process.env.ROYALTYDESK_WORKER_TOKEN;
+    const token = process.env.STUDIO_WORKER_TOKEN ?? process.env.ROYALTYDESK_WORKER_TOKEN;
     if (!token || token.length < 32) return Response.json({ error: "ERR_WORKER_NOT_CONFIGURED" }, { status: 503 });
-    const workerUrl = process.env.ROYALTYDESK_WORKER_URL ?? "http://127.0.0.1:3101";
+    const workerUrl = process.env.STUDIO_WORKER_URL ?? process.env.ROYALTYDESK_WORKER_URL ?? "http://127.0.0.1:3101";
     const upstream = await fetch(`${workerUrl}/studio/songs/generate`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ projectId: body.projectId, brief: body.brief.trim(), title: body.title.trim(), lyricistId: body.lyricistId, composerId: body.composerId, reviewerId: body.reviewerId }), cache: "no-store" });
     const result = await upstream.json() as { error?: string; workId?: string };
     return Response.json(result, { status: upstream.ok ? 200 : 409, headers: { "cache-control": "no-store" } });

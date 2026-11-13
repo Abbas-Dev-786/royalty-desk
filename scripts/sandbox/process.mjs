@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 
-const useDocker = process.platform === "win32" || process.env.ROYALTYDESK_SANDBOX_DOCKER === "1";
+const useDocker = process.platform === "win32" || process.env.STUDIO_SANDBOX_DOCKER === "1" || process.env.ROYALTYDESK_SANDBOX_DOCKER === "1";
 const command = useDocker ? (process.platform === "win32" ? "docker.exe" : "docker") : "npx";
 const sandboxImage = "nearprotocol/sandbox:2.13.1";
 
@@ -62,7 +62,7 @@ export function runSandboxCommand(home, subcommand) {
 }
 
 export async function startSandbox(home) {
-  const containerName = useDocker ? `royaltydesk-sandbox-${Date.now()}` : undefined;
+  const containerName = useDocker ? `studio-sandbox-${Date.now()}` : undefined;
   const child = spawn(command, useDocker ? dockerArgs(home, "run", containerName) : sandboxArgs(home, "run"), {
     stdio: ["ignore", "pipe", "pipe"],
     shell: false,

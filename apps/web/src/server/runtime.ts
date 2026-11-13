@@ -10,7 +10,7 @@ let database: ReturnType<typeof openDatabase> | undefined;
 export function getAppDatabase(): ReturnType<typeof openDatabase> {
   if (!database) {
     // The database location is intentionally runtime-configurable and is never bundled as an asset.
-    const path = resolve(/* turbopackIgnore: true */ process.cwd(), "../..", process.env.ROYALTYDESK_DB_PATH ?? process.env.ROYALTYDESK_DATABASE_PATH ?? ".royaltydesk/royaltydesk.sqlite");
+    const path = resolve(/* turbopackIgnore: true */ process.cwd(), "../..", process.env.STUDIO_APP_DB_PATH ?? process.env.ROYALTYDESK_DB_PATH ?? process.env.ROYALTYDESK_DATABASE_PATH ?? "data/studio-app.sqlite");
     mkdirSync(dirname(path), { recursive: true });
     database = openDatabase(path);
   }
@@ -29,10 +29,10 @@ export function requireOrigin(request: Request): void {
 
 export function configuredNetwork(): "testnet" {
   const network = process.env.NEXT_PUBLIC_NEAR_NETWORK ?? "testnet";
-  if (network !== "testnet") throw new Error("RoyaltyDesk supports testnet only");
+  if (network !== "testnet") throw new Error("Studio supports testnet only");
   return network;
 }
 
 export function authOrigin(request: Request): string {
-  return process.env.ROYALTYDESK_AUTH_ORIGIN ?? new URL(request.url).origin;
+  return process.env.STUDIO_AUTH_ORIGIN ?? process.env.ROYALTYDESK_AUTH_ORIGIN ?? new URL(request.url).origin;
 }

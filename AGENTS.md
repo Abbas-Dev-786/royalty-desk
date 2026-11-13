@@ -2,25 +2,25 @@
 
 ## Project Structure & Module Organization
 
-- `docs/`: product requirements, current scope, feature catalogue, technical design, and future scope.
-- `plans/MASTER_IMPLEMENTATION_PLAN.md`: authoritative implementation sequence and harness instructions.
-- `plans/phases/`: detailed phase plans with dependencies, tasks, verification, and exit criteria.
-- `plans/ACCEPTANCE_MATRIX.md`: feature-to-evidence mapping.
+- `plan-v2/MASTER_PLAN.md`: current studio implementation sequence and verification gates.
+- `plan-v2/phases/` and `plan-v2/ACCEPTANCE_MATRIX.md`: studio tasks and evidence mapping.
+- `docs/`: product vision and technical decisions; older royalty-administration documents are historical context.
+- `plans/`: historical RoyaltyDesk prototype plans and evidence, retained for audit and migration context.
 - `HACKATHON.md`: event rules and submission constraints.
 - `exa-results/`: research artifacts; do not treat them as product requirements.
 
-The planned code layout is `apps/web`, `apps/worker`, `contracts/royaltydesk`, `packages/domain`, `packages/chain`, `packages/persistence`, `fixtures`, and `tests`.
+The active code layout is `apps/web`, `apps/worker`, `contracts/studio`, `packages/domain`, `packages/chain`, `packages/persistence`, `fixtures/studio`, and `tests/studio`.
 
 ## Build, Test, and Development Commands
 
-No build system exists yet. Phase 00 must create and validate the root commands before contributors rely on them. Planned commands include:
+The root commands are:
 
 - `npm ci`: install pinned workspace dependencies.
 - `npm run check`: run formatting, linting, and type checks.
 - `npm run build`: build web, worker, packages, and contract wrappers.
-- `npm run test:domain`: verify schemas, canonicalization, CSV parsing, and money allocation.
-- `npm run test:sandbox`: exercise compiled contracts and NEAR receipt behavior.
-- `npm run verify:release`: run all required offline release checks.
+- `npm run test:studio-domain`: verify studio schemas, persistence, and integer money allocation.
+- `npm run test:studio-sandbox`: exercise the compiled studio contract and NEAR receipt behavior.
+- `npm run verify:studio`: run all required offline studio checks.
 
 Missing or empty test suites must fail clearly rather than report success.
 
@@ -30,7 +30,7 @@ Use TypeScript for applications/packages and Rust for the NEAR contract. Use two
 
 ## Testing Guidelines
 
-Follow each phase file’s verification section and record actual results with `plans/EVIDENCE_TEMPLATE.md`. Cover positive and rejection paths. Distinguish unit, sandbox, browser, and live-testnet evidence. Mocks cannot prove wallet authority, asynchronous transfers, or live NEAR AI inference. Never mark skipped checks as passed.
+Follow each studio phase file’s verification section and record actual results with `plan-v2/EVIDENCE_TEMPLATE.md`. Cover positive and rejection paths. Distinguish unit, sandbox, browser, and live-testnet evidence. Mocks cannot prove wallet authority, asynchronous transfers, or live NEAR AI inference. Never mark skipped checks as passed.
 
 ## Commit & Pull Request Guidelines
 
@@ -38,4 +38,4 @@ No Git history is present, so no repository convention can be inferred. Use shor
 
 ## Security & Configuration
 
-Commit placeholder-only environment files. Never commit wallet keys, API keys, cookies, private statements, populated databases, or submission payloads. Preserve owner approval boundaries, restricted agent keys, integer accounting, and retry-safe payment behavior defined in `docs/TECHNICAL_DESIGN.md`.
+Commit placeholder-only environment files. Never commit wallet keys, API keys, cookies, private statements, populated databases, or submission payloads. Preserve administrator approval boundaries, restricted agent keys, integer accounting, and retry-safe payment behavior defined in `plan-v2/MASTER_PLAN.md`.

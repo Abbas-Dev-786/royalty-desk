@@ -34,7 +34,7 @@ let onChain = false;
 try { await provider.viewAccount({ accountId: manifest.accountId }); onChain = true; } catch { /* Faucet creation has not finalized. */ }
 if (!onChain) {
   const mount = `type=bind,source=${resolve(".")},target=/workspace`;
-  const command = ["run", "--rm", "--mount", mount, "--workdir", "/workspace", "royaltydesk-contract-toolchain:dev", "near", "account", "create-account", "sponsor-by-faucet-service", manifest.accountId, "use-manually-provided-public-key", manifest.publicKey, "network-config", "testnet", "create"];
+  const command = ["run", "--rm", "--mount", mount, "--workdir", "/workspace", process.env.STUDIO_CONTRACT_IMAGE ?? process.env.ROYALTYDESK_CONTRACT_IMAGE ?? "studio-contract-toolchain:dev", "near", "account", "create-account", "sponsor-by-faucet-service", manifest.accountId, "use-manually-provided-public-key", manifest.publicKey, "network-config", "testnet", "create"];
   const result = spawnSync("docker", command, { stdio: "inherit", shell: false });
   if (result.error || result.status !== 0) throw new Error(`Testnet faucet account creation failed (${result.status ?? "spawn"}); saved key can be retried safely`);
   await provider.viewAccount({ accountId: manifest.accountId });

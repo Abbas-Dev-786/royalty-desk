@@ -11,7 +11,7 @@ export function issueWalletChallenge(request: Request, accountId?: string): Auth
   const networkId = configuredNetwork();
   const domain = authOrigin(request);
   const nonceBytes = randomBytes(32).toString("base64url");
-  const message = `RoyaltyDesk login | domain=${domain} | network=${networkId} | nonce=${nonceBytes}`;
+  const message = `Agent Music Studio login | domain=${domain} | network=${networkId} | nonce=${nonceBytes}`;
   const challenge = createChallenge(getAppDatabase(), { ...(accountId ? { accountId } : {}), nonce: nonceBytes, domain, networkId, message });
   return { ...challenge, nonceBytes };
 }

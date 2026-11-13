@@ -4,7 +4,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { END, START, StateGraph, StateSchema } from "@langchain/langgraph";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { z } from "zod";
-import type { AgentModel } from "../agents/types.ts";
+import type { AgentModel } from "../near-ai/model.ts";
 import { runCreativeModelStep } from "./creative-model.ts";
 
 const CreativeState = new StateSchema({

@@ -13,7 +13,7 @@ import { createElevenLabsMusicProvider, musicPlanHash, type ElevenLabsMusicProvi
 import { generateElevenLabsSong } from "../src/studio/elevenlabs-music-service.ts";
 import { StudioSongProductionService } from "../src/studio/song-production.ts";
 import { runCreativeModelStep } from "../src/studio/creative-model.ts";
-import type { AgentModel } from "../src/agents/types.ts";
+import type { AgentModel } from "../src/near-ai/model.ts";
 
 function synthesizeMp3(frequency = 440, amplitude = 4000, seconds = 4): Uint8Array {
   const encoder = new Mp3Encoder(1, 44_100, 128);

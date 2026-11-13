@@ -68,6 +68,9 @@ test("CAT-02/PAY-04 built web app hides drafts and rejects anonymous downloads",
     const html = await page.text();
     assert.match(html, /No music is published yet/);
     assert.doesNotMatch(html, /Private draft/);
+    assert.doesNotMatch(html, /Legacy royalty workspace|All royalty releases/);
+    assert.equal((await fetch(`${base}/royalty`)).status, 404);
+    assert.equal((await fetch(`${base}/api/releases`)).status, 404);
     const home = await fetch(base, { redirect: "manual" });
     assert.equal(home.status, 307);
     assert.equal(new URL(home.headers.get("location") ?? "", base).pathname, "/studio");

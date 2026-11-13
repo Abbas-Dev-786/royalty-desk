@@ -4,8 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { acceptStudioSplit, addStudioAgent, addStudioAsset, addWorkVersion, createStudio, createStudioProject, createStudioWork, JobStore, openDatabase, StudioMediaStore } from "@royaltydesk/persistence";
-import type { AgentModel } from "../src/agents/types.ts";
-import { createNearAiAgentModel, NearAiCompletionError } from "../src/agents/model.ts";
+import { createNearAiAgentModel, NearAiCompletionError, type AgentModel } from "../src/near-ai/model.ts";
 import { createCreativeGraph } from "../src/studio/creative-graph.ts";
 import { runCreativeModelStep } from "../src/studio/creative-model.ts";
 import { StudioCreativeService } from "../src/studio/creative-service.ts";
@@ -264,8 +263,8 @@ test("AGT-06 studio worker route requires token and accepts a bounded session", 
   env.database.close();
   const model: AgentModel = { mode: "fixture", complete: async () => ({ model: "fixture/studio", content: '{"content":"original"}' }) };
   const service = new StudioCreativeService(env.databasePath, env.checkpointPath, model);
-  const config: WorkerConfig = { host: "127.0.0.1", port: 0, networkId: "testnet", contractId: "legacy.testnet", databasePath: env.databasePath, storageSecret: null, workerApiToken: "a".repeat(32), nearAiBaseUrl: "https://cloud-api.near.ai/v1", nearAiApiKey: null, nearAiModel: null, agentKeystorePath: null };
-  const server = createWorkerHealthServer(config, undefined, service);
+  const config: WorkerConfig = { host: "127.0.0.1", port: 0, networkId: "testnet", databasePath: env.databasePath, studioDatabasePath: env.databasePath, workerApiToken: "a".repeat(32), nearAiBaseUrl: "https://cloud-api.near.ai/v1", nearAiApiKey: null, nearAiModel: null };
+  const server = createWorkerHealthServer(config, service);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address() as AddressInfo;

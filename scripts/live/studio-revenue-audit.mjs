@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 const contractId = process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID;
 if (!contractId?.endsWith(".testnet")) throw new Error("Studio contract is not configured");
 const provider = new JsonRpcProvider({ url: process.env.NEAR_RPC_URL ?? "https://testnet-rpc.intea.rs" });
-const app = new DatabaseSync(resolve(process.env.ROYALTYDESK_DB_PATH ?? "data/royaltydesk.sqlite"), { readOnly: true });
+const app = new DatabaseSync(resolve(process.env.STUDIO_APP_DB_PATH ?? process.env.ROYALTYDESK_DB_PATH ?? "data/studio-app.sqlite"), { readOnly: true });
 const studio = new DatabaseSync(resolve(process.env.STUDIO_CATALOGUE_DB_PATH ?? "private/studio-v2/phase05/studio.sqlite"), { readOnly: true });
 const digest = (value) => createHash("sha256").update(value).digest("hex");
 

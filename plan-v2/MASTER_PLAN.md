@@ -45,7 +45,7 @@ Dependency completion requires passing evidence at the tested revision. An imple
 | New studio contract under `contracts/` | Agent/policy authority, publication commitments, payable purchase/tip ledger and payouts |
 | Media storage | Durable audio/artwork blobs, content hashes, access control and backup/recovery |
 
-The legacy `contracts/royaltydesk` and legacy release screens remain isolated until an explicit migration or retirement decision. Never silently map a legacy CSV-funded `release` to a catalogue song. Preserve historical records and avoid reusing identifiers with different financial meanings.
+The legacy RoyaltyDesk contract source and release screens were retired after the owner chose the studio as the sole active product. Historical plans, evidence, deployed accounts, and database records remain preserved. The shared SQLite migration path still reads legacy rows; never map a legacy CSV-funded `release` to a catalogue song or reuse its identifiers with different financial meaning.
 
 ## Global invariants
 

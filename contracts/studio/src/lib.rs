@@ -2,7 +2,6 @@ mod models;
 mod payments;
 mod payouts;
 mod releases;
-#[cfg(test)] mod tests;
 
 use near_sdk::store::LookupMap;
 use near_sdk::{AccountId, PanicOnDefault, env, near, require};

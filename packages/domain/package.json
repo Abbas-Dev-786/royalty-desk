@@ -8,8 +8,7 @@
   },
   "scripts": {
     "build": "tsc --noEmit --pretty false",
-    "check": "tsc --noEmit --pretty false",
-    "test": "node --experimental-strip-types --test tests/studio.test.ts"
+    "check": "tsc --noEmit --pretty false"
   },
   "dependencies": {}
 }

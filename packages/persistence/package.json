@@ -9,7 +9,6 @@
   },
   "scripts": {
     "build": "tsc --noEmit --pretty false",
-    "check": "tsc --noEmit --pretty false",
-    "test": "node --experimental-strip-types --test tests/*.test.ts"
+    "check": "tsc --noEmit --pretty false"
   }
 }

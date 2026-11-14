@@ -23,7 +23,7 @@ export async function POST(request: Request): Promise<Response> {
     const token = process.env.STUDIO_WORKER_TOKEN;
     if (!token || token.length < 32) return Response.json({ error: "ERR_WORKER_NOT_CONFIGURED" }, { status: 503 });
     const workerUrl = process.env.STUDIO_WORKER_URL ?? "http://127.0.0.1:3101";
-    const input = { projectId: body.projectId, brief: body.brief.trim(), lyricistId: body.lyricistId, composerId: body.composerId, reviewerId: body.reviewerId, maxCalls: 6, maxOutputTokens: 900, maxRevisions: 0, deadlineAtMs: body.deadlineAtMs };
+    const input = { projectId: body.projectId, brief: body.brief.trim(), lyricistId: body.lyricistId, composerId: body.composerId, reviewerId: body.reviewerId, maxCalls: 6, maxOutputTokens: 4000, maxRevisions: 0, deadlineAtMs: body.deadlineAtMs };
     const headers = { "content-type": "application/json", authorization: `Bearer ${token}` };
     const createdResponse = await fetch(`${workerUrl}/studio/sessions`, { method: "POST", headers, body: JSON.stringify(input), cache: "no-store" });
     const created = await createdResponse.json() as { sessionId?: string; error?: string };

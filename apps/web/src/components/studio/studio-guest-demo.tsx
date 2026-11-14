@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { StudioNotice, type StudioNoticeData, type StudioNoticeTone } from "./studio-notice";
 import { notifyStudio } from "./studio-notifications";
+import { AgentInteraction } from "./agent-interaction";
 
 interface GuestStep { readonly role: string; readonly agentId: string; readonly model: string; readonly content: string; readonly outputHash: string; readonly createdAtMs: number; }
 interface GuestDemo { readonly projectId: string; readonly title: string; readonly brief: string; readonly sessionId: string | null; readonly autoGenerate: boolean; readonly status: string; readonly error: string | null; readonly steps: readonly GuestStep[]; readonly song: { readonly workId: string; readonly version: number; readonly state: string; readonly published: boolean; readonly durationMs: number | null; readonly assetHash: string } | null; }
@@ -17,7 +18,6 @@ interface GuestSongSummary { readonly projectId: string; readonly title: string;
 interface GuestApprovalPending { readonly published: false; readonly contractId: string; readonly guardianId: string; readonly workId: string; readonly version: number; readonly commitment: string; readonly policyEpoch: number; readonly approved: boolean; readonly requiresApproval: boolean; }
 interface GuestApprovalPublished { readonly published: true; readonly workId: string; readonly version: number; }
 type GuestApprovalResponse = GuestApprovalPending | GuestApprovalPublished | { readonly error: string };
-const labels: Readonly<Record<string, string>> = { lyrics: "Lyricist", composition: "Composer", review: "Reviewer", revision: "Revision", split_proposal: "Split proposal", split_response: "Split response" };
 function explainError(error: string): string {
   if (error === "ERR_GUEST_WORKER_UNAVAILABLE") return "The studio worker is offline. Your song brief is saved. Continue this song after the worker starts.";
   if (error === "ERR_GUEST_RUN_OUTCOME_UNKNOWN") return "The connection to the worker ended after the agent run was requested. Refresh progress before doing anything else; an agent request may still be running or may have used credits.";
@@ -191,7 +191,7 @@ export function StudioGuestDemo() {
       {demo.status === "awaiting_human" && demo.error && demo.autoGenerate && !demo.song && <Button type="button" disabled={busy} onClick={() => void send("/api/studio/guest/song")}>Check or retry recording</Button>}
       {demo.status !== "awaiting_human" && demo.status !== "unresolved" && !demo.song && !paused && !working && <Button type="button" disabled={busy} onClick={() => void send("/api/studio/guest", { title: title.trim(), brief: brief.trim() })}>{demo.sessionId ? "Continue agent session" : "Start agent session"}</Button>}
       <div className="session-utility"><Button type="button" variant="ghost" disabled={busy} onClick={() => void refresh(demo.projectId).then(() => showNotice("info", "Progress refreshed", "You are seeing the latest saved song state. Any step needing attention is shown above.")).catch((error: unknown) => showNotice("error", "Could not refresh your song", explainError(error instanceof Error ? error.message : "Try again in a moment.")))}><RefreshCw size={15}/> Refresh progress</Button><details><summary>Session details</summary><p>Project {demo.projectId}</p><p>Worker state: {demo.status}</p>{demo.song && <p>Recording hash: {demo.song.assetHash}</p>}</details></div>
-      <div className="agent-exchange" id="agent-exchange"><div className="section-title-row"><div><span className="section-eyebrow">Behind the song</span><h3>The agent exchange</h3><p>Each completed agent reply appears here automatically while the session runs.</p></div><Badge variant="outline">{demo.steps.length} {demo.steps.length === 1 ? "step" : "steps"}</Badge></div>{working && <p className="live-exchange-status" role="status"><span className="live-dot"/> Live updates every few seconds · {demo.steps.length} {demo.steps.length === 1 ? "reply" : "replies"} saved</p>}{demo.steps.length ? <ol className="studio-collab-timeline">{demo.steps.map((step, index) => <li key={`${step.outputHash}:${index}`}><div className="agent-step-head"><span className="agent-avatar">{(labels[step.role] ?? step.role).slice(0, 1)}</span><div><strong>{labels[step.role] ?? step.role}</strong><small>{step.agentId} · {new Date(step.createdAtMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small></div></div><blockquote>{step.content}</blockquote><details><summary>Technical proof</summary><p>Model: {step.model}</p><code>{step.outputHash}</code></details></li>)}</ol> : <p className="exchange-empty">The agents have not finished a reply yet. New replies will appear here automatically.</p>}</div>
+      <div className="agent-exchange" id="agent-exchange"><AgentInteraction steps={demo.steps} live={working}/></div>
     </section>}
   </div>;
 }

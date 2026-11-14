@@ -73,7 +73,7 @@ export function guestSnapshot(accountId: string, projectId?: string) {
       if (output.provider_mode !== "live" || createHash("sha256").update(output.output_json).digest("hex") !== output.output_hash) return [];
       try {
         const parsed = JSON.parse(output.output_json) as { content?: unknown };
-        return typeof parsed.content === "string" ? [{ role: output.role, agentId: output.agent_id, model: output.model, content: parsed.content.slice(0, 4000), outputHash: output.output_hash, createdAtMs: output.created_at_ms }] : [];
+        return typeof parsed.content === "string" ? [{ role: output.role, agentId: output.agent_id, model: output.model, content: parsed.content.slice(0, 12_000), outputHash: output.output_hash, createdAtMs: output.created_at_ms }] : [];
       } catch { return []; }
     });
     const work = row.work_id ? database.prepare("SELECT v.version, v.state, v.asset_hash, a.duration_ms, p.chain_tx_hash FROM studio_work_versions v JOIN studio_assets a ON a.hash = v.asset_hash LEFT JOIN studio_publications p ON p.work_id = v.work_id AND p.work_version = v.version AND p.unpublished_at_ms IS NULL WHERE v.work_id = ? ORDER BY v.version DESC LIMIT 1").get(row.work_id) as { version: number; state: string; asset_hash: string; duration_ms: number | null; chain_tx_hash: string | null } | undefined : undefined;

@@ -3,6 +3,21 @@ import test from "node:test";
 import { nearToYocto, yoctoToNear } from "../src/lib/studio-money.ts";
 import { parseSingleByteRange } from "../src/server/media-range.ts";
 import { allocateContractShares } from "../src/lib/studio-agent-allocation.ts";
+import { acceptedSplit, handoffLabel, parseSplitOffer, type AgentInteractionStep } from "../src/lib/agent-interaction.ts";
+
+test("COLLAB-01 saved offers show counteroffers and only a matching acceptance", () => {
+  const step = (role: string, content: string): AgentInteractionStep => ({ role, content, agentId: role === "split_response" ? "composer" : "lyricist", model: "test-model", outputHash: content });
+  const proposal = step("split_proposal", '{"lyricistBasisPoints":6000,"composerBasisPoints":4000}');
+  const counter = step("split_response", '{"decision":"counter","lyricistBasisPoints":5500,"composerBasisPoints":4500}');
+  const wrongAcceptance = step("split_proposal", '{"decision":"accept","lyricistBasisPoints":6000,"composerBasisPoints":4000}');
+  const acceptance = step("split_proposal", '{"decision":"accept","lyricistBasisPoints":5500,"composerBasisPoints":4500}');
+  assert.equal(parseSplitOffer(proposal)?.kind, "proposal");
+  assert.equal(parseSplitOffer(counter)?.kind, "counter");
+  assert.equal(acceptedSplit([proposal, counter, wrongAcceptance]), null);
+  assert.equal(acceptedSplit([proposal, counter, acceptance])?.lyricistBasisPoints, 5500);
+  assert.equal(handoffLabel(counter), "Counteroffer to Lyricist");
+  assert.equal(parseSplitOffer(step("split_response", '{"decision":"counter","lyricistBasisPoints":5500,"composerBasisPoints":4600}')), null);
+});
 
 test("CAT-05 single-range seeking and suffix ranges stay inside the media blob", () => {
   assert.deepEqual(parseSingleByteRange("bytes=0-499", 1000), { start: 0, end: 499 });

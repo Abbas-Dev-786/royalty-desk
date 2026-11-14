@@ -1,16 +1,20 @@
 # Accord
 
-**A collaborative AI music studio where creative work becomes a release with verifiable approvals and revenue sharing on NEAR.**
+**An AI music studio where the people behind a song can be heard, credited, and paid.**
 
-Accord turns a creator's idea into an original song or two-song album. AI agents take different jobs: a lyricist writes, a composer plans the sound, and a reviewer checks the result. The contributors then negotiate how to divide future revenue. The creator can hear the finished recording privately before it is considered for publication.
+**Try it:** [Live studio](https://agent-music-studio-rm53.onrender.com/studio) · [Published song: River of First Light](https://agent-music-studio-rm53.onrender.com/studio/song-phase03-1?version=2) · [Agent earnings](https://agent-music-studio-rm53.onrender.com/studio/agents) · [NEAR testnet contract](https://testnet.nearblocks.io/address/studio-rd-fa315759.testnet) · [Source code](https://github.com/Abbas-Dev-786/accord)
 
-Publishing and money have stricter rules than generating music. A human guardian can require approval for every public release. The NEAR contract records the approved version, the agreed shares, and listener payments. When someone buys a download or leaves a tip, the contract assigns that payment to contributor accounts; eligible balances can be paid out in testnet NEAR.
+**Hackathon demo post:** Coming soon. The public X post and video link will be added after publication.
 
-## The problem and the product
+Imagine arriving with a rough idea: a title, a mood, a few lines about the sound you want. In Accord, a lyricist agent writes the words. A composer agent shapes the music. A reviewer agent checks the work. You can follow their exchange and, if they agree on the song and their shares, hear a private recording before anyone else does.
 
-AI can make creative material quickly, but a finished file alone does not explain who contributed, who approved its release, or how its earnings should be divided. Those decisions are easy to lose in private chats and application databases. Accord makes them part of the product's workflow: contributors agree on a split before publication, the guardian controls release authority, and listeners can inspect the resulting record.
+The story continues after the recording. A producer agent prepares the release, the contributors accept their exact shares, and a human guardian can approve publication. Listeners can play the song for free, buy a download, or leave a tip. NEAR records the release and moves each payment through allocation to the agents' accounts.
 
-There are three ways to use Accord:
+## Why we built Accord
+
+Making music with AI has become fast. Answering the questions that come next is harder: **Who contributed? Did they agree to the split? Who allowed this version to go public? Where did a listener's money go?** A file and a chat transcript cannot enforce those answers. Accord makes them visible steps in one studio workflow, with the release and revenue rules enforced by a NEAR smart contract.
+
+The studio has three human-facing paths:
 
 | Person | What they can do |
 | --- | --- |
@@ -18,9 +22,9 @@ There are three ways to use Accord:
 | Listener | Browse and play published music for free, buy a download, leave a tip, and inspect credits and transaction links. |
 | Guardian | Review and approve releases, change studio policy, manage agent permissions, and inspect payments and earnings. |
 
-## The four agents and their NEAR accounts
+## Meet the four agents
 
-The configured studio catalogue contains **four agent identities**. Each has its own public NEAR testnet account, separate from the creator's or listener's wallet. These accounts identify agents for contract permissions and, when an agent has an accepted revenue share, provide the destination for payouts. They are agent-controlled studio accounts, not the personal wallets of human team members.
+The configured studio catalogue contains **four agent identities**. Think of them as a small creative team with distinct responsibilities, not four copies of the same chatbot. Each has its own public NEAR testnet account, separate from the creator's or listener's wallet. The contract uses those accounts for permissions and, when an agent earns a share, as payout destinations. They are studio agent accounts, not the personal wallets of human team members.
 
 | Agent | Role in Accord | Public NEAR testnet account | Share in the current song flow |
 | --- | --- | --- | --- |
@@ -31,19 +35,19 @@ The configured studio catalogue contains **four agent identities**. Each has its
 
 The local catalogue and Render import snapshot list these four records; the contract and keys determine whether each agent is **currently** active and able to act. The public `/studio/agents` page reads current on-chain earnings and wallet balances. A wallet balance can include funds from outside Accord, so use the contract's **owed**, **pending**, and **paid** figures to understand studio revenue. The guardian is a separate human approval role, not a fifth creative agent.
 
-## From idea to revenue
+## Follow one song from idea to earnings
 
-1. **Create:** A wallet user submits a title and brief. The web app saves the request and asks the private worker to run the creative job.
-2. **Collaborate:** The lyricist, composer, and reviewer produce distinct outputs through NEAR AI Cloud. Contributors propose and respond to a revenue split expressed in basis points. The UI shows their replies as the job progresses.
-3. **Record:** Once the creative result is accepted, ElevenLabs produces audio. The recording is stored privately with its metadata, provenance, and media hash. A creator can hear it before publication.
-4. **Approve and publish:** The producer commits a release version to the NEAR contract. Contributors accept their shares on-chain. If the current policy requires human review, the guardian approves that exact release before the producer publishes it. The catalogue shows a release only after checking its local record, media, and on-chain commitment.
-5. **Earn:** A listener signs a purchase or tip transaction. The contract checks the published release and amount, then records the payment. Revenue is allocated in integer yoctoNEAR to the contributor accounts. The worker can request payouts with scoped keys when configured; the contract records success or restores the amount owed after a failed transfer.
+1. **The spark:** A creator connects a testnet wallet and submits a title and brief. Accord saves the request and starts a creative job in its private worker.
+2. **The conversation:** The lyricist writes, the composer plans, and the reviewer decides whether the result is ready. Their NEAR AI Cloud replies appear in the UI. The lyricist and composer then agree on a split, or the session stops without a releasable song.
+3. **The first listen:** ElevenLabs produces audio only after the accepted creative work and split are checked. Accord stores the recording, its metadata, and its hash. The creator can listen privately.
+4. **The release decision:** The producer commits this exact version to NEAR. Each paid contributor accepts the split on-chain. When policy requires it, the guardian approves the matching commitment. Only then can the producer publish; the catalogue checks the local media and on-chain release before showing it.
+5. **The audience:** A listener can play the public song for free. Buying a download or tipping requires a wallet transaction. The contract records the payment, allocates it to the contributor accounts, and can pay their owed balances out in testnet NEAR.
 
 The AI runs off-chain. Its NEAR accounts represent permitted agent roles and recipients of earnings; the contract enforces what those accounts may do. Music files stay off-chain because they are large, while hashes and release commitments let the app check that the displayed recording matches the approved version.
 
-## How agents negotiate revenue shares
+## The negotiation: who gets what?
 
-Each song's lyricist and composer negotiate **that song's** split during the creative job. Percentages are stored as integer basis points: `10,000` basis points is `100%`, so `6,000 / 4,000` means `60% / 40%`. The reviewer evaluates the creative work, but the current song split pays the lyricist and composer. The producer carries out release transactions; the producer and reviewer do not receive a separate share in this flow.
+The song may be finished, but the lyricist and composer still have a decision to make: **how should its future purchases and tips be shared?** Accord asks the lyricist to make an offer and gives the composer a chance to accept or counter. The numbers are stored as integer basis points: `10,000` means `100%`, so `6,000 / 4,000` means `60% / 40%`. The reviewer evaluates the work and the producer handles release transactions; neither receives a separate share in the current song flow.
 
 1. After the reviewer accepts the song, the lyricist proposes two numbers that sum to `10,000`.
 2. The composer sees the proposal and either accepts those **exact** numbers or counters with a different pair that also sums to `10,000`.
@@ -53,9 +57,9 @@ Each song's lyricist and composer negotiate **that song's** split during the cre
 
 The off-chain conversation explains **how** the numbers were reached; the on-chain acceptances establish **which exact split** governs that published version. A later release version has its own commitment and checks.
 
-## How listeners pay and agents receive revenue
+## When a listener pays, where does the money go?
 
-**Listening is free.** A purchase unlocks a download for that buyer; a tip supports the same release without buying a download. Both use testnet NEAR. Current new-song drafts are priced at `0.01 NEAR`, and the two-song album draft at `0.015 NEAR`; the published release's committed price is the amount the contract enforces. Tips start at `0.001 NEAR` and are limited by the current contract policy.
+Someone finds that song in the listening room. **Pressing play costs nothing.** They can buy an MP3 to keep or send a tip to its makers. This is a wallet payment in testnet NEAR, not a number added to an app database. Current new-song drafts are priced at `0.01 NEAR`, and the two-song album draft at `0.015 NEAR`; the published release's committed price is the amount the contract enforces. Tips start at `0.001 NEAR` and are limited by the current contract policy.
 
 | Stage | What happens |
 | --- | --- |
@@ -65,9 +69,9 @@ The off-chain conversation explains **how** the numbers were reached; the on-cha
 | Allocation | When autonomous revenue is enabled and its scoped key is available, the worker checks the finalized order against the contract and calls `allocate_payment`. The contract can allocate that payment only once and credits the agent accounts' **owed** balances. |
 | Payout | The worker checks each active agent's owed balance and can request a payout using that agent's scoped key. The contract moves the amount from **owed** to **pending**, sends testnet NEAR to the agent account, and records **paid** only after the transfer receipt succeeds. A failed transfer returns the amount to **owed**. |
 
-For a **song**, the whole purchase or tip is divided by its accepted lyricist/composer split. For example, a `0.01 NEAR` purchase of a song with a `60% / 40%` split credits `0.006 NEAR` to the lyricist and `0.004 NEAR` to the composer after allocation. These balances are contract claims until a payout transaction succeeds; receiving a buyer payment does not instantly put funds in each agent wallet.
+Suppose the lyricist and composer settled on **60% / 40%**. A listener buys that song for `0.01 NEAR`. After allocation, the contract owes `0.006 NEAR` to the lyricist account and `0.004 NEAR` to the composer account. The buyer's payment first reaches the contract; those amounts become balances owed to the agents. They reach the agents' wallets only after separate payout transactions succeed.
 
-For an **album**, the contract first divides the payment between its tracks using the album's track weights, then applies **each song's own negotiated split** to that track's amount. The current two-song album builder uses `50% / 50%` track weights. A `0.015 NEAR` album purchase therefore assigns `0.0075 NEAR` to each song before its lyricist/composer split. The album also stores a derived aggregate split for its release record, but payouts are calculated from the track weights and song splits. Tips follow the same allocation rules as purchases.
+An album brings two songs into one purchase. The contract first divides the payment between tracks using the album's track weights, then applies **each song's own negotiated split**. Accord's current two-song album builder gives each track `50%`. A `0.015 NEAR` album purchase therefore assigns `0.0075 NEAR` to each song before either song's lyricist/composer split. The album also stores a derived aggregate split for its release record, but payouts are calculated from the track weights and song splits. Tips follow the same allocation rules as purchases.
 
 | Example album purchase | Track amount | Lyricist | Composer |
 | --- | ---: | ---: | ---: |
@@ -81,7 +85,7 @@ All allocation arithmetic uses integer yoctoNEAR. The last track or contributor 
 
 An unallocated payment can be refunded by the guardian during an incident. The buyer can also request a refund if the release became unavailable before allocation. Once earnings have been allocated, that refund path is closed. The contract waits for the refund transfer receipt before marking it refunded and restores the payment to its prior state if the transfer fails.
 
-## Functionality at a glance
+## What you can explore in the app
 
 | Area | Implemented behavior |
 | --- | --- |
@@ -106,20 +110,30 @@ Fresh creative work needs provider credentials and credits. Automated on-chain r
 
 The implementation uses a NEAR testnet contract, scoped function-call keys, NEAR AI Cloud for the creative steps, and ElevenLabs for the final recording. It does **not** use NEAR Intents, cross-chain settlement, NFTs, or verifiable private inference. Testnet projects and a project-specific contract are eligible under the [event rules](HACKATHON.md).
 
-## Try it as a judge
+## Take the judge's tour
 
-The public pages work without a wallet. Creating a song, buying a download, and tipping use a **NEAR testnet wallet**. Creating a fresh recording also consumes configured AI and music-provider credits.
+Start with a released song and follow its trail back to the agents who made it. The [hosted studio](https://agent-music-studio-rm53.onrender.com/studio) and public agent pages work without a wallet. Creating a new song, buying a download, and tipping use a **NEAR testnet wallet**; generating a fresh recording also consumes configured AI and music-provider credits.
 
-1. Open `/studio`. Browse the published songs and albums, and open one to play the recording.
+1. Open [River of First Light](https://agent-music-studio-rm53.onrender.com/studio/song-phase03-1?version=2), or browse `/studio` for another published song or album. Play its recording.
 2. Open that release's **Collaboration** page. Inspect the agent conversation, contributor split, acceptance status, guardian approval status, and publication transaction link.
 3. Open `/studio/agents`. Compare each contributor's recorded earnings, amount owed, pending transfers, and paid transfers. The page links to payment, allocation, and payout receipts when present.
 4. Connect a testnet wallet and open `/studio/create`. Give the agents a title and a music brief of at least 20 characters. Watch their replies appear; after agreement, the studio prepares a private recording. `/studio/album` provides the two-song album path.
 5. The guardian wallet can open `/studio/operations` to inspect policy, agent permissions, release approvals, recent model activity, and orders. Public release requires the contract's approval and split-acceptance checks.
 6. For a transaction walkthrough, use a testnet wallet to buy a download or leave a tip on a published release, then revisit `/studio/agents` for the allocation and payout state. The service must have autonomous revenue enabled and valid scoped keys for automatic transfers.
 
-The deployed contract configured by [`render.yaml`](render.yaml) is [`studio-rd-fa315759.testnet`](https://testnet.nearblocks.io/address/studio-rd-fa315759.testnet). The repository's Render service URL and demo video are supplied separately with the hackathon submission; this README does not assume a deployment URL that has not been verified here.
+### What each stop proves
 
-## System architecture
+| Open | Look for | What it verifies |
+| --- | --- | --- |
+| [Studio catalogue](https://agent-music-studio-rm53.onrender.com/studio) and [example release](https://agent-music-studio-rm53.onrender.com/studio/song-phase03-1?version=2) | A published song or album that opens and plays. | The hosted app can serve catalogue data and media. |
+| A release's **Collaboration** page | Agent replies, accepted shares, guardian status, and publication receipt. | The displayed release has a traceable creative and on-chain history. |
+| [Agent earnings](https://agent-music-studio-rm53.onrender.com/studio/agents) | Agent accounts, owed/pending/paid figures, and available receipt links. | The public ledger reads contract state and distinguishes earnings from wallet balance. |
+| [Studio contract](https://testnet.nearblocks.io/address/studio-rd-fa315759.testnet) | Release, purchase, allocation, and payout transactions. | The release and money rules live on NEAR testnet. |
+| [Health endpoint](https://agent-music-studio-rm53.onrender.com/api/health) | `{"status":"ok"}`. | The web app can reach its private worker; this check alone does not prove provider credentials or payouts. |
+
+The hosted health endpoint returned HTTP 200 with `{"status":"ok"}`; the catalogue, agent page, and linked song page returned HTTP 200 when checked on 14 November 2026. The public catalogue API listed the example release with no stale entries at that check. Individual playback, payments, provider calls, and agent payouts should be verified through their live behavior and receipts. The deployed contract configured by [`render.yaml`](render.yaml) is [`studio-rd-fa315759.testnet`](https://testnet.nearblocks.io/address/studio-rd-fa315759.testnet).
+
+## Behind the studio
 
 ```mermaid
 flowchart LR
@@ -136,7 +150,7 @@ flowchart LR
     Contract --> AgentAccounts[Agent NEAR accounts]
 ```
 
-The Next.js web app handles wallet authentication, creator and listener actions, and the catalogue. The private worker runs durable creative jobs, generates audio, reconciles uncertain transactions, and processes eligible revenue. Both processes share SQLite databases and media on the same persistent disk in Render. Provider keys and scoped signing keys stay on the server; the browser signs its own wallet transactions.
+The audience sees one studio, but two processes do the work. The Next.js app handles wallet authentication, creator and listener actions, and the catalogue. A private worker runs durable creative jobs, generates audio, reconciles uncertain transactions, and processes eligible revenue. Both share SQLite databases and media on the same persistent disk in Render. Provider keys and scoped signing keys stay on the server; the browser signs its own wallet transactions.
 
 ### Creation and release
 
@@ -180,9 +194,9 @@ sequenceDiagram
 
 Amounts are represented as integer yoctoNEAR. Allocation distributes any rounding remainder deterministically. Payouts use asynchronous NEAR receipts; failed transfers return the amount to the agent's owed balance. The worker records uncertain outcomes for reconciliation instead of blindly resending a payment.
 
-## Why NEAR is part of Accord
+## NEAR's role in the story
 
-NEAR is the shared authority for the studio's release and money rules. The application can generate and store music without a chain, but it relies on the contract to decide whether a particular version may be published, whether a listener's payment matches that published version, and how the payment is owed to contributors. The deployed demo contract is [`studio-rd-fa315759.testnet`](https://testnet.nearblocks.io/address/studio-rd-fa315759.testnet).
+Every public song has two sides: the recording people hear and the release record they can inspect. NEAR is the shared authority for that record and for the studio's money rules. Its contract decides whether a particular version may be published, whether a listener's payment matches that version, and how the payment is owed to contributors. The deployed demo contract is [`studio-rd-fa315759.testnet`](https://testnet.nearblocks.io/address/studio-rd-fa315759.testnet).
 
 | On NEAR | What it provides |
 | --- | --- |
@@ -241,6 +255,10 @@ npm run dev:worker
 Open `http://localhost:3000/studio` and check `http://localhost:3000/api/health`; a running web app that can reach the worker returns `{"status":"ok"}`. An empty catalogue on a fresh database is expected until a release is published or existing data is imported. The health route does not check provider credentials or prove an on-chain payout.
 
 To check the production build, run `npm run build`. The production web and worker commands are `npm run start:web` and `npm run start:worker` in separate terminals. The contract source is included for inspection; the root build does not deploy or compile the contract.
+
+## License
+
+The source code is available under the [MIT License](LICENSE). Third-party libraries and music-provider outputs remain subject to their own terms and the studio's recorded permissions.
 
 ## Hackathon provenance
 

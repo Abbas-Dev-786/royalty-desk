@@ -1,8 +1,32 @@
 # Accord
 
-**An agent-run music studio with releases and revenue governed on NEAR testnet.**
+**A collaborative AI music studio where creative work becomes a release with verifiable approvals and revenue sharing on NEAR.**
 
-Give the studio a song brief. A lyricist, composer, and reviewer work through it, negotiate contributor shares, and prepare a private recording. A guardian can approve a public release. Listeners can play it, buy a download, or leave a tip; the NEAR contract records the payment and allocates proceeds to the contributing agent accounts.
+Accord turns a creator's idea into an original song or two-song album. AI agents take different jobs: a lyricist writes, a composer plans the sound, and a reviewer checks the result. The contributors then negotiate how to divide future revenue. The creator can hear the finished recording privately before it is considered for publication.
+
+Publishing and money have stricter rules than generating music. A human guardian can require approval for every public release. The NEAR contract records the approved version, the agreed shares, and listener payments. When someone buys a download or leaves a tip, the contract assigns that payment to contributor accounts; eligible balances can be paid out in testnet NEAR.
+
+## The problem and the product
+
+AI can make creative material quickly, but a finished file alone does not explain who contributed, who approved its release, or how its earnings should be divided. Those decisions are easy to lose in private chats and application databases. Accord makes them part of the product's workflow: contributors agree on a split before publication, the guardian controls release authority, and listeners can inspect the resulting record.
+
+There are three ways to use Accord:
+
+| Person | What they can do |
+| --- | --- |
+| Creator | Connect a NEAR testnet wallet, describe a song or album, follow the agents' exchange, and listen to a private recording. |
+| Listener | Browse and play published music for free, buy a download, leave a tip, and inspect credits and transaction links. |
+| Guardian | Review and approve releases, change studio policy, manage agent permissions, and inspect payments and earnings. |
+
+## From idea to revenue
+
+1. **Create:** A wallet user submits a title and brief. The web app saves the request and asks the private worker to run the creative job.
+2. **Collaborate:** The lyricist, composer, and reviewer produce distinct outputs through NEAR AI Cloud. Contributors propose and respond to a revenue split expressed in basis points. The UI shows their replies as the job progresses.
+3. **Record:** Once the creative result is accepted, ElevenLabs produces audio. The recording is stored privately with its metadata, provenance, and media hash. A creator can hear it before publication.
+4. **Approve and publish:** The producer commits a release version to the NEAR contract. Contributors accept their shares on-chain. If the current policy requires human review, the guardian approves that exact release before the producer publishes it. The catalogue shows a release only after checking its local record, media, and on-chain commitment.
+5. **Earn:** A listener signs a purchase or tip transaction. The contract checks the published release and amount, then records the payment. Revenue is allocated in integer yoctoNEAR to the contributor accounts. The worker can request payouts with scoped keys when configured; the contract records success or restores the amount owed after a failed transfer.
+
+The AI runs off-chain. Its NEAR accounts represent permitted agent roles and recipients of earnings; the contract enforces what those accounts may do. Music files stay off-chain because they are large, while hashes and release commitments let the app check that the displayed recording matches the approved version.
 
 ## Hackathon fit
 
@@ -27,7 +51,7 @@ The public pages work without a wallet. Creating a song, buying a download, and 
 
 The deployed contract configured by [`render.yaml`](render.yaml) is [`studio-rd-fa315759.testnet`](https://testnet.nearblocks.io/address/studio-rd-fa315759.testnet). The repository's Render service URL and demo video are supplied separately with the hackathon submission; this README does not assume a deployment URL that has not been verified here.
 
-## How it works
+## System architecture
 
 ```mermaid
 flowchart LR
@@ -44,7 +68,7 @@ flowchart LR
     Contract --> AgentAccounts[Agent NEAR accounts]
 ```
 
-The web app handles wallet authentication, the catalogue, and user actions. The private worker runs durable creative jobs, generates audio, reconciles uncertain transactions, and processes eligible revenue. Both processes share SQLite databases and media on the same persistent disk in Render. Provider keys and scoped signing keys stay on the server.
+The Next.js web app handles wallet authentication, creator and listener actions, and the catalogue. The private worker runs durable creative jobs, generates audio, reconciles uncertain transactions, and processes eligible revenue. Both processes share SQLite databases and media on the same persistent disk in Render. Provider keys and scoped signing keys stay on the server; the browser signs its own wallet transactions.
 
 ### Creation and release
 
@@ -88,14 +112,20 @@ sequenceDiagram
 
 Amounts are represented as integer yoctoNEAR. Allocation distributes any rounding remainder deterministically. Payouts use asynchronous NEAR receipts; failed transfers return the amount to the agent's owed balance. The worker records uncertain outcomes for reconciliation instead of blindly resending a payment.
 
-## What NEAR does
+## Why NEAR is part of Accord
 
-- **Authority:** The contract recognizes agent roles, expiration and action limits, a guardian, and a mutable policy epoch.
-- **Release proof:** The contract stores release commitments, accepted contributor splits, guardian approval, and publication state.
-- **Commerce:** Listener purchases and tips pay the contract in testnet NEAR. The contract tracks allocation, owed balances, pending transfers, and paid transfers.
-- **Constrained automation:** Server-held function-call keys are checked against the intended contract and method before agent transactions are sent. The guardian retains the release approval boundary.
+NEAR is the shared authority for the studio's release and money rules. The application can generate and store music without a chain, but it relies on the contract to decide whether a particular version may be published, whether a listener's payment matches that published version, and how the payment is owed to contributors. The deployed demo contract is [`studio-rd-fa315759.testnet`](https://testnet.nearblocks.io/address/studio-rd-fa315759.testnet).
 
-The music and SQLite files are off-chain. The NEAR contract stores the authority, commitments, and money state; the catalogue checks those records before presenting a release.
+| On NEAR | What it provides |
+| --- | --- |
+| Agent identity and policy | Registered lyricist, composer, producer, and reviewer accounts have roles, expiry times, and action budgets. A guardian can pause the studio or update the policy epoch. |
+| Release commitment | A version records media and metadata hashes, a price, contributor shares, and, for albums, track ordering and weights. Accepted splits and guardian approval are checked before publication. |
+| Listener payment | Wallet-signed purchases and tips deposit testnet NEAR into the contract. It checks the active release commitment, payment ID, quote expiry, and amount. |
+| Revenue and payout | The contract allocates each finalized payment once using integer amounts, tracks owed and pending balances, and settles transfers through receipt callbacks. |
+
+The automation uses limited function-call keys tied to the expected contract and method. The worker verifies their scope before sending agent transactions. Guardian approvals remain wallet-authorized. Failed or uncertain transfers are tracked for reconciliation rather than treated as successful.
+
+Recordings, model outputs, and SQLite databases remain off-chain. The public catalogue checks the stored media and release details against NEAR before showing a published work. This lets visitors play audio through an ordinary web app while inspecting the rules and transactions that govern its release and revenue.
 
 ## Repository map
 
@@ -144,17 +174,6 @@ Open `http://localhost:3000/studio` and check `http://localhost:3000/api/health`
 
 To check the production build, run `npm run build`. The production web and worker commands are `npm run start:web` and `npm run start:worker` in separate terminals. The contract source is included for inspection; the root build does not deploy or compile the contract.
 
-## Render deployment
-
-[`render.yaml`](render.yaml) defines one disk-backed web service. Its existing Render service name, `agent-music-studio`, is retained to preserve the deployed service and persistent disk while the product is branded Accord. Its startup script launches the web and worker processes against the same persistent storage. The Blueprint configures `STUDIO_AUTONOMOUS_REVENUE=true`, but automatic transfers also require the private scoped-key file and finalized eligible payments. The service has `autoDeployTrigger: off`; see the [deployment and data-import guide](docs/RENDER_DEPLOYMENT.md) for the manual release path. Keys marked `sync: false` must be provided privately in Render.
-
-## Verification and limits
-
-- `npm run build` checks the Next.js production build and the worker's TypeScript types. The project currently contains no automated test suite after submission cleanup; the build alone is **not** proof of transaction or provider behavior.
-- A live reviewer can verify publication, payment, allocation, and payout receipts through links in the UI and the [testnet contract explorer](https://testnet.nearblocks.io/address/studio-rd-fa315759.testnet). Availability depends on the deployed service, imported catalogue/media, funded testnet wallets, provider quotas, and scoped keys.
-- Fresh music uses paid external providers. A timeout can leave an outcome unknown; the worker pauses or reconciles such work to avoid an unsafe duplicate request.
-- Testnet NEAR and provider-backed audio are demonstration infrastructure. This is not a mainnet payment product or a general rights-clearance service.
-
 ## Hackathon provenance
 
-This repository began as a royalty administration experiment during the hackathon window and was pivoted to Accord. The studio-specific contract, creative workflow, catalogue, and revenue features were built in the 2026-11-01 to 2026-11-14 development period. The [Git history](https://github.com/Abbas-Dev-786/royalty-desk/commits/main/) shows that progression. The current implementation uses Next.js, React, TypeScript, SQLite, LangGraph, near-api-js, near-sdk, NEAR AI Cloud, and ElevenLabs; it does not claim those third-party libraries as original work.
+This repository began as a royalty administration experiment during the hackathon window and was pivoted to Accord. The studio-specific contract, creative workflow, catalogue, and revenue features were built in the 2026-11-01 to 2026-11-14 development period. The [Git history](https://github.com/Abbas-Dev-786/accord/commits/main/) shows that progression. The current implementation uses Next.js, React, TypeScript, SQLite, LangGraph, near-api-js, near-sdk, NEAR AI Cloud, and ElevenLabs; it does not claim those third-party libraries as original work.

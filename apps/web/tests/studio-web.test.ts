@@ -4,6 +4,17 @@ import { nearToYocto, yoctoToNear } from "../src/lib/studio-money.ts";
 import { parseSingleByteRange } from "../src/server/media-range.ts";
 import { allocateContractShares } from "../src/lib/studio-agent-allocation.ts";
 import { acceptedSplit, handoffLabel, parseSplitOffer, type AgentInteractionStep } from "../src/lib/agent-interaction.ts";
+import { isAlbumRun, trackBrief, trackTitle } from "../src/lib/studio-album-run.ts";
+
+test("ALBUM-UI-01 two tracks get distinct bounded briefs and resumable inputs", () => {
+  const concept = "A warm jazz story about finding home in a changing city.";
+  assert.notEqual(trackBrief(concept, 0), trackBrief(concept, 1));
+  assert.ok(trackBrief("x".repeat(1600), 1).length <= 2000);
+  assert.notEqual(trackTitle("City Lights", 0), trackTitle("City Lights", 1));
+  const run = { accountId: "owner.testnet", projectId: "project-album-123e4567-e89b-12d3-a456-426614174000", title: "City Lights", concept, lyricistId: "lyricist", composerId: "composer", reviewerId: "reviewer", deadlines: [0, 0], stage: 0, songIds: [] };
+  assert.equal(isAlbumRun(run, "owner.testnet"), true);
+  assert.equal(isAlbumRun(run, "another.testnet"), false);
+});
 
 test("COLLAB-01 saved offers show counteroffers and only a matching acceptance", () => {
   const step = (role: string, content: string): AgentInteractionStep => ({ role, content, agentId: role === "split_response" ? "composer" : "lyricist", model: "test-model", outputHash: content });

@@ -80,6 +80,12 @@ export async function runCreativeModelStep(database: DatabaseSync, model: AgentM
       }
     }
     catch { throw new Error("ERR_CREATIVE_MODEL_FORMAT"); }
+    if (step.role === "split_proposal") {
+      try {
+        const proposal = z.object({ lyricistBasisPoints: z.number().int(), composerBasisPoints: z.number().int() }).parse(JSON.parse(parsed.content) as unknown);
+        if (proposal.lyricistBasisPoints < 0 || proposal.composerBasisPoints < 0 || proposal.lyricistBasisPoints + proposal.composerBasisPoints !== 10_000) throw new Error("ERR_CREATIVE_SPLIT_PROPOSAL_FORMAT");
+      } catch { throw new Error("ERR_CREATIVE_SPLIT_PROPOSAL_FORMAT"); }
+    }
     if (step.role === "review" && !/^(ACCEPT|REVISE):/.test(parsed.content)) throw new Error("ERR_CREATIVE_REVIEW_FORMAT");
     const outputJson = JSON.stringify(parsed);
     database.exec("BEGIN IMMEDIATE");

@@ -22,6 +22,17 @@ const CreativeState = new StateSchema({
 const splitSchema = z.object({ lyricistBasisPoints: z.number().int().min(0).max(10_000), composerBasisPoints: z.number().int().min(0).max(10_000) });
 const decisionSchema = splitSchema.extend({ decision: z.enum(["accept", "counter"]) });
 
+export function parseSplitProposal(raw: string): z.infer<typeof splitSchema> {
+  try {
+    const proposal = splitSchema.parse(JSON.parse(raw) as unknown);
+    if (proposal.lyricistBasisPoints + proposal.composerBasisPoints !== 10_000) throw new Error("ERR_CREATIVE_SPLIT_TOTAL");
+    return proposal;
+  } catch (error) {
+    if (error instanceof Error && error.message === "ERR_CREATIVE_SPLIT_TOTAL") throw error;
+    throw new Error("ERR_CREATIVE_SPLIT_PROPOSAL_FORMAT");
+  }
+}
+
 export function parseSplitDecision(raw: string): z.infer<typeof decisionSchema> {
   try {
     const decoded: unknown = JSON.parse(raw);
@@ -78,9 +89,8 @@ export function createCreativeGraph(options: CreativeGraphOptions) {
     })
     .addNode("revise_lyrics", async (state) => ({ lyrics: await step("revision", options.lyricistId, state, `Revise lyrics using feedback: ${state.review}`), revisionCount: state.revisionCount + 1 }))
     .addNode("propose_split", async (state) => {
-      const raw = await step("split_proposal", options.lyricistId, state, "Propose contributor shares as a JSON object with lyricistBasisPoints and composerBasisPoints totaling 10000.");
-      const proposal = splitSchema.parse(JSON.parse(raw) as unknown);
-      if (proposal.lyricistBasisPoints + proposal.composerBasisPoints !== 10_000) throw new Error("ERR_CREATIVE_SPLIT_TOTAL");
+      const raw = await step("split_proposal", options.lyricistId, state, "Propose contributor shares totaling 10000 basis points. Your content field must contain only a JSON object string with integer lyricistBasisPoints and composerBasisPoints. No prose, markdown, or explanation.");
+      const proposal = parseSplitProposal(raw);
       return { splitProposal: JSON.stringify(proposal) };
     })
     .addNode("respond_split", async (state) => {

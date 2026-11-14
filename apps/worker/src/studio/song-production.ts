@@ -5,7 +5,7 @@ import { addStudioContribution, addWorkVersion, createStudioWork, openDatabase, 
 import type { DatabaseSync } from "node:sqlite";
 import { createElevenLabsMusicProvider, type ElevenLabsMusicProvider, type ElevenLabsSongRequest } from "./elevenlabs-music-provider.ts";
 import { generateElevenLabsSong } from "./elevenlabs-music-service.ts";
-import { parseSplitDecision } from "./creative-graph.ts";
+import { parseSplitDecision, parseSplitProposal } from "./creative-graph.ts";
 import { buildSongPlan } from "./song-plan.ts";
 
 const digest = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
@@ -82,7 +82,7 @@ export class StudioSongProductionService {
       const composition = output(database, request, request.composerId, "composition");
       const proposal = output(database, request, request.lyricistId, "split_proposal");
       const response = output(database, request, request.composerId, "split_response");
-      const proposed = z.object({ lyricistBasisPoints: z.number().int().min(0).max(10_000), composerBasisPoints: z.number().int().min(0).max(10_000) }).passthrough().parse(JSON.parse(proposal.content) as unknown);
+      const proposed = parseSplitProposal(proposal.content);
       const composerDecision = parseSplitDecision(response.content);
       const counterAcceptance = composerDecision.decision === "counter" ? output(database, request, request.lyricistId, "split_proposal", 1) : null;
       const accepted = counterAcceptance ? parseSplitDecision(counterAcceptance.content) : composerDecision;

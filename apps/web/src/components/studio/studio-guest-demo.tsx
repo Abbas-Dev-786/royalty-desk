@@ -29,6 +29,7 @@ function explainError(error: string): string {
   if (error === "ERR_CREATIVE_OUTCOME_UNKNOWN" || error.includes("Multiple errors occurred during superstep")) return "The first NEAR AI request has an uncertain outcome. This song is paused to avoid charging credits twice. The operator must inspect provider usage before retrying.";
   if (error === "ERR_NEAR_AI_OUTPUT_LIMIT") return "NEAR AI ended the reply before producing a usable answer. This attempt may have used model credits; the operator must review it before another run.";
   if (error === "ERR_NEAR_AI_CONTENT" || error === "ERR_CREATIVE_MODEL_FORMAT") return "NEAR AI returned no usable song text. This attempt may have used model credits; the operator must review it before another run.";
+  if (error === "ERR_CREATIVE_SPLIT_PROPOSAL_FORMAT") return "The lyricist returned an explanation instead of a valid percentage split. This model call may have used credits. Start a new song or ask the operator to review the failed attempt before retrying.";
   return /^ERR_[A-Z0-9_]+$/.test(error) ? `This step could not finish. Refresh your progress before trying again. Support code: ${error}.` : error;
 }
 

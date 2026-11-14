@@ -25,6 +25,10 @@ function explainError(error: string): string {
   if (error === "ERR_STUDIO_GOVERNANCE_UNAVAILABLE") return "The studio could not reach NEAR testnet to check its policy. Your agent run has not started. Try again when the connection returns.";
   if (error === "ERR_CREATIVE_IDENTITY_OR_DEADLINE") return "The saved agent run window expired before it started. Refresh this song and try starting the agent session again.";
   if (error === "ERR_GUEST_RELEASE_POLICY_STALE") return "Studio policy changed after this recording was committed. The recording remains private; a studio operator must prepare a new release version before it can be published.";
+  if (/(?:\b429\b|rate.?limit)/i.test(error)) {
+    const cooldown = /retry after\s+(\d+)\s*seconds?/i.exec(error);
+    return `NEAR testnet is limiting requests. ${cooldown ? `Wait about ${cooldown[1]} seconds, then ` : "Wait a minute, then "}refresh this song before trying Publish again. Your recording is saved; check the wallet receipt if you approved a transaction.`;
+  }
   if (error === "ERR_ELEVENLABS_BAD_COMPOSITION_PLAN" || error === "ERR_ELEVENLABS_HTTP_400" || error === "ERR_ELEVENLABS_HTTP_422") return "The music provider rejected the approved arrangement or lyrics. No audio was saved. This song needs a revised plan before another recording request.";
   if (error === "ERR_CREATIVE_OUTCOME_UNKNOWN" || error.includes("Multiple errors occurred during superstep")) return "The first NEAR AI request has an uncertain outcome. This song is paused to avoid charging credits twice. The operator must inspect provider usage before retrying.";
   if (error === "ERR_NEAR_AI_OUTPUT_LIMIT") return "NEAR AI ended the reply before producing a usable answer. This attempt may have used model credits; the operator must review it before another run.";

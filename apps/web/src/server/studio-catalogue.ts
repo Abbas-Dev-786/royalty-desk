@@ -11,6 +11,13 @@ interface LocalPublication { readonly work_id: string; readonly work_version: nu
 
 const dbPath = resolve(/* turbopackIgnore: true */ process.cwd(), "../..", process.env.STUDIO_CATALOGUE_DB_PATH ?? "private/studio-v2/phase05/studio.sqlite");
 const mediaPath = resolve(/* turbopackIgnore: true */ process.cwd(), "../..", process.env.STUDIO_MEDIA_PATH ?? "private/studio-media");
+const verificationTtlMs = 10_000;
+const verificationCache = new Map<string, { expiresAt: number; item: CatalogueItem }>();
+const pendingVerifications = new Map<string, Promise<CatalogueItem>>();
+
+function isRpcRateLimit(error: unknown): boolean {
+  return error instanceof Error && /(?:\b429\b|rate.?limit|too many requests)/i.test(error.message);
+}
 
 export function studioContractClient(): StudioContractClient {
   const id = process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID;
@@ -69,6 +76,26 @@ async function verifiedItem(db: ReturnType<typeof openStudioCatalogueDatabase>, 
   } else if (localTracks.length || chain.tracks.length) throw new Error("CATALOGUE_SONG_TRACK_MISMATCH");
   return { workId: row.work_id, version: row.work_version, kind: row.kind, title: row.title, assetHash: row.asset_hash, metadataHash: row.metadata_hash, priceYocto: row.price_yocto, commitment: row.chain_commitment, credits: contributors, tracks };
 }
+async function verifiedItemCached(db: ReturnType<typeof openStudioCatalogueDatabase>, chainClient: StudioContractClient, row: LocalPublication): Promise<CatalogueItem> {
+  const key = JSON.stringify([row.work_id, row.work_version, row.chain_commitment, row.asset_hash, row.metadata_hash, row.split_json, row.price_yocto, row.permission_ref]);
+  const cached = verificationCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.item;
+  const pending = pendingVerifications.get(key);
+  if (pending) return pending;
+  const verification = verifiedItem(db, chainClient, row);
+  pendingVerifications.set(key, verification);
+  try {
+    const item = await verification;
+    if (verificationCache.size >= 200) {
+      for (const [entryKey, entry] of verificationCache) if (entry.expiresAt <= Date.now()) verificationCache.delete(entryKey);
+      if (verificationCache.size >= 200) verificationCache.delete(verificationCache.keys().next().value!);
+    }
+    verificationCache.set(key, { item, expiresAt: Date.now() + verificationTtlMs });
+    return item;
+  } finally {
+    pendingVerifications.delete(key);
+  }
+}
 
 export async function catalogueSnapshot(query = ""): Promise<{ readonly items: readonly CatalogueItem[]; readonly staleCount: number }> {
   const db = openStudioCatalogueDatabase();
@@ -82,7 +109,7 @@ export async function catalogueSnapshot(query = ""): Promise<{ readonly items: r
       const row = localRow(db, candidate.work_id, candidate.work_version);
       if (!row) { staleCount += 1; continue; }
       if (query && !row.title.toLowerCase().includes(query.toLowerCase())) continue;
-      try { result.push(await verifiedItem(db, chainClient, row)); } catch (error) { console.warn("Studio catalogue excluded stale release", { workId: row.work_id, version: row.work_version, reason: error instanceof Error ? error.message : "unknown" }); staleCount += 1; }
+      try { result.push(await verifiedItemCached(db, chainClient, row)); } catch (error) { if (isRpcRateLimit(error)) throw error; console.warn("Studio catalogue excluded stale release", { workId: row.work_id, version: row.work_version, reason: error instanceof Error ? error.message : "unknown" }); staleCount += 1; }
     }
     return { items: result, staleCount };
   } finally { db.close(); }
@@ -98,9 +125,9 @@ export async function publishedMedia(assetHash: string): Promise<{ readonly byte
       const row = localRow(db, match.work_id, match.work_version);
       if (!row) continue;
       try {
-        await verifiedItem(db, studioContractClient(), row);
+        await verifiedItemCached(db, studioContractClient(), row);
         return { bytes: new StudioMediaStore(mediaPath).get(assetHash), mimeType: row.mime_type };
-      } catch { /* Continue only if another published version safely references the blob. */ }
+      } catch (error) { if (isRpcRateLimit(error)) throw error; /* Continue only if another published version safely references the blob. */ }
     }
     return null;
   } finally { db.close(); }

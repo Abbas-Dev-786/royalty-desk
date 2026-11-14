@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Account, JsonRpcProvider, KeyPair, KeyPairSigner, actions, baseEncode, type KeyPairString } from "near-api-js";
-import { acceptedStudioReleaseInputFromDatabase, studioDigest, StudioContractClient, type StudioReleaseView } from "@studio/chain";
+import { acceptedStudioReleaseInputFromDatabase, retryRpcRead, studioDigest, StudioContractClient, type StudioReleaseView } from "@studio/chain";
 import { acceptStudioSplit, addStudioPublication, openDatabase, recordStudioPublicationReceipt, StudioMediaStore } from "@studio/persistence";
 import type { DatabaseSync } from "node:sqlite";
 import type { WorkVersion } from "@studio/domain";
@@ -49,9 +49,9 @@ export class StudioReleaseAgentService {
   async #verifyKey(key: ScopedKey, role: string, method: "accept_split" | "create_release" | "publish_release"): Promise<void> {
     const publicKey = KeyPair.fromString(key.secretKey as KeyPairString).getPublicKey().toString();
     if (publicKey !== key.publicKey) throw new Error("ERR_AGENT_KEY_MISMATCH");
-    const access = await this.#provider.viewAccessKey({ accountId: key.accountId, publicKey, finalityQuery: { finality: "final" } });
+    const access = await retryRpcRead(() => this.#provider.viewAccessKey({ accountId: key.accountId, publicKey, finalityQuery: { finality: "final" } }));
     if (access.permission === "FullAccess" || access.permission.FunctionCall.receiver_id !== this.#contractId || JSON.stringify(access.permission.FunctionCall.method_names) !== JSON.stringify([method])) throw new Error("ERR_AGENT_KEY_PERMISSION");
-    const agent = await this.#provider.callFunction<{ role: string; active: boolean; expires_at_ms: number; actions_used: number; max_actions: number }>({ contractId: this.#contractId, method: "get_agent", args: { account_id: key.accountId } }) ?? null;
+    const agent = await retryRpcRead(() => this.#provider.callFunction<{ role: string; active: boolean; expires_at_ms: number; actions_used: number; max_actions: number }>({ contractId: this.#contractId, method: "get_agent", args: { account_id: key.accountId } })) ?? null;
     if (!agent || agent.role !== role || !agent.active || agent.expires_at_ms <= Date.now() || agent.actions_used >= agent.max_actions) throw new Error("ERR_AGENT_CHAIN_SCOPE");
   }
 
@@ -91,7 +91,8 @@ export class StudioReleaseAgentService {
       await this.#verifyKey(key, "producer", "create_release");
       const signer = KeyPairSigner.fromSecretKey(key.secretKey as KeyPairString);
       const account = new Account(producer.account_id, this.#provider);
-      const transaction = await account.createTransaction({ receiverId: this.#contractId, actions: [actions.functionCall("create_release", { input }, 100_000_000_000_000n, 0n)], publicKey: await signer.getPublicKey() });
+      const publicKey = await signer.getPublicKey();
+      const transaction = await retryRpcRead(() => account.createTransaction({ receiverId: this.#contractId, actions: [actions.functionCall("create_release", { input }, 100_000_000_000_000n, 0n)], publicKey }));
       const { txHash, signedTransaction } = await signer.signTransaction(transaction);
       const transactionHash = baseEncode(txHash);
       database.prepare("INSERT INTO studio_external_operations(id, logical_key, operation_type, status, provider_request_id, created_at_ms, updated_at_ms) VALUES (?, ?, 'chain_release_commitment', 'requested', ?, ?, ?)").run(operationId, logicalKey, transactionHash, Date.now(), Date.now());
@@ -172,7 +173,7 @@ export class StudioReleaseAgentService {
     if (final?.published) {
       if (database.prepare("SELECT 1 FROM studio_publications WHERE work_id = ? AND work_version = ? AND chain_tx_hash IS NOT NULL").get(work.workId, work.version)) return;
       if (!existing?.provider_request_id) throw new Error("ERR_PUBLICATION_RECEIPT_REQUIRED");
-      const receipt = await this.#provider.viewTransactionStatusWithReceipts({ txHash: existing.provider_request_id, accountId: producer.account_id, waitUntil: "FINAL" });
+      const receipt = await retryRpcRead(() => this.#provider.viewTransactionStatusWithReceipts({ txHash: existing.provider_request_id!, accountId: producer.account_id, waitUntil: "FINAL" }));
       if (receipt.transaction.hash !== existing.provider_request_id || typeof receipt.status !== "object" || !("SuccessValue" in receipt.status) || receipt.transaction.receiver_id !== this.#contractId) throw new Error("ERR_PUBLICATION_RECEIPT_INVALID");
       if (!database.prepare("SELECT 1 FROM studio_publications WHERE work_id = ? AND work_version = ?").get(work.workId, work.version)) addStudioPublication(database, { workId: work.workId, workVersion: work.version, chainCommitment: final.commitment, policyVersion: final.policy_epoch });
       recordStudioPublicationReceipt(database, { workId: work.workId, workVersion: work.version, chainCommitment: final.commitment, transactionHash: existing.provider_request_id, signerAccountId: producer.account_id });
@@ -185,7 +186,8 @@ export class StudioReleaseAgentService {
     await this.#verifyKey(key, "producer", "publish_release");
     const signer = KeyPairSigner.fromSecretKey(key.secretKey as KeyPairString);
     const account = new Account(producer.account_id, this.#provider);
-    const transaction = await account.createTransaction({ receiverId: this.#contractId, actions: [actions.functionCall("publish_release", { work_id: work.workId, version: work.version, commitment: release.commitment, policy_epoch: release.policy_epoch }, 100_000_000_000_000n, 0n)], publicKey: await signer.getPublicKey() });
+    const publicKey = await signer.getPublicKey();
+    const transaction = await retryRpcRead(() => account.createTransaction({ receiverId: this.#contractId, actions: [actions.functionCall("publish_release", { work_id: work.workId, version: work.version, commitment: release.commitment, policy_epoch: release.policy_epoch }, 100_000_000_000_000n, 0n)], publicKey }));
     const { txHash, signedTransaction } = await signer.signTransaction(transaction);
     const transactionHash = baseEncode(txHash);
     database.prepare("INSERT INTO studio_external_operations(id, logical_key, operation_type, status, provider_request_id, created_at_ms, updated_at_ms) VALUES (?, ?, 'chain_publication', 'requested', ?, ?, ?)").run(operationId, logicalKey, transactionHash, Date.now(), Date.now());

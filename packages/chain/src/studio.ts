@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Account, Provider } from "near-api-js";
 import { actions } from "near-api-js";
+import { retryRpcRead } from "./rpc-rate-limit.ts";
 
 export interface StudioShare { readonly account_id: string; readonly basis_points: number; }
 export interface StudioTrack { readonly song_id: string; readonly song_version: number; readonly basis_points: number; }
@@ -35,16 +36,16 @@ export class StudioContractClient {
     this.contractId = contractId;
     this.provider = provider;
   }
-  async policy(): Promise<StudioPolicyView> { const value = await this.provider.callFunction<StudioPolicyView>({ contractId: this.contractId, method: "get_policy", args: {} }); if (!value) throw new Error("Studio policy is unavailable"); return value; }
-  async admin(): Promise<string> { const value = await this.provider.callFunction<string>({ contractId: this.contractId, method: "get_admin", args: {} }); if (!value) throw new Error("Studio admin is unavailable"); return value; }
-  async guardian(): Promise<string> { const value = await this.provider.callFunction<string>({ contractId: this.contractId, method: "get_guardian", args: {} }); if (!value) throw new Error("Studio guardian is unavailable"); return value; }
-  async agent(accountId: string): Promise<StudioAgentView | null> { return await this.provider.callFunction<StudioAgentView>({ contractId: this.contractId, method: "get_agent", args: { account_id: accountId } }) ?? null; }
-  async release(workId: string, version: number): Promise<StudioReleaseView | null> { return await this.provider.callFunction<StudioReleaseView>({ contractId: this.contractId, method: "get_release", args: { work_id: workId, version } }) ?? null; }
-  async hasAcceptedSplit(workId: string, version: number, accountId: string): Promise<boolean> { return await this.provider.callFunction<boolean>({ contractId: this.contractId, method: "has_accepted_split", args: { work_id: workId, version, account_id: accountId } }) ?? false; }
-  async hasApprovedRelease(workId: string, version: number, policyEpoch: number): Promise<boolean> { return await this.provider.callFunction<boolean>({ contractId: this.contractId, method: "has_approved_release", args: { work_id: workId, version, policy_epoch: policyEpoch } }) ?? false; }
-  async payment(paymentId: string): Promise<StudioPaymentView | null> { return await this.provider.callFunction<StudioPaymentView>({ contractId: this.contractId, method: "get_payment", args: { payment_id: paymentId } }) ?? null; }
-  async earnings(accountId: string): Promise<StudioEarningsView> { const value = await this.provider.callFunction<StudioEarningsView>({ contractId: this.contractId, method: "get_earnings", args: { account_id: accountId } }); if (!value) throw new Error("Studio earnings unavailable"); return value; }
-  async payout(payoutId: string): Promise<StudioPayoutView | null> { return await this.provider.callFunction<StudioPayoutView>({ contractId: this.contractId, method: "get_payout", args: { payout_id: payoutId } }) ?? null; }
+  async policy(): Promise<StudioPolicyView> { const value = await retryRpcRead(() => this.provider.callFunction<StudioPolicyView>({ contractId: this.contractId, method: "get_policy", args: {} })); if (!value) throw new Error("Studio policy is unavailable"); return value; }
+  async admin(): Promise<string> { const value = await retryRpcRead(() => this.provider.callFunction<string>({ contractId: this.contractId, method: "get_admin", args: {} })); if (!value) throw new Error("Studio admin is unavailable"); return value; }
+  async guardian(): Promise<string> { const value = await retryRpcRead(() => this.provider.callFunction<string>({ contractId: this.contractId, method: "get_guardian", args: {} })); if (!value) throw new Error("Studio guardian is unavailable"); return value; }
+  async agent(accountId: string): Promise<StudioAgentView | null> { return await retryRpcRead(() => this.provider.callFunction<StudioAgentView>({ contractId: this.contractId, method: "get_agent", args: { account_id: accountId } })) ?? null; }
+  async release(workId: string, version: number): Promise<StudioReleaseView | null> { return await retryRpcRead(() => this.provider.callFunction<StudioReleaseView>({ contractId: this.contractId, method: "get_release", args: { work_id: workId, version } })) ?? null; }
+  async hasAcceptedSplit(workId: string, version: number, accountId: string): Promise<boolean> { return await retryRpcRead(() => this.provider.callFunction<boolean>({ contractId: this.contractId, method: "has_accepted_split", args: { work_id: workId, version, account_id: accountId } })) ?? false; }
+  async hasApprovedRelease(workId: string, version: number, policyEpoch: number): Promise<boolean> { return await retryRpcRead(() => this.provider.callFunction<boolean>({ contractId: this.contractId, method: "has_approved_release", args: { work_id: workId, version, policy_epoch: policyEpoch } })) ?? false; }
+  async payment(paymentId: string): Promise<StudioPaymentView | null> { return await retryRpcRead(() => this.provider.callFunction<StudioPaymentView>({ contractId: this.contractId, method: "get_payment", args: { payment_id: paymentId } })) ?? null; }
+  async earnings(accountId: string): Promise<StudioEarningsView> { const value = await retryRpcRead(() => this.provider.callFunction<StudioEarningsView>({ contractId: this.contractId, method: "get_earnings", args: { account_id: accountId } })); if (!value) throw new Error("Studio earnings unavailable"); return value; }
+  async payout(payoutId: string): Promise<StudioPayoutView | null> { return await retryRpcRead(() => this.provider.callFunction<StudioPayoutView>({ contractId: this.contractId, method: "get_payout", args: { payout_id: payoutId } })) ?? null; }
   async send(account: Account, methodName: string, args: Record<string, unknown>, depositYocto = 0n): Promise<StudioTransactionResponse> {
     return account.signAndSendTransaction({ receiverId: this.contractId, actions: [actions.functionCall(methodName, args, 100_000_000_000_000n, depositYocto)], waitUntil: "FINAL" });
   }

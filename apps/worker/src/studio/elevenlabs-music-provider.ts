@@ -27,8 +27,19 @@ export interface ElevenLabsMusicProvider {
 export class ElevenLabsMusicHttpError extends Error {
   readonly status: number;
   readonly validationFields: readonly string[];
-  constructor(status: number, validationFields: readonly string[] = []) { super(`ERR_ELEVENLABS_HTTP_${status}`); this.status = status; this.validationFields = validationFields; }
+  readonly providerStatus: string | null;
+  constructor(status: number, validationFields: readonly string[] = [], providerStatus: string | null = null) {
+    super(providerStatus === "bad_composition_plan" ? "ERR_ELEVENLABS_BAD_COMPOSITION_PLAN" : `ERR_ELEVENLABS_HTTP_${status}`);
+    this.status = status;
+    this.validationFields = validationFields;
+    this.providerStatus = providerStatus;
+  }
   get definitiveRejection(): boolean { return [400, 401, 402, 403, 404, 422].includes(this.status); }
+}
+
+function musicErrorStatus(body: unknown): string | null {
+  if (!body || typeof body !== "object" || !("detail" in body) || !body.detail || typeof body.detail !== "object" || !("status" in body.detail)) return null;
+  return typeof body.detail.status === "string" && /^[a-z_]{1,80}$/.test(body.detail.status) ? body.detail.status : null;
 }
 
 function validationFields(body: unknown): string[] {
@@ -87,10 +98,15 @@ export function createElevenLabsMusicProvider(config: { readonly apiKey: string;
       });
       if (!response.ok) {
         let fields: string[] = [];
-        try { fields = validationFields(JSON.parse(await response.text()) as unknown); }
+        let providerStatus: string | null = null;
+        try {
+          const body = JSON.parse(await response.text()) as unknown;
+          fields = validationFields(body);
+          providerStatus = musicErrorStatus(body);
+        }
         catch { /* Keep provider response bodies out of logs. */ }
-        if (fields.length) console.warn("ElevenLabs rejected music plan fields", { status: response.status, fields });
-        throw new ElevenLabsMusicHttpError(response.status, fields);
+        if (fields.length || providerStatus) console.warn("ElevenLabs rejected music plan", { status: response.status, providerStatus, fields });
+        throw new ElevenLabsMusicHttpError(response.status, fields, providerStatus);
       }
       const contentType = response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
       if (!(["audio/mpeg", "audio/mp3", "application/octet-stream"] as readonly string[]).includes(contentType)) throw new Error("ERR_ELEVENLABS_CONTENT_TYPE");

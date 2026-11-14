@@ -62,6 +62,19 @@ test("MED-02 the music plan preserves all approved lyrics across provider chunks
   assert.throws(() => buildSongPlan("x".repeat(201), "folk"), /LYRICS_FORMAT/);
 });
 
+test("MED-02 composition styles omit the song title and preserve the agent's music direction", () => {
+  const lyrics = "Verse 1:\nHello from the morning light\nWe carry on tonight";
+  const composition = 'Composition Plan: "Hello, Hello"\n\nGenre/Style: Synth-pop with indie-electronic textures, mid-tempo, warm analog feel.\n\nTempo: 104 BPM, 4/4 time.\n\nKey: A minor verses shifting to C major.';
+  const plan = buildSongPlan(lyrics, composition);
+  const styles = plan.chunks[0]!.positiveStyles;
+  assert.ok(styles.includes("Synth-pop with indie-electronic textures"));
+  assert.ok(styles.includes("104 BPM"));
+  assert.ok(styles.includes("A minor"));
+  assert.ok(styles.length >= 6);
+  assert.ok(styles.every((style) => !style.includes("Hello, Hello") && !style.includes("Composition Plan:")));
+  assert.match(plan.chunks[0]!.text, /Hello from the morning light/);
+});
+
 test("MED-02 Stability AI adapter starts and polls an async MP3 generation", async () => {
   const bytes = synthesizeMp3();
   const requests: string[] = [];
@@ -187,6 +200,11 @@ test("MED-02 ElevenLabs adapter submits exact lyrics and accepts bounded MP3", a
   assert.equal(result.requestId, "request-1");
   assert.deepEqual(result.bytes, bytes);
   assert.equal(calls, 1);
+});
+
+test("MED-03 ElevenLabs composition rejection exposes a stable support code", async () => {
+  const provider = createElevenLabsMusicProvider({ apiKey: "test-key", fetchImpl: async () => Response.json({ detail: { status: "bad_composition_plan", message: "private provider explanation", data: { composition_plan_suggestion: {} } } }, { status: 400 }) });
+  await assert.rejects(() => provider.compose(vocalPlan), (error: unknown) => error instanceof ElevenLabsMusicHttpError && error.message === "ERR_ELEVENLABS_BAD_COMPOSITION_PLAN" && error.providerStatus === "bad_composition_plan" && error.definitiveRejection);
 });
 
 test("MED-03 rejected ElevenLabs plan can be corrected while keeping the failed journal entry", async () => {

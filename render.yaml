@@ -45,7 +45,9 @@ services:
       - key: STUDIO_PROVIDER_PERMISSION_PATH
         value: /opt/render/project/src/runtime-data/rights/elevenlabs-permission.json
       - key: NEAR_RPC_URL
-        value: https://testnet-rpc.intea.rs
+        value: https://test.rpc.fastnear.com
+      - key: NEAR_RPC_FALLBACK_URLS
+        value: https://rpc.testnet.near.org
       - key: NEAR_AI_BASE_URL
         value: https://cloud-api.near.ai/v1
       - key: NEAR_AI_MODEL

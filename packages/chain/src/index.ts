@@ -12,6 +12,7 @@ export function assertContractIdentity(identity: ContractIdentity): void {
 
 export * from "./studio.ts";
 export * from "./bounded-rpc-provider.ts";
+export * from "./read-fallback-rpc-provider.ts";
 export * from "./rpc-rate-limit.ts";
 export * from "./studio-release-input.ts";
 export * from "./restricted-signer.ts";

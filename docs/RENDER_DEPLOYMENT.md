@@ -28,6 +28,9 @@ Trigger a manual redeploy. Before either process starts, `scripts/render/import-
 
 ## Operational limits
 
+- Web contract reads use `NEAR_RPC_URL`, then the comma-separated `NEAR_RPC_FALLBACK_URLS` on rate limits, network failures, or timeouts. All endpoints must target testnet. When the fallback variable is unset, FastNEAR and the official testnet RPC are available as backups; an empty value disables fallback. Reads share an eight-second deadline with at most 2.5 seconds per endpoint. Publications and media still require successful contract verification; an unavailable provider does not authorize playback or purchases.
+- If `/api/studio/catalogue` reports `ERR_NEAR_RPC_UNAVAILABLE`, check the configured RPC providers. The Intea endpoint returned a rate-limit response during the 15 November 2026 incident while FastNEAR and the official testnet RPC could verify the published release. The Blueprint now selects FastNEAR with the official RPC as backup. Existing services need their environment updated and a manual deployment of this fix; changing this file does not update a running service.
+
 - The disk-backed service has a single instance and brief downtime on deploy. Render does not make a disk available during the build step, so database import happens at runtime before the app starts. See [Render disk limitations](https://render.com/docs/disks#disk-limitations-and-considerations).
 - SQLite, media, and the one-time import copy consume disk space. Back up both active databases and media together before a migration or restore.
 - The Blueprint turns automatic deploys off. Review and trigger each production deploy after checking database compatibility and paid provider operations.

@@ -1,7 +1,7 @@
 import "server-only";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { BoundedRpcProvider } from "@studio/chain";
+import { ReadFallbackRpcProvider, isRpcUnavailable } from "@studio/chain";
 import { StudioContractClient, studioDigest, type StudioReleaseView } from "@studio/chain";
 import { openDatabase, StudioMediaStore } from "@studio/persistence";
 
@@ -15,14 +15,13 @@ const verificationTtlMs = 10_000;
 const verificationCache = new Map<string, { expiresAt: number; item: CatalogueItem }>();
 const pendingVerifications = new Map<string, Promise<CatalogueItem>>();
 
-function isRpcUnavailable(error: unknown): boolean {
-  return error instanceof Error && /(?:ERR_NEAR_RPC_|\b429\b|rate.?limit|too many requests)/i.test(error.message);
-}
-
 export function studioContractClient(deadlineAtMs?: number): StudioContractClient {
   const id = process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID;
   if (!id || id === "studio.example.testnet") throw new Error("STUDIO_CONTRACT_NOT_CONFIGURED");
-  return new StudioContractClient(id, new BoundedRpcProvider(process.env.NEAR_RPC_URL ?? "https://testnet-rpc.intea.rs", 20_000, deadlineAtMs));
+  const primary = process.env.NEAR_RPC_URL ?? "https://test.rpc.fastnear.com";
+  const fallbacks = (process.env.NEAR_RPC_FALLBACK_URLS ?? "https://test.rpc.fastnear.com,https://rpc.testnet.near.org")
+    .split(",").map((url) => url.trim()).filter(Boolean);
+  return new StudioContractClient(id, new ReadFallbackRpcProvider([primary, ...fallbacks], 2_500, deadlineAtMs));
 }
 export function openStudioCatalogueDatabase() {
   if (!existsSync(dbPath)) throw new Error("STUDIO_CATALOGUE_DB_MISSING");

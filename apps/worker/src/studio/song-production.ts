@@ -6,7 +6,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { createElevenLabsMusicProvider, type ElevenLabsMusicProvider, type ElevenLabsSongRequest } from "./elevenlabs-music-provider.ts";
 import { generateElevenLabsSong } from "./elevenlabs-music-service.ts";
 import { parseSplitDecision } from "./creative-graph.ts";
-import { selectSongPreviewLyrics } from "./song-preview.ts";
+import { buildSongPlan } from "./song-plan.ts";
 
 const digest = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
 const requestSchema = z.object({
@@ -28,6 +28,21 @@ function output(database: DatabaseSync, request: SongProductionRequest, agentId:
   if (!row) throw new Error(`ERR_SONG_LIVE_OUTPUT_MISSING:${role}`);
   const parsed = z.object({ content: z.string().min(1).max(12_000) }).strict().parse(JSON.parse(row.output_json) as unknown);
   return { content: parsed.content, hash: row.output_hash };
+}
+
+function acceptedCreativeWork(database: DatabaseSync, request: SongProductionRequest): { lyrics: ModelOutput; review: ModelOutput } {
+  for (let revision = 2; revision >= 0; revision -= 1) {
+    let review: ModelOutput;
+    try { review = output(database, request, request.reviewerId, "review", revision); }
+    catch (error) {
+      if (error instanceof Error && error.message === "ERR_SONG_LIVE_OUTPUT_MISSING:review") continue;
+      throw error;
+    }
+    if (review.content.startsWith("ACCEPT:")) {
+      return { review, lyrics: output(database, request, request.lyricistId, revision === 0 ? "lyrics" : "revision", Math.max(0, revision - 1)) };
+    }
+  }
+  throw new Error("ERR_SONG_REVIEW_NOT_ACCEPTED");
 }
 
 export class StudioSongProductionService {
@@ -63,12 +78,10 @@ export class StudioSongProductionService {
     try {
       const project = database.prepare("SELECT studio_id FROM studio_projects WHERE id = ?").get(request.projectId) as { studio_id: string } | undefined;
       if (!project) throw new Error("ERR_SONG_PROJECT_MISSING");
-      const lyrics = output(database, request, request.lyricistId, "lyrics");
+      const { lyrics, review } = acceptedCreativeWork(database, request);
       const composition = output(database, request, request.composerId, "composition");
-      const review = output(database, request, request.reviewerId, "review");
       const proposal = output(database, request, request.lyricistId, "split_proposal");
       const response = output(database, request, request.composerId, "split_response");
-      if (!review.content.startsWith("ACCEPT:")) throw new Error("ERR_SONG_REVIEW_NOT_ACCEPTED");
       const proposed = z.object({ lyricistBasisPoints: z.number().int().min(0).max(10_000), composerBasisPoints: z.number().int().min(0).max(10_000) }).passthrough().parse(JSON.parse(proposal.content) as unknown);
       const composerDecision = parseSplitDecision(response.content);
       const counterAcceptance = composerDecision.decision === "counter" ? output(database, request, request.lyricistId, "split_proposal", 1) : null;
@@ -81,7 +94,7 @@ export class StudioSongProductionService {
       const existing = database.prepare("SELECT w.studio_id, w.project_id, w.kind FROM studio_works w WHERE w.id = ?").get(workId) as { studio_id: string; project_id: string; kind: string } | undefined;
       if (existing && (existing.studio_id !== project.studio_id || existing.project_id !== request.projectId || existing.kind !== "song")) throw new Error("ERR_SONG_WORK_COLLISION");
       if (!existing) createStudioWork(database, { id: workId, studioId: project.studio_id, projectId: request.projectId, kind: "song" });
-      const plan: ElevenLabsSongRequest = { model: "music_v2_5", chunks: [{ text: selectSongPreviewLyrics(lyrics.content), durationMs: 20_000, positiveStyles: [composition.content.replace(/\s+/g, " ").slice(0, 160), "clear sung English vocals", "polished original recording"], negativeStyles: ["spoken word", "named artist imitation", "existing song melody"], contextAdherence: "high" }] };
+      const plan: ElevenLabsSongRequest = buildSongPlan(lyrics.content, composition.content);
       const media = new StudioMediaStore(this.#mediaPath);
       const generated = await generateElevenLabsSong(database, media, this.#provider, { projectId: request.projectId, workId, workVersion: 1, revision: 0, agentId: request.composerId, plan, licenseRef: this.#licenseRef });
       const metadata = { title: request.title, briefHash: digest(request.brief), lyrics: lyrics.content, composition: composition.content, lyricSourceHash: lyrics.hash, compositionSourceHash: composition.hash, reviewSourceHash: review.hash, splitProposalSourceHash: proposal.hash, splitResponseHash: response.hash, ...(counterAcceptance ? { counterAcceptanceHash: counterAcceptance.hash } : {}), planHash: generated.planHash, assetHash: generated.assetHash };

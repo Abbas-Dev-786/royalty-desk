@@ -89,7 +89,7 @@ CREATE TABLE studio_policies (
         mode TEXT NOT NULL CHECK(mode IN ('human_review','autonomous')),
         max_generation_calls INTEGER NOT NULL CHECK(max_generation_calls > 0),
         max_payout_yocto TEXT NOT NULL, paused INTEGER NOT NULL CHECK(paused IN (0,1)),
-        effective_at_ms INTEGER NOT NULL, max_music_request_duration_ms INTEGER NOT NULL DEFAULT 30000 CHECK(max_music_request_duration_ms BETWEEN 3000 AND 600000), max_music_total_duration_ms INTEGER NOT NULL DEFAULT 120000 CHECK(max_music_total_duration_ms >= max_music_request_duration_ms), PRIMARY KEY(studio_id, version)
+        effective_at_ms INTEGER NOT NULL, max_music_request_duration_ms INTEGER NOT NULL DEFAULT 600000 CHECK(max_music_request_duration_ms BETWEEN 3000 AND 600000), max_music_total_duration_ms INTEGER NOT NULL DEFAULT 600000 CHECK(max_music_total_duration_ms >= max_music_request_duration_ms), PRIMARY KEY(studio_id, version)
       ) STRICT;
 
 CREATE TABLE studio_projects (

@@ -15,7 +15,7 @@ export function addStudioPolicy(database: DatabaseSync, policy: StudioPolicy, ef
   validateStudioPolicy(policy);
   const previous = database.prepare("SELECT COALESCE(MAX(version), 0) AS version FROM studio_policies WHERE studio_id = ?").get(policy.studioId) as { version: number };
   if (policy.version !== previous.version + 1) throw new Error("Stale or skipped policy version");
-  database.prepare("INSERT INTO studio_policies(studio_id, version, mode, max_generation_calls, max_music_request_duration_ms, max_music_total_duration_ms, max_payout_yocto, paused, effective_at_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(policy.studioId, policy.version, policy.mode, policy.maxGenerationCalls, policy.maxMusicRequestDurationMs ?? 30_000, policy.maxMusicTotalDurationMs ?? 120_000, policy.maxPayoutYocto, policy.paused ? 1 : 0, effectiveAtMs);
+  database.prepare("INSERT INTO studio_policies(studio_id, version, mode, max_generation_calls, max_music_request_duration_ms, max_music_total_duration_ms, max_payout_yocto, paused, effective_at_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(policy.studioId, policy.version, policy.mode, policy.maxGenerationCalls, policy.maxMusicRequestDurationMs ?? 600_000, policy.maxMusicTotalDurationMs ?? 600_000, policy.maxPayoutYocto, policy.paused ? 1 : 0, effectiveAtMs);
 }
 
 export function createStudioProject(database: DatabaseSync, input: { readonly id: string; readonly studioId: string; readonly title: string }, nowMs = Date.now()): void {

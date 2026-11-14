@@ -94,8 +94,8 @@ export function validateStudioPolicy(policy: StudioPolicy): void {
   if (!Number.isSafeInteger(policy.version) || policy.version < 1) throw new Error("Invalid policy version");
   if (policy.mode !== "human_review" && policy.mode !== "autonomous") throw new Error("Invalid policy mode");
   if (!Number.isSafeInteger(policy.maxGenerationCalls) || policy.maxGenerationCalls < 1 || policy.maxGenerationCalls > 1000) throw new Error("Invalid generation budget");
-  const perRequestMs = policy.maxMusicRequestDurationMs ?? 30_000;
-  const totalMs = policy.maxMusicTotalDurationMs ?? 120_000;
+  const perRequestMs = policy.maxMusicRequestDurationMs ?? 600_000;
+  const totalMs = policy.maxMusicTotalDurationMs ?? 600_000;
   if (!Number.isSafeInteger(perRequestMs) || perRequestMs < 3_000 || perRequestMs > 600_000) throw new Error("Invalid music request duration budget");
   if (!Number.isSafeInteger(totalMs) || totalMs < perRequestMs || totalMs > 600_000_000) throw new Error("Invalid music total duration budget");
   parseYocto(policy.maxPayoutYocto);

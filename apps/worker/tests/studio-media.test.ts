@@ -11,7 +11,7 @@ import { MusicProviderHttpError, createStabilityMusicProvider, type MusicProvide
 import { generateDraftMusic } from "../src/studio/music-service.ts";
 import { createElevenLabsMusicProvider, ElevenLabsMusicHttpError, musicPlanHash, validateMusicPlan, type ElevenLabsMusicProvider, type ElevenLabsSongRequest } from "../src/studio/elevenlabs-music-provider.ts";
 import { generateElevenLabsSong } from "../src/studio/elevenlabs-music-service.ts";
-import { selectSongPreviewLyrics } from "../src/studio/song-preview.ts";
+import { buildSongPlan } from "../src/studio/song-plan.ts";
 import { StudioSongProductionService } from "../src/studio/song-production.ts";
 import { runCreativeModelStep } from "../src/studio/creative-model.ts";
 import type { AgentModel } from "../src/near-ai/model.ts";
@@ -49,12 +49,16 @@ const draft = { projectId: "project-a", workId: "song-a", workVersion: 1, revisi
 const generationId = "b".repeat(64);
 const vocalPlan: ElevenLabsSongRequest = { model: "music_v2_5", chunks: [{ text: "[Verse]\nRiver light begins to glow", durationMs: 4000, positiveStyles: ["acoustic folk", "clear sung English vocals", "fingerpicked guitar", "warm strings", "gentle 6/8", "soft delivery", "polished recording"], negativeStyles: ["spoken word", "a cappella"], contextAdherence: "high" }] };
 
-test("MED-02 short previews fit ElevenLabs chunk limits even when agents write a full song", () => {
+test("MED-02 the music plan preserves all approved lyrics across provider chunks", () => {
   const longLyrics = `Verse 1:\n${Array.from({ length: 32 }, (_, index) => `Verse lyric ${index + 1}`).join("\n")}\n\nChorus:\nMoon knows my sorrow\nIt hums in a minor key\nEvery raga of the evening\nYou loved and left me\n\nBridge:\nAnother life`;
   assert.throws(() => validateMusicPlan({ ...vocalPlan, chunks: [{ ...vocalPlan.chunks[0]!, text: `[Verse]\n${longLyrics}` }] }), /LYRICS_FORMAT/);
-  const text = selectSongPreviewLyrics(longLyrics);
-  assert.equal(text, "[Chorus]\nMoon knows my sorrow\nIt hums in a minor key\nEvery raga of the evening\nYou loved and left me");
-  assert.equal(validateMusicPlan({ ...vocalPlan, chunks: [{ ...vocalPlan.chunks[0]!, text }] }), 4000);
+  const plan = buildSongPlan(longLyrics, "Warm acoustic folk with strings");
+  assert.ok(plan.chunks.length > 1);
+  assert.ok(validateMusicPlan(plan) > 20_000);
+  const allText = plan.chunks.map((chunk) => chunk.text).join("\n");
+  for (const line of longLyrics.split("\n").map((value) => value.trim()).filter((value) => value && !/^(Verse|Chorus|Bridge)/.test(value))) assert.ok(allText.includes(line));
+  assert.match(allText, /\[Chorus\]/);
+  assert.throws(() => buildSongPlan("x".repeat(201), "folk"), /LYRICS_FORMAT/);
 });
 
 test("MED-02 Stability AI adapter starts and polls an async MP3 generation", async () => {
@@ -231,12 +235,12 @@ test("MED-08 accepted live agent outputs create one review song without a second
   const database = openDatabase(databasePath);
   createStudio(database, "studio-a", "admin.testnet");
   createStudioProject(database, { id: "project-a", studioId: "studio-a", title: "Two songs" });
-  addStudioAgent(database, { id: "lyricist", studioId: "studio-a", accountId: "lyricist.testnet", controllerAccountId: "admin.testnet", role: "lyricist", active: true, allowedTools: ["lyrics", "split_proposal"] });
+  addStudioAgent(database, { id: "lyricist", studioId: "studio-a", accountId: "lyricist.testnet", controllerAccountId: "admin.testnet", role: "lyricist", active: true, allowedTools: ["lyrics", "revision", "split_proposal"] });
   addStudioAgent(database, { id: "composer", studioId: "studio-a", accountId: "composer.testnet", controllerAccountId: "admin.testnet", role: "composer", active: true, allowedTools: ["composition", "split_response", "music_generation"] });
   addStudioAgent(database, { id: "reviewer", studioId: "studio-a", accountId: "reviewer.testnet", controllerAccountId: "admin.testnet", role: "reviewer", active: true, allowedTools: ["review"] });
-  addStudioPolicy(database, { studioId: "studio-a", version: 1, mode: "autonomous", maxGenerationCalls: 2, maxMusicRequestDurationMs: 20_000, maxMusicTotalDurationMs: 40_000, maxPayoutYocto: "0", paused: false });
+  addStudioPolicy(database, { studioId: "studio-a", version: 1, mode: "autonomous", maxGenerationCalls: 3, maxMusicRequestDurationMs: 180_000, maxMusicTotalDurationMs: 600_000, maxPayoutYocto: "0", paused: false });
   const brief = "Write a hopeful original river song with sung vocals";
-  const contents = new Map<string, string>([["lyrics", "River light is rising, and a new day calls"], ["composition", "Warm acoustic folk with gentle strings"], ["review", "ACCEPT: original and suitable"], ["split_proposal", '{"lyricistBasisPoints":5000,"composerBasisPoints":5000}'], ["split_response", '{"decision":"accept","lyricistBasisPoints":5000,"composerBasisPoints":5000}']]);
+  const contents = new Map<string, string>([["lyrics", "Verse 1:\nRiver light is rising\nA new day calls\nThe water carries me\nToward a brighter shore\nChorus:\nWe sing beneath the sun\nAnd greet the morning"], ["composition", "Warm acoustic folk with gentle strings"], ["review", "ACCEPT: original and suitable"], ["split_proposal", '{"lyricistBasisPoints":5000,"composerBasisPoints":5000}'], ["split_response", '{"decision":"accept","lyricistBasisPoints":5000,"composerBasisPoints":5000}']]);
   const model: AgentModel = { mode: "live", complete: async ({ system }) => {
     const role = system.match(/You are the (\S+) agent/)?.[1] ?? "";
     return { model: "test/live", content: JSON.stringify({ content: contents.get(role) ?? "" }) };
@@ -245,7 +249,7 @@ test("MED-08 accepted live agent outputs create one review song without a second
   for (const [agentId, role] of steps) await runCreativeModelStep(database, model, { projectId: "project-a", agentId, role, revision: 0, brief, context: role, maxCalls: 6, maxOutputTokens: 100 });
   database.close();
   let calls = 0;
-  const provider: ElevenLabsMusicProvider = { compose: async (plan) => { calls += 1; return { bytes: synthesizeMp3(440 + calls, 4000, 20), contentType: "audio/mpeg", requestId: `test-request-${calls}`, planHash: musicPlanHash(plan) }; } };
+  const provider: ElevenLabsMusicProvider = { compose: async (plan) => { calls += 1; const text = plan.chunks.map((chunk) => chunk.text).join("\n"); if (calls === 1) { assert.ok(validateMusicPlan(plan) > 20_000); assert.match(text, /We sing beneath the sun/); } if (calls === 3) { assert.match(text, /New approved lyric line/); assert.doesNotMatch(text, /Old lyric/); } return { bytes: synthesizeMp3(440 + calls, 4000, 20), contentType: "audio/mpeg", requestId: `test-request-${calls}`, planHash: musicPlanHash(plan) }; } };
   const service = new StudioSongProductionService(databasePath, join(root, "media"), provider, "owner-confirmation-testnet");
   const request = { projectId: "project-a", brief, title: "River Light", lyricistId: "lyricist", composerId: "composer", reviewerId: "reviewer" };
   const first = await service.generate(request);
@@ -273,6 +277,23 @@ test("MED-08 accepted live agent outputs create one review song without a second
     const split = JSON.parse((reopened.prepare("SELECT split_json FROM studio_work_versions WHERE work_id = ? AND version = 1").get(counterSong.workId) as { split_json: string }).split_json) as { agentId: string; basisPoints: number }[];
     assert.deepEqual(split.map((share) => share.basisPoints), [4000, 6000]);
     assert.equal(calls, 2);
+    createStudioProject(reopened, { id: "project-revised", studioId: "studio-a", title: "Revised song" });
+    const revisedSteps = [
+      { agentId: "lyricist", role: "lyrics" as const, revision: 0, content: "Old lyric that the reviewer rejects" },
+      { agentId: "composer", role: "composition" as const, revision: 0, content: "Warm acoustic folk" },
+      { agentId: "reviewer", role: "review" as const, revision: 0, content: "REVISE: change the first verse" },
+      { agentId: "lyricist", role: "revision" as const, revision: 0, content: "New approved lyric line" },
+      { agentId: "reviewer", role: "review" as const, revision: 1, content: "ACCEPT: revised lyrics" },
+      { agentId: "lyricist", role: "split_proposal" as const, revision: 0, content: '{"lyricistBasisPoints":5000,"composerBasisPoints":5000}' },
+      { agentId: "composer", role: "split_response" as const, revision: 0, content: '{"decision":"accept","lyricistBasisPoints":5000,"composerBasisPoints":5000}' }
+    ];
+    for (const step of revisedSteps) {
+      const revisedModel: AgentModel = { mode: "live", complete: async () => ({ model: "test/live", content: JSON.stringify({ content: step.content }) }) };
+      await runCreativeModelStep(reopened, revisedModel, { projectId: "project-revised", agentId: step.agentId, role: step.role, revision: step.revision, brief, context: `${step.role}:${step.revision}`, maxCalls: 6, maxOutputTokens: 100 });
+    }
+    const revisedSong = await service.generate({ ...request, projectId: "project-revised", title: "Revised River" });
+    assert.equal(revisedSong.state, "review");
+    assert.equal(calls, 3);
   } finally { reopened.close(); }
 });
 

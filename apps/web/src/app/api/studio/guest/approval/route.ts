@@ -8,16 +8,18 @@ export async function GET(request: Request): Promise<Response> {
     const projectId = new URL(request.url).searchParams.get("projectId") ?? undefined;
     const guest = guestSong(accountId, projectId);
     if (!guest?.work_id) return Response.json({ error: "ERR_GUEST_SONG_NOT_READY" }, { status: 409, headers });
+    const database = openStudioCatalogueDatabase();
+    let version: { state: string; asset_hash: string } | undefined;
+    try {
+      version = database.prepare("SELECT state, asset_hash FROM studio_work_versions WHERE work_id = ? AND version = 1").get(guest.work_id) as { state: string; asset_hash: string } | undefined;
+    } finally { database.close(); }
+    if (!version) return Response.json({ error: "ERR_GUEST_SONG_NOT_READY" }, { status: 409, headers });
+    if (version.state === "review") return Response.json({ ready: false, workId: guest.work_id, version: 1, state: "review" }, { headers });
+    if (version.state !== "accepted") return Response.json({ error: "ERR_GUEST_SONG_NOT_READY" }, { status: 409, headers });
     const chain = studioContractClient();
     const guardianId = await chain.guardian();
-    const database = openStudioCatalogueDatabase();
-    let assetHash: string | undefined;
-    try {
-      assetHash = (database.prepare("SELECT asset_hash FROM studio_work_versions WHERE work_id = ? AND version = 1 AND state = 'accepted'").get(guest.work_id) as { asset_hash: string } | undefined)?.asset_hash;
-    } finally { database.close(); }
-    if (!assetHash) return Response.json({ error: "ERR_GUEST_SONG_NOT_READY" }, { status: 409, headers });
     const [policy, release] = await Promise.all([chain.policy(), chain.release(guest.work_id, 1)]);
-    if (!release || release.media_hash !== assetHash) return Response.json({ error: "ERR_GUEST_RELEASE_CHANGED" }, { status: 409, headers });
+    if (!release || release.media_hash !== version.asset_hash) return Response.json({ error: "ERR_GUEST_RELEASE_CHANGED" }, { status: 409, headers });
     if (release.published) return Response.json({ published: true, workId: guest.work_id, version: 1 }, { headers });
     if (release.policy_epoch !== policy.epoch) return Response.json({ error: "ERR_GUEST_RELEASE_POLICY_STALE" }, { status: 409, headers });
     if (policy.paused) return Response.json({ error: "ERR_STUDIO_PAUSED" }, { status: 409, headers });

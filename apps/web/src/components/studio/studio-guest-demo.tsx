@@ -17,7 +17,8 @@ interface GuestDemo { readonly projectId: string; readonly title: string; readon
 interface GuestSongSummary { readonly projectId: string; readonly title: string; readonly createdAtMs: number; readonly status: string; readonly hasRecording: boolean; readonly published: boolean; }
 interface GuestApprovalPending { readonly published: false; readonly contractId: string; readonly guardianId: string; readonly workId: string; readonly version: number; readonly commitment: string; readonly policyEpoch: number; readonly approved: boolean; readonly requiresApproval: boolean; }
 interface GuestApprovalPublished { readonly published: true; readonly workId: string; readonly version: number; }
-type GuestApprovalResponse = GuestApprovalPending | GuestApprovalPublished | { readonly error: string };
+interface GuestApprovalPreparing { readonly ready: false; readonly workId: string; readonly version: number; readonly state: "review"; }
+type GuestApprovalResponse = GuestApprovalPending | GuestApprovalPublished | GuestApprovalPreparing | { readonly error: string };
 function explainError(error: string): string {
   if (error === "ERR_GUEST_WORKER_UNAVAILABLE") return "The studio worker is offline. Your song brief is saved. Continue this song after the worker starts.";
   if (error === "ERR_GUEST_RUN_OUTCOME_UNKNOWN") return "The connection to the worker ended after the agent run was requested. Refresh progress before doing anything else; an agent request may still be running or may have used credits.";

@@ -3,6 +3,7 @@ export interface AgentModelRequest {
   readonly user: string;
   readonly inputDigest: string;
   readonly maxOutputTokens: number;
+  readonly responseFormat: { readonly type: "json_schema"; readonly json_schema: { readonly name: string; readonly strict: true; readonly schema: Readonly<Record<string, unknown>> } };
 }
 
 export interface AgentModelResult {
@@ -52,7 +53,7 @@ export function createNearAiAgentModel(config: { readonly baseUrl: string; reado
       const response = await fetch(`${config.baseUrl.replace(/\/$/, "")}/chat/completions`, {
         method: "POST",
         headers: { authorization: `Bearer ${config.apiKey}`, "content-type": "application/json" },
-        body: JSON.stringify({ model: config.model, temperature: 0, max_tokens: request.maxOutputTokens, response_format: { type: "json_object" }, ...(config.model === "z-ai/glm-5.3-flash" ? { reasoning_effort: "low", thinking: { type: "enabled" } } : {}), messages: [{ role: "system", content: request.system }, { role: "user", content: request.user }] }),
+        body: JSON.stringify({ model: config.model, temperature: 0, max_tokens: request.maxOutputTokens, response_format: request.responseFormat, messages: [{ role: "system", content: request.system }, { role: "user", content: request.user }] }),
         signal: AbortSignal.timeout(config.timeoutMs ?? 120_000)
       });
       if (!response.ok) throw new Error(`ERR_NEAR_AI_HTTP_${response.status}`);

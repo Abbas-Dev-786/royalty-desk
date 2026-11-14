@@ -49,7 +49,7 @@ services:
       - key: NEAR_AI_BASE_URL
         value: https://cloud-api.near.ai/v1
       - key: NEAR_AI_MODEL
-        sync: false
+        value: openai/gpt-4.1
       - key: NEAR_AI_API_KEY
         sync: false
       - key: ELEVENLABS_API_KEY

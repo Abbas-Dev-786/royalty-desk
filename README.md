@@ -209,6 +209,8 @@ The automation uses limited function-call keys tied to the expected contract and
 
 Recordings, model outputs, and SQLite databases remain off-chain. The public catalogue checks the stored media and release details against NEAR before showing a published work. This lets visitors play audio through an ordinary web app while inspecting the rules and transactions that govern its release and revenue.
 
+The creative agents use `openai/gpt-4.1` through NEAR AI Cloud by default. Each step sends a role-specific JSON schema: text for lyrics and composition, an `ACCEPT:` or `REVISE:` review, or integer basis-point fields for revenue negotiation. The worker validates the result again before storing it or generating audio. This model uses NEAR AI Cloud's Incognito route to a partner provider; its inference is not TEE-attested.
+
 ## Repository map
 
 | Path | Responsibility |
@@ -237,7 +239,7 @@ Edit `.env` before starting. At minimum, replace the example contract ID and wor
 | `NEXT_PUBLIC_STUDIO_CONTRACT_ID` | Deployed NEAR **testnet** contract, not `studio.example.testnet`. |
 | `STUDIO_WORKER_TOKEN` | Private web-to-worker bearer token, at least 32 characters. |
 | `STUDIO_APP_DB_PATH`, `STUDIO_CATALOGUE_DB_PATH`, `STUDIO_MEDIA_PATH` | Shared app database, catalogue database, and recording storage. |
-| `NEAR_AI_MODEL`, `NEAR_AI_API_KEY` | Live creative-agent inference. |
+| `NEAR_AI_MODEL`, `NEAR_AI_API_KEY` | Live creative-agent inference; the default model is `openai/gpt-4.1`. |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_PERMISSION_REF` | Final song generation and provider permission record. |
 | `STUDIO_JOURNEY_PATH` | Private scoped-key file for automated on-chain agent actions. |
 | `STUDIO_AUTONOMOUS_REVENUE` | Set to `true` only with valid scoped allocation and payout keys. |

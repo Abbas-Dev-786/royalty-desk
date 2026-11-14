@@ -89,7 +89,7 @@ export function createCreativeGraph(options: CreativeGraphOptions) {
     })
     .addNode("revise_lyrics", async (state) => ({ lyrics: await step("revision", options.lyricistId, state, `Revise lyrics using feedback: ${state.review}`), revisionCount: state.revisionCount + 1 }))
     .addNode("propose_split", async (state) => {
-      const raw = await step("split_proposal", options.lyricistId, state, "Propose contributor shares totaling 10000 basis points. Your content field must contain only a JSON object string with integer lyricistBasisPoints and composerBasisPoints. No prose, markdown, or explanation.");
+      const raw = await step("split_proposal", options.lyricistId, state, "Propose contributor shares totaling 10000 basis points. Return integer lyricistBasisPoints and composerBasisPoints in the required response schema.");
       const proposal = parseSplitProposal(raw);
       return { splitProposal: JSON.stringify(proposal) };
     })
@@ -103,7 +103,7 @@ export function createCreativeGraph(options: CreativeGraphOptions) {
     })
     .addNode("accept_counter", async (state) => {
       const counter = decisionSchema.parse(JSON.parse(state.splitDecision) as unknown);
-      const raw = await step("split_proposal", options.lyricistId, state, `Composer countered your split with ${counter.lyricistBasisPoints} lyricist basis points and ${counter.composerBasisPoints} composer basis points. Return JSON inside content with decision accept and those exact values if you agree, or decision counter with your alternative values totaling 10000.`, state.revisionCount + 1);
+      const raw = await step("split_proposal", options.lyricistId, state, `Composer countered your split with ${counter.lyricistBasisPoints} lyricist basis points and ${counter.composerBasisPoints} composer basis points. Return decision accept and those exact values if you agree, or decision counter with your alternative values totaling 10000, using the required response schema.`, state.revisionCount + 1);
       const answer = parseSplitDecision(raw);
       if (answer.lyricistBasisPoints + answer.composerBasisPoints !== 10_000) throw new Error("ERR_CREATIVE_SPLIT_TOTAL");
       const agreed = answer.decision === "accept" && answer.lyricistBasisPoints === counter.lyricistBasisPoints && answer.composerBasisPoints === counter.composerBasisPoints;

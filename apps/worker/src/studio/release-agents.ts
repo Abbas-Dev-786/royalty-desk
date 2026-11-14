@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { Account, JsonRpcProvider, KeyPair, KeyPairSigner, actions, baseEncode, type KeyPairString } from "near-api-js";
-import { acceptedStudioReleaseInputFromDatabase, retryRpcRead, studioDigest, StudioContractClient, type StudioReleaseView } from "@studio/chain";
+import { Account, JsonRpcProvider, KeyPair, KeyPairSigner, SignedTransaction, actions, baseEncode, type KeyPairString } from "near-api-js";
+import { UnknownTransactionError } from "near-api-js/rpc-errors";
+import { acceptedStudioReleaseInputFromDatabase, retryRpcRead, retrySignedTransactionAfterRateLimit, studioDigest, StudioContractClient, type StudioReleaseView } from "@studio/chain";
 import { acceptStudioSplit, addStudioPublication, openDatabase, recordStudioPublicationReceipt, StudioMediaStore } from "@studio/persistence";
 import type { DatabaseSync } from "node:sqlite";
 import type { WorkVersion } from "@studio/domain";
@@ -55,17 +56,21 @@ export class StudioReleaseAgentService {
     if (!agent || agent.role !== role || !agent.active || agent.expires_at_ms <= Date.now() || agent.actions_used >= agent.max_actions) throw new Error("ERR_AGENT_CHAIN_SCOPE");
   }
 
+  async #sendSignedTransaction(signedTransaction: SignedTransaction) {
+    return retrySignedTransactionAfterRateLimit(signedTransaction, (transaction) => this.#provider.sendTransactionUntil(transaction, "FINAL"));
+  }
+
   async finalize(workId: string, version: number, reviewerId: string): Promise<{ readonly workId: string; readonly version: number; readonly acceptedAccounts: readonly string[]; readonly published: boolean }> {
     if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(workId) || !Number.isSafeInteger(version) || version < 1 || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(reviewerId)) throw new Error("ERR_RELEASE_AGENT_INPUT");
     const database = openDatabase(this.#databasePath);
     try {
       prepareAgentReviewedSong(database, new StudioMediaStore(this.#mediaPath), this.#contractId, workId, version, reviewerId);
     } finally { database.close(); }
-    await this.commit(workId, version);
+    await this.commit(workId, version, true);
     return this.accept(workId, version);
   }
 
-  async commit(workId: string, version: number): Promise<StudioReleaseView> {
+  async commit(workId: string, version: number, allowUnknownRetry = false): Promise<StudioReleaseView> {
     if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(workId) || !Number.isSafeInteger(version) || version < 1) throw new Error("ERR_RELEASE_AGENT_INPUT");
     const database = openDatabase(this.#databasePath);
     try {
@@ -83,8 +88,42 @@ export class StudioReleaseAgentService {
         return existing;
       }
       const logicalKey = `release-commit:${workId}:${version}`;
-      const operationId = digest(logicalKey);
-      if (database.prepare("SELECT 1 FROM studio_external_operations WHERE id = ?").get(operationId)) throw new Error("ERR_RELEASE_COMMIT_OUTCOME_UNKNOWN");
+      const prior = database.prepare("SELECT status, provider_request_id, created_at_ms FROM studio_external_operations WHERE id = ? AND operation_type = 'chain_release_commitment'").get(digest(logicalKey)) as { status: string; provider_request_id: string | null; created_at_ms: number } | undefined;
+      let retryUnknown = false;
+      if (prior) {
+        let transactionNotFound = false;
+        if (prior.provider_request_id) {
+          const producer = database.prepare("SELECT account_id FROM studio_agents WHERE studio_id = ? AND role = 'producer' LIMIT 1").get(studio.studio_id) as { account_id: string } | undefined;
+          if (producer) {
+            try {
+              const receipt = await retryRpcRead(() => this.#provider.viewTransactionStatusWithReceipts({ txHash: prior.provider_request_id!, accountId: producer.account_id, waitUntil: "NONE" }));
+              if (receipt.transaction.hash !== prior.provider_request_id || receipt.transaction.signer_id !== producer.account_id || receipt.transaction.receiver_id !== this.#contractId) throw new Error("ERR_RELEASE_COMMIT_RECEIPT_MISMATCH");
+              if (receipt.final_execution_status !== "FINAL") throw new Error("ERR_RELEASE_COMMIT_OUTCOME_UNKNOWN");
+              if (typeof receipt.status === "object" && "Failure" in receipt.status) {
+                database.prepare("UPDATE studio_external_operations SET status = 'failed', updated_at_ms = ? WHERE id = ?").run(Date.now(), digest(logicalKey));
+                throw new Error("ERR_RELEASE_COMMIT_CHAIN_FAILURE");
+              }
+              if (typeof receipt.status === "object" && "SuccessValue" in receipt.status) throw new Error("ERR_RELEASE_COMMIT_STATE_MISMATCH");
+              throw new Error("ERR_RELEASE_COMMIT_OUTCOME_UNKNOWN");
+            } catch (error) {
+              if (error instanceof Error && error.message.startsWith("ERR_RELEASE_COMMIT_")) throw error;
+              transactionNotFound = error instanceof UnknownTransactionError;
+            }
+          }
+        }
+        // create_release is unique by work/version on-chain. A second signed attempt can consume gas,
+        // but cannot create a second release. Preserve the first hash for later reconciliation.
+        if (!allowUnknownRetry || prior.status !== "unknown" || !transactionNotFound || Date.now() - prior.created_at_ms < 120_000 || database.prepare("SELECT 1 FROM studio_external_operations WHERE logical_key = ?").get(`${logicalKey}:retry:1`)) throw new Error("ERR_RELEASE_COMMIT_OUTCOME_UNKNOWN");
+        const refreshed = await client.release(workId, version);
+        if (refreshed) {
+          const matches = (Object.keys(input) as (keyof typeof input)[]).every((key) => JSON.stringify(refreshed[key]) === JSON.stringify(input[key]));
+          if (!matches) throw new Error("ERR_RELEASE_CHAIN_MISMATCH");
+          return refreshed;
+        }
+        retryUnknown = true;
+      }
+      const attemptKey = retryUnknown ? `${logicalKey}:retry:1` : logicalKey;
+      const operationId = digest(attemptKey);
       const producer = database.prepare("SELECT role, account_id FROM studio_agents WHERE studio_id = ? AND role = 'producer' AND active = 1 AND revoked_at_ms IS NULL LIMIT 1").get(studio.studio_id) as { role: string; account_id: string } | undefined;
       if (!producer) throw new Error("ERR_PRODUCER_MISSING");
       const key = this.#scopedKey("producer", producer.account_id, "create_release");
@@ -95,9 +134,9 @@ export class StudioReleaseAgentService {
       const transaction = await retryRpcRead(() => account.createTransaction({ receiverId: this.#contractId, actions: [actions.functionCall("create_release", { input }, 100_000_000_000_000n, 0n)], publicKey }));
       const { txHash, signedTransaction } = await signer.signTransaction(transaction);
       const transactionHash = baseEncode(txHash);
-      database.prepare("INSERT INTO studio_external_operations(id, logical_key, operation_type, status, provider_request_id, created_at_ms, updated_at_ms) VALUES (?, ?, 'chain_release_commitment', 'requested', ?, ?, ?)").run(operationId, logicalKey, transactionHash, Date.now(), Date.now());
+      database.prepare("INSERT INTO studio_external_operations(id, logical_key, operation_type, status, provider_request_id, created_at_ms, updated_at_ms) VALUES (?, ?, 'chain_release_commitment', 'requested', ?, ?, ?)").run(operationId, attemptKey, transactionHash, Date.now(), Date.now());
       try {
-        const result = await this.#provider.sendTransactionUntil(signedTransaction, "FINAL");
+        const result = await this.#sendSignedTransaction(signedTransaction);
         if (typeof result.status === "object" && "Failure" in result.status) throw new Error("ERR_RELEASE_COMMIT_CHAIN_FAILURE");
         const final = await client.release(workId, version);
         if (!final || final.commitment !== studioDigest(input) || result.transaction.hash !== transactionHash) throw new Error("ERR_RELEASE_COMMIT_NOT_FINAL");
@@ -149,12 +188,18 @@ export class StudioReleaseAgentService {
     if (prior) throw new Error(`ERR_SPLIT_OUTCOME_UNKNOWN:${agent.account_id}`);
     const key = this.#scopedKey(agent.role, agent.account_id, "accept_split");
     await this.#verifyKey(key, agent.role, "accept_split");
-    database.prepare("INSERT INTO studio_external_operations(id, logical_key, operation_type, status, created_at_ms, updated_at_ms) VALUES (?, ?, 'chain_split_acceptance', 'requested', ?, ?)").run(operationId, logicalKey, Date.now(), Date.now());
+    const signer = KeyPairSigner.fromSecretKey(key.secretKey as KeyPairString);
+    const account = new Account(agent.account_id, this.#provider);
+    const publicKey = await signer.getPublicKey();
+    const transaction = await retryRpcRead(() => account.createTransaction({ receiverId: this.#contractId, actions: [actions.functionCall("accept_split", { work_id: work.workId, version: work.version, split_hash: chain.split_hash, policy_epoch: chain.policy_epoch }, 100_000_000_000_000n, 0n)], publicKey }));
+    const { txHash, signedTransaction } = await signer.signTransaction(transaction);
+    const transactionHash = baseEncode(txHash);
+    database.prepare("INSERT INTO studio_external_operations(id, logical_key, operation_type, status, provider_request_id, created_at_ms, updated_at_ms) VALUES (?, ?, 'chain_split_acceptance', 'requested', ?, ?, ?)").run(operationId, logicalKey, transactionHash, Date.now(), Date.now());
     try {
-      const account = new Account(agent.account_id, this.#provider, key.secretKey as KeyPairString);
-      const result = await account.signAndSendTransaction({ receiverId: this.#contractId, actions: [actions.functionCall("accept_split", { work_id: work.workId, version: work.version, split_hash: chain.split_hash, policy_epoch: chain.policy_epoch }, 100_000_000_000_000n, 0n)], waitUntil: "FINAL", throwOnFailure: false });
+      const result = await this.#sendSignedTransaction(signedTransaction);
       if (typeof result.status === "object" && "Failure" in result.status) throw new Error("ERR_SPLIT_CHAIN_FAILURE");
       if (!(await client.hasAcceptedSplit(work.workId, work.version, agent.account_id))) throw new Error("ERR_SPLIT_NOT_FINAL");
+      if (result.transaction.hash !== transactionHash) throw new Error("ERR_SPLIT_HASH_MISMATCH");
       database.prepare("UPDATE studio_external_operations SET status = 'finalized', result_hash = ?, provider_request_id = ?, updated_at_ms = ? WHERE id = ?").run(chain.split_hash, result.transaction.hash, Date.now(), operationId);
       acceptStudioSplit(database, work, agent.id, agent.account_id);
     } catch (error) {
@@ -192,7 +237,7 @@ export class StudioReleaseAgentService {
     const transactionHash = baseEncode(txHash);
     database.prepare("INSERT INTO studio_external_operations(id, logical_key, operation_type, status, provider_request_id, created_at_ms, updated_at_ms) VALUES (?, ?, 'chain_publication', 'requested', ?, ?, ?)").run(operationId, logicalKey, transactionHash, Date.now(), Date.now());
     try {
-      const result = await this.#provider.sendTransactionUntil(signedTransaction, "FINAL");
+      const result = await this.#sendSignedTransaction(signedTransaction);
       if (typeof result.status === "object" && "Failure" in result.status) throw new Error("ERR_PUBLICATION_CHAIN_FAILURE");
       if (!(await client.release(work.workId, work.version))?.published) throw new Error("ERR_PUBLICATION_NOT_FINAL");
       if (result.transaction.hash !== transactionHash) throw new Error("ERR_PUBLICATION_HASH_MISMATCH");

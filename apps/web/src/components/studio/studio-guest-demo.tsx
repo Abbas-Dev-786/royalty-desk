@@ -25,6 +25,7 @@ function explainError(error: string): string {
   if (error === "ERR_STUDIO_GOVERNANCE_UNAVAILABLE") return "The studio could not reach NEAR testnet to check its policy. Your agent run has not started. Try again when the connection returns.";
   if (error === "ERR_CREATIVE_IDENTITY_OR_DEADLINE") return "The saved agent run window expired before it started. Refresh this song and try starting the agent session again.";
   if (error === "ERR_GUEST_RELEASE_POLICY_STALE") return "Studio policy changed after this recording was committed. The recording remains private; a studio operator must prepare a new release version before it can be published.";
+  if (error === "ERR_RELEASE_COMMIT_OUTCOME_UNKNOWN") return "The producer's release transaction has an uncertain outcome. Your recording is saved. A studio operator must check its saved transaction hash and on-chain receipt before this song can be published.";
   if (/(?:\b429\b|rate.?limit)/i.test(error)) {
     const cooldown = /retry after\s+(\d+)\s*seconds?/i.exec(error);
     return `NEAR testnet is limiting requests. ${cooldown ? `Wait about ${cooldown[1]} seconds, then ` : "Wait a minute, then "}refresh this song before trying Publish again. Your recording is saved; check the wallet receipt if you approved a transaction.`;

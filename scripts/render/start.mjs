@@ -7,14 +7,14 @@ const root = resolve(import.meta.dirname, "../..");
 const dataDir = process.env.RENDER_DISK_PATH ?? resolve(root, "runtime-data");
 const port = Number(process.env.PORT ?? "10000");
 if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) throw new Error("Invalid PORT");
-for (const key of ["STUDIO_APP_DB_PATH", "STUDIO_CATALOGUE_DB_PATH", "STUDIO_MEDIA_PATH", "STUDIO_JOURNEY_PATH"]) {
+for (const key of ["STUDIO_APP_DB_PATH", "STUDIO_CATALOGUE_DB_PATH", "STUDIO_MEDIA_PATH", "STUDIO_JOURNEY_PATH", "STUDIO_PROVIDER_PERMISSION_PATH"]) {
   const path = process.env[key];
   if (!path || !resolve(path).startsWith(resolve(dataDir) + "/")) throw new Error(`${key} must be inside the persistent disk`);
 }
 if (!process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID || process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID === "studio.example.testnet") throw new Error("Configure the deployed studio contract ID");
 if (!process.env.STUDIO_WORKER_TOKEN || process.env.STUDIO_WORKER_TOKEN.length < 32) throw new Error("Configure STUDIO_WORKER_TOKEN");
 mkdirSync(dataDir, { recursive: true });
-importRenderSeed(dataDir, process.env.STUDIO_APP_DB_PATH, process.env.STUDIO_CATALOGUE_DB_PATH, process.env.STUDIO_MEDIA_PATH, process.env.STUDIO_ARCHIVE_PATH ?? resolve(dataDir, "archive"), process.env.STUDIO_JOURNEY_PATH ?? resolve(dataDir, "keys/journey.json"));
+importRenderSeed(dataDir, process.env.STUDIO_APP_DB_PATH, process.env.STUDIO_CATALOGUE_DB_PATH, process.env.STUDIO_MEDIA_PATH, process.env.STUDIO_ARCHIVE_PATH ?? resolve(dataDir, "archive"), process.env.STUDIO_JOURNEY_PATH ?? resolve(dataDir, "keys/journey.json"), process.env.STUDIO_PROVIDER_PERMISSION_PATH ?? resolve(dataDir, "rights/elevenlabs-permission.json"));
 mkdirSync(process.env.STUDIO_MEDIA_PATH, { recursive: true });
 mkdirSync(resolve(dataDir, "backups"), { recursive: true });
 if (process.env.STUDIO_JOURNEY_PATH && !existsSync(process.env.STUDIO_JOURNEY_PATH)) console.warn("Scoped agent key file is missing; automated on-chain release and payouts need the Render secret file.");

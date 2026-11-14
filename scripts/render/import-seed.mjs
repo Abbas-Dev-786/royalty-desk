@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { readStudioPermissionReference } from "../../packages/persistence/src/studio-permission.ts";
 
 function inspectDatabase(path) {
   const database = new DatabaseSync(path, { readOnly: true });
@@ -20,7 +21,7 @@ function hasRows(path, table) {
   } finally { database.close(); }
 }
 
-export function importRenderSeed(dataDir, appPath, cataloguePath, mediaPath, archivePath = join(dataDir, "archive"), journeyPath = join(dataDir, "keys", "journey.json")) {
+export function importRenderSeed(dataDir, appPath, cataloguePath, mediaPath, archivePath = join(dataDir, "archive"), journeyPath = join(dataDir, "keys", "journey.json"), permissionPath = join(dataDir, "rights", "elevenlabs-permission.json")) {
   const sourceDir = join(dataDir, "import");
   const sourceApp = join(sourceDir, "app.sqlite");
   const sourceCatalogue = join(sourceDir, "catalogue.sqlite");
@@ -45,20 +46,25 @@ export function importRenderSeed(dataDir, appPath, cataloguePath, mediaPath, arc
     finally { database.close(); }
   }
   const sourceJourney = join(sourceDir, "keys", "journey.json");
+  const sourcePermission = join(sourceDir, "rights", "elevenlabs-permission.json");
   if (existsSync(sourceJourney)) {
     const journey = JSON.parse(readFileSync(sourceJourney, "utf8"));
     if (!journey || typeof journey !== "object" || !journey.accounts || typeof journey.accounts !== "object") throw new Error("Invalid private scoped-key snapshot");
   }
+  if (existsSync(sourcePermission)) readStudioPermissionReference(sourcePermission, process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID ?? "");
   mkdirSync(mediaPath, { recursive: true });
   mkdirSync(archivePath, { recursive: true });
   if (existsSync(sourceJourney)) mkdirSync(join(dataDir, "keys"), { recursive: true, mode: 0o700 });
+  if (existsSync(sourcePermission)) mkdirSync(join(dataDir, "rights"), { recursive: true, mode: 0o700 });
   copyFileSync(sourceApp, appPath);
   copyFileSync(sourceCatalogue, cataloguePath);
   for (const hash of assetHashes) copyFileSync(join(sourceDir, "media", `${hash}.bin`), join(mediaPath, `${hash}.bin`));
   for (const name of archives) copyFileSync(join(sourceDir, "archive", name), join(archivePath, name));
   if (existsSync(sourceJourney)) { copyFileSync(sourceJourney, journeyPath); chmodSync(journeyPath, 0o600); }
+  if (existsSync(sourcePermission)) { copyFileSync(sourcePermission, permissionPath); chmodSync(permissionPath, 0o600); }
   writeFileSync(marker, new Date().toISOString(), { flag: "wx" });
   if (existsSync(sourceJourney)) unlinkSync(sourceJourney);
+  if (existsSync(sourcePermission)) unlinkSync(sourcePermission);
   console.log(`Imported studio snapshots, ${assetHashes.length} verified media assets, and ${archives.length} archived agent records`);
   return true;
 }

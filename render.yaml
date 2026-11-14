@@ -42,6 +42,8 @@ services:
         generateValue: true
       - key: STUDIO_JOURNEY_PATH
         value: /opt/render/project/src/runtime-data/keys/journey.json
+      - key: STUDIO_PROVIDER_PERMISSION_PATH
+        value: /opt/render/project/src/runtime-data/rights/elevenlabs-permission.json
       - key: NEAR_RPC_URL
         value: https://testnet-rpc.intea.rs
       - key: NEAR_AI_BASE_URL

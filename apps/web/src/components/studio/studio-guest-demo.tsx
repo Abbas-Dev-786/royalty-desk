@@ -88,14 +88,14 @@ export function StudioGuestDemo() {
   }, [accountId, projectId, busy, demo?.status, demo?.song, demo?.error]);
 
   useEffect(() => {
-    if (!demo?.song || demo.song.published) { setApprovalInfo(null); setApprovalIssue(null); return; }
+    if (!demo?.song || demo.song.published || demo.song.state !== "accepted") { setApprovalInfo(null); setApprovalIssue(null); return; }
     void fetch("/api/studio/guest/approval?" + new URLSearchParams({ projectId: demo.projectId }), { cache: "no-store" }).then(async (response) => {
       const result = await response.json() as GuestApprovalResponse;
       if (response.ok && "published" in result && result.published) { setApprovalInfo(null); setApprovalIssue(null); await refresh(demo.projectId); }
       else if (response.ok && "published" in result && result.published === false) { setApprovalInfo(result); setApprovalIssue(null); }
       else if ("error" in result && result.error === "ERR_GUEST_RELEASE_POLICY_STALE") { setApprovalInfo(null); setApprovalIssue(explainError(result.error)); }
     }).catch(() => undefined);
-  }, [demo?.projectId, demo?.song?.workId, demo?.song?.published]);
+  }, [demo?.projectId, demo?.song?.workId, demo?.song?.published, demo?.song?.state]);
 
   async function send(path: string, body: Record<string, unknown> = {}): Promise<void> {
     const targetProjectId = demo?.projectId ?? projectId ?? "project-guest-" + crypto.randomUUID();
@@ -136,8 +136,17 @@ export function StudioGuestDemo() {
   async function approveAndPublish(): Promise<void> {
     if (!demo?.song || !accountId) return;
     setBusy(true);
-    showNotice("progress", "Checking your release", "Verifying the saved recording and current studio policy before publication.");
+    showNotice("progress", "Preparing your release", "The reviewer is accepting the saved recording and the agents are confirming their split.");
     try {
+      const preparedResponse = await fetch("/api/studio/guest/song", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId: demo.projectId, action: "publish" }) });
+      const prepared = await preparedResponse.json() as { demo?: GuestDemo; error?: string };
+      if (prepared.demo) setDemo(prepared.demo);
+      if (!preparedResponse.ok) throw new Error(prepared.error ?? "Could not prepare the saved release.");
+      if (prepared.demo?.song?.published) {
+        showNotice("success", "Song published", "Your song is now available in Discover.");
+        notifyStudio({ id: "song-action", tone: "success", title: "Song published", description: "Your song is now available in Discover." });
+        return;
+      }
       const response = await fetch("/api/studio/guest/approval?" + new URLSearchParams({ projectId: demo.projectId }), { cache: "no-store" });
       const approval = await response.json() as GuestApprovalResponse;
       if (!response.ok) throw new Error("error" in approval ? approval.error : "Could not verify the saved release.");

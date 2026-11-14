@@ -9,6 +9,7 @@ const sourceCatalogue = resolve(root, process.env.STUDIO_CATALOGUE_DB_PATH ?? "p
 const sourceMedia = resolve(root, process.env.STUDIO_MEDIA_PATH ?? "private/studio-media");
 const sourceArchives = resolve(root, process.env.STUDIO_ARCHIVE_PATH ?? "private/studio-v2/sources");
 const sourceJourney = resolve(root, process.env.STUDIO_JOURNEY_PATH ?? "private/studio-v2/testnet/journey.json");
+const sourcePermission = resolve(root, process.env.STUDIO_PROVIDER_PERMISSION_PATH ?? "private/studio-v2/rights/elevenlabs-permission.json");
 const destination = resolve(root, "private/render-seed");
 const archiveOnly = process.argv.includes("--archive-only");
 if (existsSync(destination) && !archiveOnly) throw new Error("A private Render seed already exists; move it aside before creating another snapshot");
@@ -50,11 +51,16 @@ for (const name of ["song-1.sqlite", "song-2.sqlite"]) {
   await snapshot(source, join("archive", name));
   archivedRecords += 1;
 }
-if (existsSync(sourceJourney)) {
+if (existsSync(sourceJourney) && !archiveOnly) {
   const journey = JSON.parse(readFileSync(sourceJourney, "utf8"));
   if (!journey || typeof journey !== "object" || !journey.accounts || typeof journey.accounts !== "object") throw new Error("Invalid private scoped-key file");
   mkdirSync(join(destination, "keys"), { recursive: true, mode: 0o700 });
   if (existsSync(join(destination, "keys", "journey.json"))) throw new Error("Scoped-key seed snapshot already exists");
   copyFileSync(sourceJourney, join(destination, "keys", "journey.json"));
 }
-console.log(JSON.stringify({ status: "ready", mediaAssets: hashes.length, archivedRecords, scopedKeysIncluded: existsSync(join(destination, "keys", "journey.json")), destination: "private/render-seed" }));
+if (existsSync(sourcePermission) && !archiveOnly) {
+  mkdirSync(join(destination, "rights"), { recursive: true, mode: 0o700 });
+  if (existsSync(join(destination, "rights", "elevenlabs-permission.json"))) throw new Error("Provider permission seed snapshot already exists");
+  copyFileSync(sourcePermission, join(destination, "rights", "elevenlabs-permission.json"));
+}
+console.log(JSON.stringify({ status: "ready", mediaAssets: hashes.length, archivedRecords, scopedKeysIncluded: existsSync(join(destination, "keys", "journey.json")), providerPermissionIncluded: existsSync(join(destination, "rights", "elevenlabs-permission.json")), destination: "private/render-seed" }));

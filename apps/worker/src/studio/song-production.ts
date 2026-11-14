@@ -64,7 +64,7 @@ export class StudioSongProductionService {
     let licenseRef = process.env.ELEVENLABS_PERMISSION_REF;
     if (!licenseRef) {
       try {
-        licenseRef = readStudioPermissionReference(resolve(process.cwd(), "../..", "private/studio-v2/rights/elevenlabs-permission.json"), process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID ?? "");
+        licenseRef = readStudioPermissionReference(process.env.STUDIO_PROVIDER_PERMISSION_PATH ?? resolve(process.cwd(), "../..", "private/studio-v2/rights/elevenlabs-permission.json"), process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID ?? "");
       } catch { /* Explicit permission configuration can be supplied later. */ }
     }
     if (!apiKey || !licenseRef) return null;

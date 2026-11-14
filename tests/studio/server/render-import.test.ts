@@ -9,6 +9,8 @@ import { importRenderSeed } from "../../../scripts/render/import-seed.mjs";
 
 test("DEPLOY-01 imports verified snapshots once and rejects existing data", () => {
   const directory = mkdtempSync(join(tmpdir(), "studio-render-import-"));
+  const previousContractId = process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID;
+  process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID = "studio.testnet";
   try {
     const staged = join(directory, "import");
     mkdirSync(join(staged, "media"), { recursive: true });
@@ -28,6 +30,8 @@ test("DEPLOY-01 imports verified snapshots once and rejects existing data", () =
     archive.close();
     mkdirSync(join(staged, "keys"));
     writeFileSync(join(staged, "keys", "journey.json"), JSON.stringify({ accounts: { producerScoped: {} } }));
+    mkdirSync(join(staged, "rights"));
+    writeFileSync(join(staged, "rights", "elevenlabs-permission.json"), JSON.stringify({ basis: "owner-confirmed-private-permission", reference: "owner-confirmation-2026-11-12", studioAccountId: "studio.testnet", testnetOnly: true, coveredUses: { musicLibrary: true, musicStreamingDistribution: true, publicPlayback: true, paidPurchases: true, tips: true, downloads: true } }));
     const appPath = join(directory, "app.sqlite");
     const cataloguePath = join(directory, "catalogue.sqlite");
     const mediaPath = join(directory, "media");
@@ -36,6 +40,8 @@ test("DEPLOY-01 imports verified snapshots once and rejects existing data", () =
     assert.ok(existsSync(join(directory, "archive", "song-1.sqlite")));
     assert.ok(existsSync(join(directory, "keys", "journey.json")));
     assert.equal(existsSync(join(staged, "keys", "journey.json")), false);
+    assert.ok(existsSync(join(directory, "rights", "elevenlabs-permission.json")));
+    assert.equal(existsSync(join(staged, "rights", "elevenlabs-permission.json")), false);
     assert.equal(importRenderSeed(directory, appPath, cataloguePath, mediaPath), false);
     assert.ok(existsSync(join(directory, ".seed-imported")));
     const second = mkdtempSync(join(tmpdir(), "studio-render-import-reject-"));
@@ -53,6 +59,8 @@ test("DEPLOY-01 imports verified snapshots once and rejects existing data", () =
       rmSync(second, { recursive: true, force: true });
     }
   } finally {
+    if (previousContractId === undefined) delete process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID;
+    else process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID = previousContractId;
     assert.ok(resolve(directory).startsWith(resolve(tmpdir()) + sep));
     rmSync(directory, { recursive: true, force: true });
   }

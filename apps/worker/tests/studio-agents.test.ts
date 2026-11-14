@@ -43,8 +43,15 @@ test("AGT-08 an agent-reviewed recording is prepared from saved output and pre-a
   env.database.prepare("INSERT INTO studio_external_operations(id,logical_key,operation_type,status,created_at_ms,updated_at_ms) VALUES ('review-op','review-op','near_ai_creative','finalized',?,?),('audio-op','audio-op','music_generation','finalized',?,?)").run(now, now, now, now);
   env.database.prepare("INSERT INTO studio_model_outputs(operation_id,project_id,agent_id,role,model,provider_mode,input_hash,output_hash,output_json,created_at_ms) VALUES ('review-op','project-a','reviewer','review','fixture','live',?,?,?,?)").run("a".repeat(64), "b".repeat(64), '{"content":"ACCEPT: ready"}', now);
   env.database.prepare("INSERT INTO studio_audio_generations(operation_id,project_id,agent_id,work_id,work_version,revision,input_hash,prompt_hash,asset_hash,provider,model,license_ref,duration_ms,created_at_ms) VALUES ('audio-op','project-a','composer','song-reviewed',1,0,?,?,?,'elevenlabs','music_v2_5',?,20000,?)").run("c".repeat(64), "d".repeat(64), asset.hash, "owner-confirmation-2026-11-13", now);
-  prepareAgentReviewedSong(env.database, media, "studio.testnet", "song-reviewed", 1, "reviewer", permissionPath);
-  prepareAgentReviewedSong(env.database, media, "studio.testnet", "song-reviewed", 1, "reviewer", permissionPath);
+  const previousPermissionPath = process.env.STUDIO_PROVIDER_PERMISSION_PATH;
+  process.env.STUDIO_PROVIDER_PERMISSION_PATH = permissionPath;
+  try {
+    prepareAgentReviewedSong(env.database, media, "studio.testnet", "song-reviewed", 1, "reviewer");
+    prepareAgentReviewedSong(env.database, media, "studio.testnet", "song-reviewed", 1, "reviewer");
+  } finally {
+    if (previousPermissionPath === undefined) delete process.env.STUDIO_PROVIDER_PERMISSION_PATH;
+    else process.env.STUDIO_PROVIDER_PERMISSION_PATH = previousPermissionPath;
+  }
   assert.equal((env.database.prepare("SELECT state FROM studio_work_versions WHERE work_id = 'song-reviewed'").get() as { state: string }).state, "accepted");
   assert.equal((env.database.prepare("SELECT provider_permission_ref FROM studio_asset_rights WHERE asset_hash = ?").get(asset.hash) as { provider_permission_ref: string }).provider_permission_ref, "owner-confirmation-2026-11-13");
   assert.equal((env.database.prepare("SELECT COUNT(*) AS n FROM studio_media_reviews WHERE asset_hash = ?").get(asset.hash) as { n: number }).n, 1);

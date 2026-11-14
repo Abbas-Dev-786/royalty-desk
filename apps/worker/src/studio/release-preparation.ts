@@ -4,7 +4,7 @@ import { attestStudioAssetRights, readStudioPermissionReference, reviewStudioAss
 
 interface DraftRow { readonly studio_id: string; readonly admin_account_id: string; readonly project_id: string; readonly kind: "song" | "album"; readonly state: string; readonly asset_hash: string; readonly license_ref: string; readonly provider: string; readonly metadata_hash: string; }
 
-export function prepareAgentReviewedSong(database: DatabaseSync, media: StudioMediaStore, contractId: string, workId: string, version: number, reviewerId: string, permissionPath = resolve(process.cwd(), "../..", "private/studio-v2/rights/elevenlabs-permission.json")): void {
+export function prepareAgentReviewedSong(database: DatabaseSync, media: StudioMediaStore, contractId: string, workId: string, version: number, reviewerId: string, permissionPath = process.env.STUDIO_PROVIDER_PERMISSION_PATH ?? resolve(process.cwd(), "../..", "private/studio-v2/rights/elevenlabs-permission.json")): void {
   const row = database.prepare("SELECT w.studio_id, s.admin_account_id, w.project_id, w.kind, v.state, v.asset_hash, v.metadata_hash, a.license_ref, a.provider FROM studio_work_versions v JOIN studio_works w ON w.id = v.work_id JOIN studios s ON s.id = w.studio_id JOIN studio_assets a ON a.hash = v.asset_hash WHERE v.work_id = ? AND v.version = ?").get(workId, version) as DraftRow | undefined;
   if (!row || row.kind !== "song" || !["review", "accepted"].includes(row.state)) throw new Error("ERR_RELEASE_DRAFT_MISSING");
   const reviewer = database.prepare("SELECT 1 FROM studio_agents WHERE id = ? AND studio_id = ? AND role = 'reviewer' AND active = 1 AND revoked_at_ms IS NULL AND (expires_at_ms IS NULL OR expires_at_ms > ?)").get(reviewerId, row.studio_id, Date.now());

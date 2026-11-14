@@ -18,6 +18,19 @@ There are three ways to use Accord:
 | Listener | Browse and play published music for free, buy a download, leave a tip, and inspect credits and transaction links. |
 | Guardian | Review and approve releases, change studio policy, manage agent permissions, and inspect payments and earnings. |
 
+## The four agents and their NEAR accounts
+
+The configured studio catalogue contains **four agent identities**. Each has its own public NEAR testnet account, separate from the creator's or listener's wallet. These accounts identify agents for contract permissions and, when an agent has an accepted revenue share, provide the destination for payouts. They are agent-controlled studio accounts, not the personal wallets of human team members.
+
+| Agent | Role in Accord | Public NEAR testnet account | Share in the current song flow |
+| --- | --- | --- | --- |
+| Lyricist | Writes lyrics, proposes the song's revenue split, and can accept the composer's counteroffer. | [`lyricist.studio-rd-fa315759.testnet`](https://testnet.nearblocks.io/address/lyricist.studio-rd-fa315759.testnet) | Negotiated with the composer. |
+| Composer | Plans the music, accepts or counters the split, and helps prepare the recording. | [`composer.studio-rd-fa315759.testnet`](https://testnet.nearblocks.io/address/composer.studio-rd-fa315759.testnet) | Negotiated with the lyricist. |
+| Reviewer | Checks creative output and requests revision or accepts it. | [`reviewer.studio-rd-fa315759.testnet`](https://testnet.nearblocks.io/address/reviewer.studio-rd-fa315759.testnet) | No separate share in the current song split. |
+| Producer | Commits and publishes approved releases and can run the scoped allocation step. | [`producer.studio-rd-fa315759.testnet`](https://testnet.nearblocks.io/address/producer.studio-rd-fa315759.testnet) | No separate share in the current song split. |
+
+The local catalogue and Render import snapshot list these four records; the contract and keys determine whether each agent is **currently** active and able to act. The public `/studio/agents` page reads current on-chain earnings and wallet balances. A wallet balance can include funds from outside Accord, so use the contract's **owed**, **pending**, and **paid** figures to understand studio revenue. The guardian is a separate human approval role, not a fifth creative agent.
+
 ## From idea to revenue
 
 1. **Create:** A wallet user submits a title and brief. The web app saves the request and asks the private worker to run the creative job.
@@ -27,6 +40,61 @@ There are three ways to use Accord:
 5. **Earn:** A listener signs a purchase or tip transaction. The contract checks the published release and amount, then records the payment. Revenue is allocated in integer yoctoNEAR to the contributor accounts. The worker can request payouts with scoped keys when configured; the contract records success or restores the amount owed after a failed transfer.
 
 The AI runs off-chain. Its NEAR accounts represent permitted agent roles and recipients of earnings; the contract enforces what those accounts may do. Music files stay off-chain because they are large, while hashes and release commitments let the app check that the displayed recording matches the approved version.
+
+## How agents negotiate revenue shares
+
+Each song's lyricist and composer negotiate **that song's** split during the creative job. Percentages are stored as integer basis points: `10,000` basis points is `100%`, so `6,000 / 4,000` means `60% / 40%`. The reviewer evaluates the creative work, but the current song split pays the lyricist and composer. The producer carries out release transactions; the producer and reviewer do not receive a separate share in this flow.
+
+1. After the reviewer accepts the song, the lyricist proposes two numbers that sum to `10,000`.
+2. The composer sees the proposal and either accepts those **exact** numbers or counters with a different pair that also sums to `10,000`.
+3. If the composer counters, the lyricist gets one response and must accept the counter's exact numbers for agreement. A further counter or a mismatched acceptance leaves the negotiation unresolved; the studio cannot turn that session into a releasable song.
+4. Before audio is generated, the worker checks the recorded proposal and response again. It stores the accepted split with the song version and records the model outputs and their hashes.
+5. For publication, the producer commits that version and split hash to NEAR. Each paid contributor's agent account accepts the same split on-chain using a method-scoped key. The contract will not publish while a required acceptance is missing. If human review is enabled, the guardian must also approve the matching release commitment and policy epoch.
+
+The off-chain conversation explains **how** the numbers were reached; the on-chain acceptances establish **which exact split** governs that published version. A later release version has its own commitment and checks.
+
+## How listeners pay and agents receive revenue
+
+**Listening is free.** A purchase unlocks a download for that buyer; a tip supports the same release without buying a download. Both use testnet NEAR. Current new-song drafts are priced at `0.01 NEAR`, and the two-song album draft at `0.015 NEAR`; the published release's committed price is the amount the contract enforces. Tips start at `0.001 NEAR` and are limited by the current contract policy.
+
+| Stage | What happens |
+| --- | --- |
+| Quote | The server checks that the song or album is published and the studio is not paused. It creates a unique order and a short-lived quote tied to the buyer, release version, commitment, kind, and amount. |
+| Wallet payment | The buyer approves a `purchase` or `tip` call to the studio contract with the quoted NEAR deposit. The contract rejects duplicate IDs, expired quotes, stale or unpublished releases, wrong purchase prices, and tips outside policy limits. |
+| Confirmation | The app checks the transaction receipt and contract payment record against the saved order before marking it finalized. An uncertain result stays pending for a status check; the user is prompted to check instead of paying again. A finalized purchase unlocks the MP3 download. |
+| Allocation | When autonomous revenue is enabled and its scoped key is available, the worker checks the finalized order against the contract and calls `allocate_payment`. The contract can allocate that payment only once and credits the agent accounts' **owed** balances. |
+| Payout | The worker checks each active agent's owed balance and can request a payout using that agent's scoped key. The contract moves the amount from **owed** to **pending**, sends testnet NEAR to the agent account, and records **paid** only after the transfer receipt succeeds. A failed transfer returns the amount to **owed**. |
+
+For a **song**, the whole purchase or tip is divided by its accepted lyricist/composer split. For example, a `0.01 NEAR` purchase of a song with a `60% / 40%` split credits `0.006 NEAR` to the lyricist and `0.004 NEAR` to the composer after allocation. These balances are contract claims until a payout transaction succeeds; receiving a buyer payment does not instantly put funds in each agent wallet.
+
+For an **album**, the contract first divides the payment between its tracks using the album's track weights, then applies **each song's own negotiated split** to that track's amount. The current two-song album builder uses `50% / 50%` track weights. A `0.015 NEAR` album purchase therefore assigns `0.0075 NEAR` to each song before its lyricist/composer split. The album also stores a derived aggregate split for its release record, but payouts are calculated from the track weights and song splits. Tips follow the same allocation rules as purchases.
+
+| Example album purchase | Track amount | Lyricist | Composer |
+| --- | ---: | ---: | ---: |
+| Song A, negotiated `60% / 40%` | `0.0075 NEAR` | `0.0045 NEAR` | `0.003 NEAR` |
+| Song B, negotiated `30% / 70%` | `0.0075 NEAR` | `0.00225 NEAR` | `0.00525 NEAR` |
+| **Total owed after allocation** | **`0.015 NEAR`** | **`0.00675 NEAR`** | **`0.00825 NEAR`** |
+
+This example assumes the same lyricist and composer accounts worked on both tracks. When tracks have different contributors, each amount goes to the account named in that song's accepted split.
+
+All allocation arithmetic uses integer yoctoNEAR. The last track or contributor receives any indivisible remainder so the entire payment is accounted for. There is no floating-point percentage calculation or separate studio fee in this contract flow. The contract exposes **owed**, **pending**, and **paid** totals; `/studio/agents` displays them alongside wallet balances and available payment, allocation, and payout receipts. A wallet balance can also include unrelated NEAR, so it is not the same as lifetime studio earnings.
+
+An unallocated payment can be refunded by the guardian during an incident. The buyer can also request a refund if the release became unavailable before allocation. Once earnings have been allocated, that refund path is closed. The contract waits for the refund transfer receipt before marking it refunded and restores the payment to its prior state if the transfer fails.
+
+## Functionality at a glance
+
+| Area | Implemented behavior |
+| --- | --- |
+| Wallet identity | A testnet wallet signs a challenge to create a session; creator and buyer actions are tied to that account. |
+| Song studio | A creator submits a brief, sees the agents' replies and negotiation, and can hear the generated recording privately. |
+| Album studio | A connected creator can produce two songs from one album concept, assemble a private album with cover art, and later release its tracks and album. |
+| Agent collaboration | Lyricist, composer, and reviewer run distinct model steps with saved outputs, job state, call limits, and handling for unknown provider outcomes. |
+| Release controls | The producer commits and publishes versions; paid contributors accept shares; the guardian can require approval, pause the studio, manage agents, or unpublish a release. |
+| Catalogue and playback | Public pages list published songs and albums and check local media, rights, and NEAR release state before showing them. Playback is free. |
+| Listener commerce | A connected buyer can purchase a download or tip. Quotes, wallet transactions, receipt reconciliation, entitlements, and refund requests are handled separately. |
+| Agent ledger | The agent page shows the contract's owed, pending, and paid totals plus recent verified earnings and payout history with receipt links when available. |
+
+Fresh creative work needs provider credentials and credits. Automated on-chain release and revenue actions need valid scoped agent keys; setting an environment flag alone does not produce a payout.
 
 ## Hackathon fit
 

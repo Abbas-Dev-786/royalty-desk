@@ -11,15 +11,18 @@ import { Badge } from "@/components/ui/badge";
 import { StudioNotice, type StudioNoticeData, type StudioNoticeTone } from "./studio-notice";
 import { notifyStudio } from "./studio-notifications";
 import { AgentInteraction } from "./agent-interaction";
+import { finishStudioPublication } from "@/lib/studio-publish";
 
 interface GuestStep { readonly role: string; readonly agentId: string; readonly model: string; readonly content: string; readonly outputHash: string; readonly createdAtMs: number; }
 interface GuestDemo { readonly projectId: string; readonly title: string; readonly brief: string; readonly sessionId: string | null; readonly autoGenerate: boolean; readonly status: string; readonly error: string | null; readonly steps: readonly GuestStep[]; readonly song: { readonly workId: string; readonly version: number; readonly state: string; readonly published: boolean; readonly durationMs: number | null; readonly assetHash: string } | null; }
 interface GuestSongSummary { readonly projectId: string; readonly title: string; readonly createdAtMs: number; readonly status: string; readonly hasRecording: boolean; readonly published: boolean; }
 interface GuestApprovalPending { readonly published: false; readonly contractId: string; readonly guardianId: string; readonly workId: string; readonly version: number; readonly commitment: string; readonly policyEpoch: number; readonly approved: boolean; readonly requiresApproval: boolean; }
 interface GuestApprovalPublished { readonly published: true; readonly workId: string; readonly version: number; }
-interface GuestApprovalPreparing { readonly ready: false; readonly workId: string; readonly version: number; readonly state: "review"; }
+interface GuestApprovalPreparing { readonly ready: false; readonly workId: string; readonly version: number; readonly state: "review" | "preparing"; }
 type GuestApprovalResponse = GuestApprovalPending | GuestApprovalPublished | GuestApprovalPreparing | { readonly error: string };
 function explainError(error: string): string {
+  if (error === "ERR_RELEASE_STATUS_UNAVAILABLE") return "The connection to the publishing worker timed out. Your recording is saved and publication may still be processing. Refresh progress before trying again.";
+  if (error === "ERR_NEAR_RPC_TIMEOUT") return "NEAR testnet is taking too long to respond. Your recording is saved. Refresh progress before trying Publish again.";
   if (error === "ERR_GUEST_WORKER_UNAVAILABLE") return "The studio worker is offline. Your song brief is saved. Continue this song after the worker starts.";
   if (error === "ERR_GUEST_RUN_OUTCOME_UNKNOWN") return "The connection to the worker ended after the agent run was requested. Refresh progress before doing anything else; an agent request may still be running or may have used credits.";
   if (error === "ERR_STUDIO_GOVERNANCE_UNAVAILABLE") return "The studio could not reach NEAR testnet to check its policy. Your agent run has not started. Try again when the connection returns.";
@@ -145,7 +148,7 @@ export function StudioGuestDemo() {
     setBusy(true);
     showNotice("progress", "Preparing your release", "The reviewer is accepting the saved recording and the agents are confirming their split.");
     try {
-      const preparedResponse = await fetch("/api/studio/guest/song", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId: demo.projectId, action: "publish" }) });
+      const preparedResponse = await finishStudioPublication(demo.projectId);
       const prepared = await preparedResponse.json() as { demo?: GuestDemo; error?: string };
       if (prepared.demo) setDemo(prepared.demo);
       if (!preparedResponse.ok) throw new Error(prepared.error ?? "Could not prepare the saved release.");
@@ -162,7 +165,7 @@ export function StudioGuestDemo() {
         notifyStudio({ id: "song-action", tone: "success", title: "Song published", description: "Your song is now available in Discover." });
         return;
       }
-      if (!("published" in approval) || approval.published !== false) throw new Error("Could not verify the saved release.");
+      if (!("published" in approval) || approval.published !== false) throw new Error("Publication is still processing. Your recording is saved. Refresh progress in a moment.");
       if (approval.workId !== demo.song.workId || approval.version !== demo.song.version || !/^[0-9a-f]{64}$/.test(approval.commitment) || !Number.isSafeInteger(approval.policyEpoch)) throw new Error("The release changed. Refresh before publishing it.");
       if (approval.requiresApproval && !approval.approved) {
         if (approval.guardianId !== accountId) throw new Error("Your song is ready, but only the studio guardian can approve public release.");
@@ -173,7 +176,7 @@ export function StudioGuestDemo() {
         if (!result.transaction?.hash || typeof result.status === "object" && "Failure" in result.status) throw new Error("Wallet outcome is uncertain. Refresh status and check your wallet receipt before approving again.");
       }
       showNotice("progress", "Approval recorded", "The producer is publishing your saved recording. No new audio will be generated.");
-      const publishedResponse = await fetch("/api/studio/guest/song", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId: demo.projectId, action: "publish" }) });
+      const publishedResponse = await finishStudioPublication(demo.projectId);
       const published = await publishedResponse.json() as { demo?: GuestDemo; error?: string };
       if (published.demo) setDemo(published.demo);
       if (!publishedResponse.ok) throw new Error("Your approval is saved. Publication is still processing; refresh status and try this button again. The audio will not be generated again.");

@@ -8,6 +8,7 @@ import { acceptStudioSplit, addStudioPublication, openDatabase, recordStudioPubl
 import type { DatabaseSync } from "node:sqlite";
 import type { WorkVersion } from "@studio/domain";
 import { prepareAgentReviewedSong } from "./release-preparation.ts";
+import { BoundedRpcProvider } from "@studio/chain";
 
 interface ScopedKey { readonly accountId: string; readonly publicKey: string; readonly secretKey: string; readonly methods: readonly string[]; }
 interface AgentRow { readonly id: string; readonly role: string; readonly account_id: string; readonly active: number; }
@@ -24,7 +25,7 @@ export class StudioReleaseAgentService {
   constructor(databasePath: string, contractId: string, rpcUrl: string, journeyPath: string, mediaPath = resolve(process.cwd(), "../..", process.env.STUDIO_MEDIA_PATH ?? "private/studio-media")) {
     this.#databasePath = databasePath;
     this.#contractId = contractId;
-    this.#provider = new JsonRpcProvider({ url: rpcUrl });
+    this.#provider = new BoundedRpcProvider(rpcUrl);
     this.#journeyPath = journeyPath;
     this.#mediaPath = mediaPath;
   }

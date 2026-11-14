@@ -1,7 +1,12 @@
 import { guestAccountId, guestSong } from "@/server/studio-guest";
 import { openStudioCatalogueDatabase, studioContractClient } from "@/server/studio-catalogue";
+import { responseWithDeadline } from "@/server/response-deadline";
 
 export async function GET(request: Request): Promise<Response> {
+  return responseWithDeadline(loadApproval(request));
+}
+
+async function loadApproval(request: Request): Promise<Response> {
   const headers = { "cache-control": "private, no-store" };
   try {
     const accountId = await guestAccountId();
@@ -17,10 +22,11 @@ export async function GET(request: Request): Promise<Response> {
     if (version.state === "review") return Response.json({ ready: false, workId: guest.work_id, version: 1, state: "review" }, { headers });
     if (version.state !== "accepted") return Response.json({ error: "ERR_GUEST_SONG_NOT_READY" }, { status: 409, headers });
     const chain = studioContractClient();
-    const guardianId = await chain.guardian();
-    const [policy, release] = await Promise.all([chain.policy(), chain.release(guest.work_id, 1)]);
-    if (!release || release.media_hash !== version.asset_hash) return Response.json({ error: "ERR_GUEST_RELEASE_CHANGED" }, { status: 409, headers });
+    const release = await chain.release(guest.work_id, 1);
+    if (!release) return Response.json({ ready: false, workId: guest.work_id, version: 1, state: "preparing" }, { status: 202, headers });
+    if (release.media_hash !== version.asset_hash) return Response.json({ error: "ERR_GUEST_RELEASE_CHANGED" }, { status: 409, headers });
     if (release.published) return Response.json({ published: true, workId: guest.work_id, version: 1 }, { headers });
+    const [guardianId, policy] = await Promise.all([chain.guardian(), chain.policy()]);
     if (release.policy_epoch !== policy.epoch) return Response.json({ error: "ERR_GUEST_RELEASE_POLICY_STALE" }, { status: 409, headers });
     if (policy.paused) return Response.json({ error: "ERR_STUDIO_PAUSED" }, { status: 409, headers });
     const approved = await chain.hasApprovedRelease(guest.work_id, 1, release.policy_epoch);

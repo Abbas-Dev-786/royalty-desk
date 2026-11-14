@@ -1,7 +1,7 @@
 import "server-only";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { JsonRpcProvider } from "near-api-js";
+import { BoundedRpcProvider } from "@studio/chain";
 import { StudioContractClient, studioDigest, type StudioReleaseView } from "@studio/chain";
 import { openDatabase, StudioMediaStore } from "@studio/persistence";
 
@@ -22,7 +22,7 @@ function isRpcRateLimit(error: unknown): boolean {
 export function studioContractClient(): StudioContractClient {
   const id = process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID;
   if (!id || id === "studio.example.testnet") throw new Error("STUDIO_CONTRACT_NOT_CONFIGURED");
-  return new StudioContractClient(id, new JsonRpcProvider({ url: process.env.NEAR_RPC_URL ?? "https://testnet-rpc.intea.rs" }));
+  return new StudioContractClient(id, new BoundedRpcProvider(process.env.NEAR_RPC_URL ?? "https://testnet-rpc.intea.rs"));
 }
 export function openStudioCatalogueDatabase() {
   if (!existsSync(dbPath)) throw new Error("STUDIO_CATALOGUE_DB_MISSING");

@@ -9,7 +9,8 @@ async function finalizeGuestSong(accountId: string, projectId: string, workId: s
   const token = process.env.STUDIO_WORKER_TOKEN;
   if (!token || token.length < 32) return Response.json({ error: "ERR_WORKER_NOT_CONFIGURED", demo: guestSnapshot(accountId, projectId) }, { status: 503, headers });
   const workerUrl = process.env.STUDIO_WORKER_URL ?? "http://127.0.0.1:3101";
-  const upstream = await fetch(`${workerUrl}/studio/releases/${encodeURIComponent(workId)}/finalize`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ version: 1, reviewerId }), cache: "no-store" });
+  const upstream = await fetch(`${workerUrl}/studio/releases/${encodeURIComponent(workId)}/finalize`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ version: 1, reviewerId }), cache: "no-store", signal: AbortSignal.timeout(10_000) });
+  if (upstream.status === 202) return Response.json({ pending: true, demo: guestSnapshot(accountId, projectId) }, { status: 202, headers: { ...headers, "retry-after": "3" } });
   const result = await upstream.json() as { published?: boolean; error?: string };
   return Response.json({ demo: guestSnapshot(accountId, projectId), ...(upstream.ok ? { published: result.published === true } : { error: result.error ?? "ERR_GUEST_FINALIZE" }) }, { status: upstream.ok ? 200 : 409, headers });
 }
@@ -27,7 +28,7 @@ export async function POST(request: Request): Promise<Response> {
     if (row.work_id) {
       const state = guestSnapshot(accountId, row.project_id);
       if (body.action !== "publish" || state?.song?.published) return Response.json({ demo: state }, { headers });
-      return finalizeGuestSong(accountId, row.project_id, row.work_id, row.reviewer_id);
+      return await finalizeGuestSong(accountId, row.project_id, row.work_id, row.reviewer_id);
     }
     if (body.action === "publish") return Response.json({ error: "ERR_GUEST_RECORDING_MISSING" }, { status: 409, headers });
     if ((await studioContractClient().policy()).paused) return Response.json({ error: "ERR_STUDIO_PAUSED" }, { status: 409, headers });
@@ -50,6 +51,7 @@ export async function POST(request: Request): Promise<Response> {
     } finally { updated.close(); }
     return Response.json({ demo: guestSnapshot(accountId, row.project_id) }, { headers });
   } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) return Response.json({ error: "ERR_RELEASE_STATUS_UNAVAILABLE" }, { status: 503, headers });
     const message = error instanceof Error ? error.message : "ERR_GUEST_AUDIO";
     return Response.json({ error: message }, { status: message === "ERR_UNAUTHORIZED" ? 401 : 409, headers });
   }

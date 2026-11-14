@@ -5,7 +5,7 @@ services:
     region: singapore
     plan: 1c-2g
     numInstances: 1
-    buildCommand: npm ci && npm run build --workspace @studio/web && npm run build --workspace @studio/worker
+    buildCommand: npm ci --include=dev && npm run build --workspace @studio/web && npm run build --workspace @studio/worker
     startCommand: node scripts/render/start.mjs
     healthCheckPath: /api/health
     autoDeployTrigger: 'off'

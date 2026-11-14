@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Disc3, Headphones, Plus, SlidersHorizontal } from "lucide-react";
+import { Disc3, Headphones, Plus, SlidersHorizontal, Users } from "lucide-react";
 import { WalletConnection } from "./wallet-connection";
 
 export function WorkspaceShell({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -10,6 +10,7 @@ export function WorkspaceShell({ children }: Readonly<{ children: React.ReactNod
       <nav className="primary-nav" aria-label="Main navigation">
         <Link href="/studio"><Headphones size={17} /> Discover</Link>
         <Link href="/studio/create"><Plus size={17} /> Create a song</Link>
+        <Link href="/studio/agents"><Users size={17} /> Agents</Link>
       </nav>
       <div className="header-right"><span className="environment-pill">Testnet preview</span><WalletConnection /></div>
     </header>

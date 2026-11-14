@@ -108,6 +108,9 @@ test("CAT-02/PAY-04 built web app hides drafts and rejects anonymous downloads",
     const guestPage = await fetch(`${base}/studio/create`);
     assert.equal(guestPage.status, 200);
     assert.match(await guestPage.text(), /Start with an idea/);
+    const agentsPage = await fetch(`${base}/studio/agents`);
+    assert.equal(agentsPage.status, 200);
+    assert.match(await agentsPage.text(), /Agent accounts are unavailable/);
     const guestStatus = await fetch(`${base}/api/studio/guest`);
     assert.equal(guestStatus.status, 401);
     const ownGuestStatus = await fetch(`${base}/api/studio/guest`, { headers: { cookie: `studio_session=${aliceSession}` } });

@@ -1,0 +1,22 @@
+.agents-page{background:#f5f8f6;min-height:calc(100vh - 155px);padding:0 0 85px}
+.agents-intro{display:flex;justify-content:space-between;align-items:end;gap:36px;padding:70px 0 41px;border-bottom:1px solid #bed4cf}
+.agents-intro>div:first-child{max-width:770px}
+.agents-record-mark{display:inline-grid;place-items:center;width:47px;height:47px;border-radius:50%;background:#1c4c50;color:#f3b96d;margin-bottom:25px}
+.agents-intro h1{font-size:clamp(2.7rem,5vw,4.6rem);line-height:1.02;max-width:680px;margin:0 0 18px}
+.agents-intro p{font-size:1.08rem;color:#4d6c70;max-width:640px;margin:0}
+.agents-intro-note{border-left:2px solid #efb86f;padding:9px 0 9px 22px;min-width:156px}
+.agents-intro-note strong{display:block;font-size:2.7rem;line-height:1;letter-spacing:-.07em}
+.agents-intro-note span{display:block;font-size:.81rem;color:#567075;margin-top:7px}
+.agents-context{display:flex;gap:34px;padding:20px 0 8px;color:#526c70;font-size:.79rem}
+.agents-context p{max-width:540px;margin:0}.agents-context strong{color:#24474b}
+.agent-profiles{display:grid;gap:25px;margin-top:32px}
+.agent-profile{background:#fff;border:1px solid #d5e2dd;border-radius:16px;overflow:hidden}
+.agent-profile-head{display:flex;align-items:center;gap:16px;padding:24px 27px 19px}
+.agent-role-mark{display:grid;place-items:center;flex:none;width:48px;height:48px;border-radius:12px;background:#e2eee8;color:#1d5552;font-size:1.15rem;font-weight:850}
+.agent-profile-head h2{font-size:1.42rem;margin:0 0 3px}.agent-profile-head a{display:inline-flex;align-items:center;gap:4px;color:#376d69;font-size:.8rem;text-decoration:none;overflow-wrap:anywhere}
+.agent-state{margin-left:auto;border:1px solid #d4deda;border-radius:100px;padding:5px 10px;color:#637477;font-size:.69rem;font-weight:700}.agent-state.active{color:#236f5b;border-color:#9dcbb8;background:#eaf7ef}
+.agent-balance-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:#193e43;color:#fff}.agent-balance-strip>div{padding:19px 23px;min-width:0}.agent-balance-strip>div+div{border-left:1px solid #426168}.agent-balance-strip span{display:flex;align-items:center;gap:7px;font-size:.75rem;color:#b7d2cc}.agent-balance-strip strong{display:block;margin-top:8px;font-size:clamp(.85rem,1.45vw,1.13rem);font-weight:700;overflow-wrap:anywhere}
+.agent-ledger-grid{display:grid;grid-template-columns:1fr 1fr;gap:0}.agent-ledger-grid>section{padding:23px 27px 29px;min-width:0}.agent-ledger-grid>section+section{border-left:1px solid #e1eae6}.agent-ledger-grid h3{font-size:1.05rem;margin:0 0 4px}.agent-ledger-grid section>p{font-size:.78rem;color:#657c7b;margin:0 0 18px}
+.agent-ledger-list{list-style:none;padding:0;margin:0}.agent-ledger-list li{display:flex;align-items:start;justify-content:space-between;gap:15px;padding:15px 0;border-top:1px solid #e5eeea}.agent-ledger-list li>div{display:grid;gap:4px;min-width:0}.agent-ledger-list li>div:last-child{text-align:right;justify-items:end}.agent-ledger-list strong{font-size:.85rem;overflow-wrap:anywhere}.agent-ledger-list span,.agent-ledger-list small{font-size:.73rem;color:#607b7b;overflow-wrap:anywhere}.agent-ledger-list a{display:inline-flex;align-items:center;gap:2px;color:#276c6a;text-decoration:none;font-size:.73rem;font-weight:700}.agent-ledger-list a:hover,.agent-profile-head a:hover{text-decoration:underline}.agent-ledger-empty{padding:15px;background:#f0f6f2;border-radius:8px;color:#667d79;font-size:.8rem}.agents-history-foot{color:#687d7b;font-size:.78rem;margin:25px 0 0}.agents-history-warning{background:#fff2d9;border-left:3px solid #bd7e30;padding:13px 16px;color:#6d4b22;font-size:.82rem}.agents-unavailable{padding:90px 0}.agents-unavailable h1{font-size:2.6rem}.agents-unavailable a{color:#286766}
+@media(max-width:800px){.agents-intro{align-items:start}.agent-balance-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.agent-balance-strip>div:nth-child(3){border-left:0;border-top:1px solid #426168}.agent-balance-strip>div:nth-child(4){border-top:1px solid #426168}.agent-ledger-grid{grid-template-columns:1fr}.agent-ledger-grid>section+section{border-left:0;border-top:1px solid #e1eae6}}
+@media(max-width:560px){.agents-intro{display:block;padding-top:44px}.agents-intro-note{margin-top:28px}.agents-context{display:block}.agents-context p+p{margin-top:10px}.agent-profile-head{padding:19px 17px}.agent-balance-strip>div{padding:17px}.agent-ledger-grid>section{padding:21px 17px}.agent-ledger-list li{gap:8px}}

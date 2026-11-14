@@ -57,4 +57,4 @@ services:
       - key: ELEVENLABS_PERMISSION_REF
         sync: false
       - key: STUDIO_AUTONOMOUS_REVENUE
-        value: 'false'
+        value: 'true'

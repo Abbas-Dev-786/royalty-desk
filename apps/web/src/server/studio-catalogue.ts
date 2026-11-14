@@ -15,14 +15,14 @@ const verificationTtlMs = 10_000;
 const verificationCache = new Map<string, { expiresAt: number; item: CatalogueItem }>();
 const pendingVerifications = new Map<string, Promise<CatalogueItem>>();
 
-function isRpcRateLimit(error: unknown): boolean {
-  return error instanceof Error && /(?:\b429\b|rate.?limit|too many requests)/i.test(error.message);
+function isRpcUnavailable(error: unknown): boolean {
+  return error instanceof Error && /(?:ERR_NEAR_RPC_|\b429\b|rate.?limit|too many requests)/i.test(error.message);
 }
 
-export function studioContractClient(): StudioContractClient {
+export function studioContractClient(deadlineAtMs?: number): StudioContractClient {
   const id = process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID;
   if (!id || id === "studio.example.testnet") throw new Error("STUDIO_CONTRACT_NOT_CONFIGURED");
-  return new StudioContractClient(id, new BoundedRpcProvider(process.env.NEAR_RPC_URL ?? "https://testnet-rpc.intea.rs"));
+  return new StudioContractClient(id, new BoundedRpcProvider(process.env.NEAR_RPC_URL ?? "https://testnet-rpc.intea.rs", 20_000, deadlineAtMs));
 }
 export function openStudioCatalogueDatabase() {
   if (!existsSync(dbPath)) throw new Error("STUDIO_CATALOGUE_DB_MISSING");
@@ -102,14 +102,14 @@ export async function catalogueSnapshot(query = ""): Promise<{ readonly items: r
   try {
     const rows = db.prepare("SELECT work_id, work_version FROM studio_publications WHERE unpublished_at_ms IS NULL ORDER BY published_at_ms DESC LIMIT 50").all() as { work_id: string; work_version: number }[];
     if (!rows.length) return { items: [], staleCount: 0 };
-    const chainClient = studioContractClient();
+    const chainClient = studioContractClient(Date.now() + 8_000);
     const result: CatalogueItem[] = [];
     let staleCount = 0;
     for (const candidate of rows) {
       const row = localRow(db, candidate.work_id, candidate.work_version);
       if (!row) { staleCount += 1; continue; }
       if (query && !row.title.toLowerCase().includes(query.toLowerCase())) continue;
-      try { result.push(await verifiedItemCached(db, chainClient, row)); } catch (error) { if (isRpcRateLimit(error)) throw error; console.warn("Studio catalogue excluded stale release", { workId: row.work_id, version: row.work_version, reason: error instanceof Error ? error.message : "unknown" }); staleCount += 1; }
+      try { result.push(await verifiedItemCached(db, chainClient, row)); } catch (error) { if (isRpcUnavailable(error)) throw error; console.warn("Studio catalogue excluded stale release", { workId: row.work_id, version: row.work_version, reason: error instanceof Error ? error.message : "unknown" }); staleCount += 1; }
     }
     return { items: result, staleCount };
   } finally { db.close(); }
@@ -119,15 +119,16 @@ export async function listCatalogue(query = ""): Promise<readonly CatalogueItem[
 export async function publishedMedia(assetHash: string): Promise<{ readonly bytes: Uint8Array; readonly mimeType: string } | null> {
   if (!/^[0-9a-f]{64}$/.test(assetHash)) return null;
   const db = openStudioCatalogueDatabase();
+  const deadlineAtMs = Date.now() + 8_000;
   try {
     const matches = db.prepare("SELECT work_id, version AS work_version FROM studio_work_versions WHERE asset_hash = ? LIMIT 20").all(assetHash) as { work_id: string; work_version: number }[];
     for (const match of matches) {
       const row = localRow(db, match.work_id, match.work_version);
       if (!row) continue;
       try {
-        await verifiedItemCached(db, studioContractClient(), row);
+        await verifiedItemCached(db, studioContractClient(deadlineAtMs), row);
         return { bytes: new StudioMediaStore(mediaPath).get(assetHash), mimeType: row.mime_type };
-      } catch (error) { if (isRpcRateLimit(error)) throw error; /* Continue only if another published version safely references the blob. */ }
+      } catch (error) { if (isRpcUnavailable(error)) throw error; /* Continue only if another published version safely references the blob. */ }
     }
     return null;
   } finally { db.close(); }

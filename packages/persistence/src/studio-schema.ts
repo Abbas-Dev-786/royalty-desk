@@ -275,6 +275,16 @@ CREATE TABLE studio_guest_songs (
         created_at_ms INTEGER NOT NULL
       ) STRICT;
 
+CREATE TABLE studio_user_album_projects (
+        project_id TEXT PRIMARY KEY REFERENCES studio_projects(id),
+        account_id TEXT NOT NULL,
+        concept TEXT NOT NULL CHECK(length(concept) BETWEEN 20 AND 1600),
+        lyricist_id TEXT NOT NULL REFERENCES studio_agents(id),
+        composer_id TEXT NOT NULL REFERENCES studio_agents(id),
+        reviewer_id TEXT NOT NULL REFERENCES studio_agents(id),
+        created_at_ms INTEGER NOT NULL
+      ) STRICT;
+
 CREATE INDEX auth_challenges_expiry ON auth_challenges(expires_at_ms);
 
 CREATE INDEX sessions_user ON sessions(user_id);
@@ -297,4 +307,5 @@ CREATE INDEX studio_audio_generations_project ON studio_audio_generations(projec
 CREATE INDEX studio_orders_buyer_active ON studio_orders(buyer_account_id, work_id, work_version, kind, status);
 
 CREATE INDEX studio_guest_songs_account_created ON studio_guest_songs(account_id, created_at_ms DESC);
+CREATE INDEX studio_user_album_projects_account_created ON studio_user_album_projects(account_id, created_at_ms DESC);
 `;

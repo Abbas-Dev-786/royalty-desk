@@ -5,6 +5,7 @@ import { parseSingleByteRange } from "../src/server/media-range.ts";
 import { allocateContractShares } from "../src/lib/studio-agent-allocation.ts";
 import { acceptedSplit, handoffLabel, parseSplitOffer, type AgentInteractionStep } from "../src/lib/agent-interaction.ts";
 import { isAlbumRun, trackBrief, trackTitle } from "../src/lib/studio-album-run.ts";
+import { requireAlbumTrackAccess, type StudioProjectAccess } from "../src/lib/studio-album-access.ts";
 
 test("ALBUM-UI-01 two tracks get distinct bounded briefs and resumable inputs", () => {
   const concept = "A warm jazz story about finding home in a changing city.";
@@ -14,6 +15,14 @@ test("ALBUM-UI-01 two tracks get distinct bounded briefs and resumable inputs", 
   const run = { accountId: "owner.testnet", projectId: "project-album-123e4567-e89b-12d3-a456-426614174000", title: "City Lights", concept, lyricistId: "lyricist", composerId: "composer", reviewerId: "reviewer", deadlines: [0, 0], stage: 0, songIds: [] };
   assert.equal(isAlbumRun(run, "owner.testnet"), true);
   assert.equal(isAlbumRun(run, "another.testnet"), false);
+});
+
+test("ALBUM-ACCESS-02 owners can generate only their two assigned tracks", () => {
+  const access: StudioProjectAccess = { kind: "album_owner", studioId: "studio-a", accountId: "owner.testnet", title: "City Lights", concept: "A warm jazz story about finding home in a changing city.", lyricistId: "lyricist", composerId: "composer", reviewerId: "reviewer" };
+  for (const track of [0, 1] as const) assert.doesNotThrow(() => requireAlbumTrackAccess(access, trackBrief(access.concept, track), "lyricist", "composer", "reviewer", trackTitle(access.title, track)));
+  assert.throws(() => requireAlbumTrackAccess(access, trackBrief(access.concept, 0), "other", "composer", "reviewer"), /ERR_ALBUM_AGENT_SCOPE/);
+  assert.throws(() => requireAlbumTrackAccess(access, "A different song with no relation to this album.", "lyricist", "composer", "reviewer"), /ERR_ALBUM_TRACK_SCOPE/);
+  assert.throws(() => requireAlbumTrackAccess(access, trackBrief(access.concept, 0), "lyricist", "composer", "reviewer", trackTitle(access.title, 1)), /ERR_ALBUM_TRACK_SCOPE/);
 });
 
 test("COLLAB-01 saved offers show counteroffers and only a matching acceptance", () => {

@@ -1,16 +1,20 @@
 import { requireOrigin } from "@/server/runtime";
-import { requireStudioAdmin } from "@/server/studio-admin";
-import { openStudioCatalogueDatabase } from "@/server/studio-catalogue";
+import { requireStudioProjectAccess } from "@/server/studio-album-access";
+import { requireAlbumTrackAccess } from "@/lib/studio-album-access";
+import { openStudioCatalogueDatabase, studioContractClient } from "@/server/studio-catalogue";
 
 export const maxDuration = 300;
 
 export async function POST(request: Request): Promise<Response> {
   try {
     requireOrigin(request);
-    const { studioId } = await requireStudioAdmin();
     const body = await request.json() as { projectId?: unknown; brief?: unknown; title?: unknown; lyricistId?: unknown; composerId?: unknown; reviewerId?: unknown };
     const validId = (value: unknown): value is string => typeof value === "string" && /^[a-z0-9][a-z0-9._-]{0,63}$/.test(value);
     if (!validId(body.projectId) || typeof body.brief !== "string" || body.brief.trim().length < 20 || body.brief.length > 2000 || typeof body.title !== "string" || !body.title.trim() || body.title.length > 160 || !validId(body.lyricistId) || !validId(body.composerId) || !validId(body.reviewerId) || new Set([body.lyricistId, body.composerId, body.reviewerId]).size !== 3) return Response.json({ error: "ERR_SONG_INPUT" }, { status: 400 });
+    const access = await requireStudioProjectAccess(body.projectId);
+    const { studioId } = access;
+    requireAlbumTrackAccess(access, body.brief.trim(), body.lyricistId, body.composerId, body.reviewerId, body.title.trim());
+    if (access.kind === "album_owner" && (await studioContractClient().policy()).paused) return Response.json({ error: "ERR_STUDIO_PAUSED" }, { status: 409 });
     const database = openStudioCatalogueDatabase();
     try {
       if (!database.prepare("SELECT 1 FROM studio_projects WHERE id = ? AND studio_id = ?").get(body.projectId, studioId)) return Response.json({ error: "ERR_SONG_PROJECT_SCOPE" }, { status: 404 });

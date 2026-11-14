@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { STUDIO_SCHEMA_SQL } from "./studio-schema.ts";
 
-export const CURRENT_SCHEMA_VERSION = 17;
+export const CURRENT_SCHEMA_VERSION = 18;
 
 const retiredTables = [
   "agent_budgets",
@@ -63,6 +63,26 @@ function migrate(database: DatabaseSync, version: number): void {
       if (current !== 16) throw new Error("Unsupported studio schema migration");
       database.exec("ALTER TABLE studio_guest_songs ADD COLUMN auto_generate INTEGER NOT NULL DEFAULT 0 CHECK(auto_generate IN (0,1))");
       database.exec("DELETE FROM schema_migrations");
+      database.prepare("INSERT INTO schema_migrations(version, applied_at_ms) VALUES (?, ?)").run(17, Date.now());
+    });
+    version = 17;
+  }
+  if (version === 17) {
+    runTransaction(database, () => {
+      const current = (database.prepare("SELECT MAX(version) AS version FROM schema_migrations").get() as { version: number }).version;
+      if (current === CURRENT_SCHEMA_VERSION) return;
+      if (current !== 17) throw new Error("Unsupported studio schema migration");
+      database.exec(`CREATE TABLE IF NOT EXISTS studio_user_album_projects (
+        project_id TEXT PRIMARY KEY REFERENCES studio_projects(id),
+        account_id TEXT NOT NULL,
+        concept TEXT NOT NULL CHECK(length(concept) BETWEEN 20 AND 1600),
+        lyricist_id TEXT NOT NULL REFERENCES studio_agents(id),
+        composer_id TEXT NOT NULL REFERENCES studio_agents(id),
+        reviewer_id TEXT NOT NULL REFERENCES studio_agents(id),
+        created_at_ms INTEGER NOT NULL
+      ) STRICT;
+      CREATE INDEX IF NOT EXISTS studio_user_album_projects_account_created ON studio_user_album_projects(account_id, created_at_ms DESC);`);
+      database.exec("DELETE FROM schema_migrations");
       database.prepare("INSERT INTO schema_migrations(version, applied_at_ms) VALUES (?, ?)").run(CURRENT_SCHEMA_VERSION, Date.now());
     });
     return;
@@ -90,6 +110,16 @@ function migrate(database: DatabaseSync, version: number): void {
       DROP TABLE studio_guest_songs;
       ALTER TABLE studio_guest_songs_next RENAME TO studio_guest_songs;`);
     database.exec("CREATE INDEX studio_guest_songs_account_created ON studio_guest_songs(account_id, created_at_ms DESC)");
+    database.exec(`CREATE TABLE IF NOT EXISTS studio_user_album_projects (
+      project_id TEXT PRIMARY KEY REFERENCES studio_projects(id),
+      account_id TEXT NOT NULL,
+      concept TEXT NOT NULL CHECK(length(concept) BETWEEN 20 AND 1600),
+      lyricist_id TEXT NOT NULL REFERENCES studio_agents(id),
+      composer_id TEXT NOT NULL REFERENCES studio_agents(id),
+      reviewer_id TEXT NOT NULL REFERENCES studio_agents(id),
+      created_at_ms INTEGER NOT NULL
+    ) STRICT;
+    CREATE INDEX IF NOT EXISTS studio_user_album_projects_account_created ON studio_user_album_projects(account_id, created_at_ms DESC);`);
     database.exec("DELETE FROM schema_migrations");
     database.prepare("INSERT INTO schema_migrations(version, applied_at_ms) VALUES (?, ?)").run(CURRENT_SCHEMA_VERSION, Date.now());
   });

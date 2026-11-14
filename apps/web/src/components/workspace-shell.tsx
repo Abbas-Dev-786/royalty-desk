@@ -10,6 +10,7 @@ export function WorkspaceShell({ children }: Readonly<{ children: React.ReactNod
       <nav className="primary-nav" aria-label="Main navigation">
         <Link href="/studio"><Headphones size={17} /> Discover</Link>
         <Link href="/studio/create"><Plus size={17} /> Create a song</Link>
+        <Link href="/studio/album"><Disc3 size={17} /> Create an album</Link>
         <Link href="/studio/agents"><Users size={17} /> Agents</Link>
       </nav>
       <div className="header-right"><span className="environment-pill">Testnet preview</span><WalletConnection /></div>

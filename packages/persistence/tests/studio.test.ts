@@ -53,6 +53,23 @@ test("DOM-01/04 migrates, persists versions, rejects stale and duplicate IDs", (
   db.close();
 });
 
+test("ALBUM-ACCESS-01 upgrades an existing studio without losing projects", () => {
+  const file = path();
+  const existing = openDatabase(file);
+  createStudio(existing, "studio-a", "admin.testnet");
+  for (const role of ["lyricist", "composer", "reviewer"] as const) addStudioAgent(existing, { id: role, studioId: "studio-a", accountId: `${role}.testnet`, controllerAccountId: "admin.testnet", role, active: true });
+  createStudioProject(existing, { id: "project-existing", studioId: "studio-a", title: "Existing music" });
+  existing.exec("DROP TABLE studio_user_album_projects; UPDATE schema_migrations SET version = 17");
+  existing.close();
+  const upgraded = openDatabase(file);
+  try {
+    assert.equal((upgraded.prepare("SELECT MAX(version) AS version FROM schema_migrations").get() as { version: number }).version, CURRENT_SCHEMA_VERSION);
+    assert.equal((upgraded.prepare("SELECT title FROM studio_projects WHERE id = 'project-existing'").get() as { title: string }).title, "Existing music");
+    upgraded.prepare("INSERT INTO studio_user_album_projects(project_id, account_id, concept, lyricist_id, composer_id, reviewer_id, created_at_ms) VALUES (?, ?, ?, ?, ?, ?, ?)").run("project-existing", "listener.testnet", "A warm album about morning light", "lyricist", "composer", "reviewer", Date.now());
+    assert.deepEqual(upgraded.prepare("PRAGMA foreign_key_check").all(), []);
+  } finally { upgraded.close(); }
+});
+
 test("DOM-01 migrates one-song wallets without losing the old song and accepts another project", () => {
   const file = path();
   const previous = openDatabase(file);

@@ -41,7 +41,7 @@ services:
       - key: STUDIO_WORKER_TOKEN
         generateValue: true
       - key: STUDIO_JOURNEY_PATH
-        value: /etc/secrets/studio-journey.json
+        value: /opt/render/project/src/runtime-data/keys/journey.json
       - key: NEAR_RPC_URL
         value: https://testnet-rpc.intea.rs
       - key: NEAR_AI_BASE_URL

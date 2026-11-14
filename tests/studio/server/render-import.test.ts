@@ -26,12 +26,16 @@ test("DEPLOY-01 imports verified snapshots once and rejects existing data", () =
     const archive = new DatabaseSync(join(staged, "archive", "song-1.sqlite"));
     archive.exec("CREATE TABLE studio_model_outputs (id TEXT)");
     archive.close();
+    mkdirSync(join(staged, "keys"));
+    writeFileSync(join(staged, "keys", "journey.json"), JSON.stringify({ accounts: { producerScoped: {} } }));
     const appPath = join(directory, "app.sqlite");
     const cataloguePath = join(directory, "catalogue.sqlite");
     const mediaPath = join(directory, "media");
     assert.equal(importRenderSeed(directory, appPath, cataloguePath, mediaPath), true);
     assert.equal(readFileSync(join(mediaPath, `${hash}.bin`)).toString(), "media fixture");
     assert.ok(existsSync(join(directory, "archive", "song-1.sqlite")));
+    assert.ok(existsSync(join(directory, "keys", "journey.json")));
+    assert.equal(existsSync(join(staged, "keys", "journey.json")), false);
     assert.equal(importRenderSeed(directory, appPath, cataloguePath, mediaPath), false);
     assert.ok(existsSync(join(directory, ".seed-imported")));
     const second = mkdtempSync(join(tmpdir(), "studio-render-import-reject-"));

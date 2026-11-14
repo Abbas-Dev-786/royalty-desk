@@ -8,6 +8,7 @@ const sourceApp = resolve(root, process.env.STUDIO_APP_DB_PATH ?? "data/studio-a
 const sourceCatalogue = resolve(root, process.env.STUDIO_CATALOGUE_DB_PATH ?? "private/studio-v2/phase05/studio.sqlite");
 const sourceMedia = resolve(root, process.env.STUDIO_MEDIA_PATH ?? "private/studio-media");
 const sourceArchives = resolve(root, process.env.STUDIO_ARCHIVE_PATH ?? "private/studio-v2/sources");
+const sourceJourney = resolve(root, process.env.STUDIO_JOURNEY_PATH ?? "private/studio-v2/testnet/journey.json");
 const destination = resolve(root, "private/render-seed");
 const archiveOnly = process.argv.includes("--archive-only");
 if (existsSync(destination) && !archiveOnly) throw new Error("A private Render seed already exists; move it aside before creating another snapshot");
@@ -41,9 +42,19 @@ let archivedRecords = 0;
 for (const name of ["song-1.sqlite", "song-2.sqlite"]) {
   const source = join(sourceArchives, name);
   if (!existsSync(source)) continue;
-  if (existsSync(join(destination, "archive", name))) throw new Error(`Archived seed snapshot already exists: ${name}`);
+  if (existsSync(join(destination, "archive", name))) {
+    if (archiveOnly) continue;
+    throw new Error(`Archived seed snapshot already exists: ${name}`);
+  }
   mkdirSync(join(destination, "archive"), { recursive: true, mode: 0o700 });
   await snapshot(source, join("archive", name));
   archivedRecords += 1;
 }
-console.log(JSON.stringify({ status: "ready", mediaAssets: hashes.length, archivedRecords, destination: "private/render-seed" }));
+if (existsSync(sourceJourney)) {
+  const journey = JSON.parse(readFileSync(sourceJourney, "utf8"));
+  if (!journey || typeof journey !== "object" || !journey.accounts || typeof journey.accounts !== "object") throw new Error("Invalid private scoped-key file");
+  mkdirSync(join(destination, "keys"), { recursive: true, mode: 0o700 });
+  if (existsSync(join(destination, "keys", "journey.json"))) throw new Error("Scoped-key seed snapshot already exists");
+  copyFileSync(sourceJourney, join(destination, "keys", "journey.json"));
+}
+console.log(JSON.stringify({ status: "ready", mediaAssets: hashes.length, archivedRecords, scopedKeysIncluded: existsSync(join(destination, "keys", "journey.json")), destination: "private/render-seed" }));

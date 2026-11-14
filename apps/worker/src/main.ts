@@ -1,10 +1,13 @@
 import { readWorkerConfig } from "./config.ts";
 import { createWorkerHealthServer } from "./health-server.ts";
 import { openDatabase } from "@studio/persistence";
+import { StudioContractClient } from "@studio/chain";
+import { JsonRpcProvider } from "near-api-js";
 import { reconcileSignedOperations } from "./reconciliation/signed-operations.ts";
 import { createCreativeNearAiModel } from "./studio/creative-model.ts";
 import { StudioCreativeService } from "./studio/creative-service.ts";
 import { StudioSongProductionService } from "./studio/song-production.ts";
+import { producePendingGuestSongs } from "./studio/guest-auto-production.ts";
 import { StudioReleaseAgentService } from "./studio/release-agents.ts";
 import { StudioRevenueAgentService } from "./studio/revenue-agents.ts";
 
@@ -12,6 +15,9 @@ const config = readWorkerConfig();
 const database = openDatabase(config.databasePath);
 const studioService = config.nearAiApiKey && config.nearAiModel ? new StudioCreativeService(config.studioDatabasePath, `${config.studioDatabasePath}.studio-graph.sqlite`, createCreativeNearAiModel({ baseUrl: config.nearAiBaseUrl, apiKey: config.nearAiApiKey, model: config.nearAiModel })) : undefined;
 const songService = StudioSongProductionService.fromEnvironment(config.studioDatabasePath);
+const guestContractId = process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID;
+const guestPolicyClient = guestContractId && guestContractId !== "studio.example.testnet"
+  ? new StudioContractClient(guestContractId, new JsonRpcProvider({ url: process.env.NEAR_RPC_URL ?? "https://testnet-rpc.intea.rs" }), guestContractId.endsWith(".test.near") ? "sandbox" : "testnet") : undefined;
 const releaseService = StudioReleaseAgentService.fromEnvironment(config.studioDatabasePath);
 const revenueService = StudioRevenueAgentService.fromEnvironment(config.databasePath, config.studioDatabasePath);
 const server = createWorkerHealthServer(config, studioService, songService ?? undefined, releaseService ?? undefined);
@@ -60,6 +66,19 @@ async function processPendingGuestReleases(): Promise<void> {
 }
 const releaseTimer = setInterval(() => { void processPendingGuestReleases(); }, 30_000);
 void processPendingGuestReleases();
+let guestMusicRunning = false;
+const blockedGuestSongs = new Set<string>();
+async function processGuestMusic(): Promise<void> {
+  if (!songService || !guestPolicyClient || guestMusicRunning) return;
+  guestMusicRunning = true;
+  try {
+    const errors = await producePendingGuestSongs(config.studioDatabasePath, songService, blockedGuestSongs, async () => !(await guestPolicyClient.policy()).paused);
+    for (const item of errors) console.error("Guest song generation requires attention", item.projectId, item.error);
+  } catch (error) { console.error("Guest song scan failed", error instanceof Error ? error.message : String(error)); }
+  finally { guestMusicRunning = false; }
+}
+const guestMusicTimer = setInterval(() => { void processGuestMusic(); }, 15_000);
+void processGuestMusic();
 
 server.listen(config.port, config.host, () => {
   console.log(`Studio worker listening on http://${config.host}:${config.port}`);
@@ -69,6 +88,7 @@ function shutdown(signal: string): void {
   clearInterval(reconciliationTimer);
   clearInterval(revenueTimer);
   clearInterval(releaseTimer);
+  clearInterval(guestMusicTimer);
   console.log(`Received ${signal}; closing worker health server`);
   server.close((error) => {
     studioService?.close();

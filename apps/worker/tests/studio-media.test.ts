@@ -13,6 +13,7 @@ import { createElevenLabsMusicProvider, ElevenLabsMusicHttpError, musicPlanHash,
 import { generateElevenLabsSong } from "../src/studio/elevenlabs-music-service.ts";
 import { buildSongPlan } from "../src/studio/song-plan.ts";
 import { StudioSongProductionService } from "../src/studio/song-production.ts";
+import { producePendingGuestSongs } from "../src/studio/guest-auto-production.ts";
 import { runCreativeModelStep } from "../src/studio/creative-model.ts";
 import type { AgentModel } from "../src/near-ai/model.ts";
 
@@ -295,6 +296,37 @@ test("MED-08 accepted live agent outputs create one review song without a second
     assert.equal(revisedSong.state, "review");
     assert.equal(calls, 3);
   } finally { reopened.close(); }
+});
+
+test("MED-08 worker automatically records accepted new guest songs once", async () => {
+  const root = mkdtempSync(join(tmpdir(), "studio-auto-guest-"));
+  const path = join(root, "studio.sqlite");
+  const database = openDatabase(path);
+  try {
+    createStudio(database, "studio-a", "admin.testnet");
+    for (const role of ["lyricist", "composer", "reviewer"] as const) addStudioAgent(database, { id: role, studioId: "studio-a", accountId: `${role}.testnet`, controllerAccountId: "admin.testnet", role, active: true });
+    for (const projectId of ["accepted", "unresolved", "legacy", "failed"]) {
+      createStudioProject(database, { id: projectId, studioId: "studio-a", title: projectId });
+      database.prepare("INSERT INTO jobs(id,logical_key,release_id,input_digest,state,result_json,created_at_ms,updated_at_ms) VALUES (?,?,?,?, 'awaiting_human',?,?,?)")
+        .run(`job-${projectId}`, `creative-${projectId}`, projectId, "a".repeat(64), JSON.stringify({ status: projectId === "unresolved" ? "unresolved" : "awaiting_acceptance" }), Date.now(), Date.now());
+      database.prepare("INSERT INTO studio_guest_songs(project_id,account_id,studio_id,brief,title,lyricist_id,composer_id,reviewer_id,deadline_at_ms,session_id,auto_generate,created_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
+        .run(projectId, "guest.testnet", "studio-a", "A hopeful song about the river", projectId, "lyricist", "composer", "reviewer", Date.now() + 60_000, `job-${projectId}`, projectId === "legacy" ? 0 : 1, Date.now());
+    }
+  } finally { database.close(); }
+  let calls = 0;
+  const service = { generate: async (request: { projectId: string }) => { calls += 1; if (request.projectId === "failed") throw new Error("ERR_MUSIC_OUTCOME_UNKNOWN"); assert.equal(request.projectId, "accepted"); return { workId: "song-accepted", version: 1, title: "accepted", assetHash: "a".repeat(64), metadataHash: "b".repeat(64), durationMs: 30_000, state: "review" as const }; } };
+  const blocked = new Set<string>();
+  assert.deepEqual(await producePendingGuestSongs(path, service, blocked, async () => false), []);
+  assert.equal(calls, 0);
+  assert.deepEqual(await producePendingGuestSongs(path, service, blocked, async () => true), [{ projectId: "failed", error: "ERR_MUSIC_OUTCOME_UNKNOWN" }]);
+  assert.deepEqual(await producePendingGuestSongs(path, service, blocked, async () => true), []);
+  assert.equal(calls, 2);
+  const saved = openDatabase(path);
+  try {
+    assert.equal((saved.prepare("SELECT work_id FROM studio_guest_songs WHERE project_id = 'accepted'").get() as { work_id: string }).work_id, "song-accepted");
+    assert.equal((saved.prepare("SELECT error_code FROM jobs WHERE id = 'job-failed'").get() as { error_code: string }).error_code, "ERR_MUSIC_OUTCOME_UNKNOWN");
+  }
+  finally { saved.close(); }
 });
 
 test("MED-07 a media-store failure after a paid response blocks a second music request", async () => {

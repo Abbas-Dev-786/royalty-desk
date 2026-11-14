@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { STUDIO_SCHEMA_SQL } from "./studio-schema.ts";
 
-export const CURRENT_SCHEMA_VERSION = 16;
+export const CURRENT_SCHEMA_VERSION = 17;
 
 const retiredTables = [
   "agent_budgets",
@@ -56,6 +56,17 @@ function migrate(database: DatabaseSync, version: number): void {
       for (const table of retiredTables) database.exec(`DROP TABLE IF EXISTS ${table}`);
     });
   }
+  if (version === 16) {
+    runTransaction(database, () => {
+      const current = (database.prepare("SELECT MAX(version) AS version FROM schema_migrations").get() as { version: number }).version;
+      if (current === CURRENT_SCHEMA_VERSION) return;
+      if (current !== 16) throw new Error("Unsupported studio schema migration");
+      database.exec("ALTER TABLE studio_guest_songs ADD COLUMN auto_generate INTEGER NOT NULL DEFAULT 0 CHECK(auto_generate IN (0,1))");
+      database.exec("DELETE FROM schema_migrations");
+      database.prepare("INSERT INTO schema_migrations(version, applied_at_ms) VALUES (?, ?)").run(CURRENT_SCHEMA_VERSION, Date.now());
+    });
+    return;
+  }
   if (version !== 14 && version !== 15) throw new Error("Unsupported studio schema migration");
   const hasGuestSongsTable = Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'studio_guest_songs'").get());
   runTransaction(database, () => {
@@ -71,6 +82,7 @@ function migrate(database: DatabaseSync, version: number): void {
       deadline_at_ms INTEGER NOT NULL,
       session_id TEXT,
       work_id TEXT UNIQUE,
+      auto_generate INTEGER NOT NULL DEFAULT 0 CHECK(auto_generate IN (0,1)),
       created_at_ms INTEGER NOT NULL
     ) STRICT;`);
     if (hasGuestSongsTable) database.exec(`INSERT INTO studio_guest_songs_next(project_id,account_id,studio_id,brief,title,lyricist_id,composer_id,reviewer_id,deadline_at_ms,session_id,work_id,created_at_ms)

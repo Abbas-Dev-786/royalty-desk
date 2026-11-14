@@ -121,6 +121,10 @@ test("CAT-02/PAY-04 built web app hides drafts and rejects anonymous downloads",
     const firstGuest = await firstStatus.json() as { demo: { title: string; error: string } };
     assert.equal(firstGuest.demo.title, "Alice private song");
     assert.equal(firstGuest.demo.error, "ERR_CREATIVE_OUTCOME_UNKNOWN");
+    const savedRecording = await fetch(`${base}/api/studio/guest/song`, { method: "POST", headers: { cookie: `studio_session=${aliceSession}`, "content-type": "application/json" }, body: JSON.stringify({ projectId: "project-guest-e2e" }) });
+    assert.equal(savedRecording.status, 200);
+    const savedState = await savedRecording.json() as { demo: { song: { published: boolean } } };
+    assert.equal(savedState.demo.song.published, false);
     const otherGuestStatus = await fetch(`${base}/api/studio/guest`, { headers: { cookie: `studio_session=${bobSession}` } });
     assert.equal(otherGuestStatus.status, 200);
     assert.deepEqual(await otherGuestStatus.json(), { demo: null, songs: [] });

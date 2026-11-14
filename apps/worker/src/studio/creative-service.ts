@@ -47,6 +47,11 @@ export class StudioCreativeService {
     this.#model = model;
   }
 
+  #outcome(sessionId: string): string | undefined {
+    const row = this.#database.prepare("SELECT result_json FROM jobs WHERE id = ?").get(sessionId) as { result_json: string | null } | undefined;
+    return row?.result_json ? (JSON.parse(row.result_json) as { status?: string }).status : undefined;
+  }
+
   create(request: StudioCreativeRequest): string {
     requestSchema.parse(request);
     if (request.lyricistId === request.composerId) throw new Error("ERR_CREATIVE_IDENTITY_OR_DEADLINE");
@@ -66,11 +71,14 @@ export class StudioCreativeService {
     return sessionId;
   }
 
-  async run(sessionId: string, request: StudioCreativeRequest): Promise<{ readonly status: string; readonly sessionId: string }> {
+  async run(sessionId: string, request: StudioCreativeRequest): Promise<{ readonly status: string; readonly sessionId: string; readonly outcome?: string }> {
     requestSchema.parse(request);
     const job = this.#jobs.get(sessionId);
     if (!job || job.inputDigest !== digest(JSON.stringify(request))) throw new Error("ERR_CREATIVE_SESSION_INPUT");
-    if (job.state === "succeeded" || job.state === "awaiting_human") return { status: job.state, sessionId };
+    if (job.state === "succeeded" || job.state === "awaiting_human") {
+      const outcome = this.#outcome(sessionId);
+      return { status: job.state, sessionId, ...(outcome ? { outcome } : {}) };
+    }
     if (job.state === "failed") {
       if (job.attempts >= 3) throw new Error("ERR_CREATIVE_RETRY_LIMIT");
       const prefix = `creative:${request.projectId}:`;
@@ -94,7 +102,8 @@ export class StudioCreativeService {
       const failure = this.#database.prepare("SELECT error_code FROM jobs WHERE id = ?").get(sessionId) as { error_code: string | null } | undefined;
       throw new Error(failure?.error_code ?? "ERR_CREATIVE_JOB_FAILED");
     }
-    return { status: result.state, sessionId };
+    const outcome = this.#outcome(sessionId);
+    return { status: result.state, sessionId, ...(outcome ? { outcome } : {}) };
   }
 
   close(): void { this.#jobs.close(); this.#database.close(); }

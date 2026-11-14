@@ -4,7 +4,7 @@ import { createStudioProject, renewUnstartedGuestDeadline } from "@studio/persis
 import { currentUser } from "./runtime";
 import { openStudioCatalogueDatabase, studioContractClient } from "./studio-catalogue";
 
-export interface GuestSongRow { readonly account_id: string; readonly studio_id: string; readonly project_id: string; readonly brief: string; readonly title: string; readonly lyricist_id: string; readonly composer_id: string; readonly reviewer_id: string; readonly deadline_at_ms: number; readonly session_id: string | null; readonly work_id: string | null; }
+export interface GuestSongRow { readonly account_id: string; readonly studio_id: string; readonly project_id: string; readonly brief: string; readonly title: string; readonly lyricist_id: string; readonly composer_id: string; readonly reviewer_id: string; readonly deadline_at_ms: number; readonly session_id: string | null; readonly work_id: string | null; readonly auto_generate: number; }
 interface OutputRow { readonly role: string; readonly agent_id: string; readonly model: string; readonly provider_mode: string; readonly output_hash: string; readonly output_json: string; readonly created_at_ms: number; }
 
 export async function guestAccountId(): Promise<string> {
@@ -52,7 +52,7 @@ export async function reserveGuestSong(accountId: string, projectId: string, tit
       if (!lyricistId || !composerId || !reviewerId || new Set([lyricistId, composerId, reviewerId]).size !== 3) throw new Error("ERR_GUEST_AGENT_TEAM_UNAVAILABLE");
       const deadlineAtMs = Date.now() + 600_000;
       createStudioProject(database, { id: projectId, studioId: studio.id, title });
-      database.prepare("INSERT INTO studio_guest_songs(account_id,studio_id,project_id,brief,title,lyricist_id,composer_id,reviewer_id,deadline_at_ms,created_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?)").run(accountId, studio.id, projectId, brief, title, lyricistId, composerId, reviewerId, deadlineAtMs, Date.now());
+      database.prepare("INSERT INTO studio_guest_songs(account_id,studio_id,project_id,brief,title,lyricist_id,composer_id,reviewer_id,deadline_at_ms,auto_generate,created_at_ms) VALUES (?,?,?,?,?,?,?,?,?,1,?)").run(accountId, studio.id, projectId, brief, title, lyricistId, composerId, reviewerId, deadlineAtMs, Date.now());
       const created = database.prepare("SELECT * FROM studio_guest_songs WHERE project_id = ?").get(projectId) as unknown as GuestSongRow;
       database.exec("COMMIT");
       return created;
@@ -65,7 +65,8 @@ export function guestSnapshot(accountId: string, projectId?: string) {
   try {
     const row = projectId ? database.prepare("SELECT * FROM studio_guest_songs WHERE account_id = ? AND project_id = ?").get(accountId, projectId) as unknown as GuestSongRow | undefined : database.prepare("SELECT * FROM studio_guest_songs WHERE account_id = ? ORDER BY created_at_ms DESC, project_id DESC LIMIT 1").get(accountId) as unknown as GuestSongRow | undefined;
     if (!row) return null;
-    const job = row.session_id ? database.prepare("SELECT state, error_code FROM jobs WHERE id = ?").get(row.session_id) as { state: string; error_code: string | null } | undefined : undefined;
+    const job = row.session_id ? database.prepare("SELECT state, error_code, result_json FROM jobs WHERE id = ?").get(row.session_id) as { state: string; error_code: string | null; result_json: string | null } | undefined : undefined;
+    const outcome = job?.result_json ? (JSON.parse(job.result_json) as { status?: string }).status : undefined;
     const uncertain = job?.state === "failed" && Boolean(database.prepare("SELECT 1 FROM studio_external_operations WHERE operation_type = 'near_ai_creative' AND logical_key LIKE ? AND status IN ('requested','submitted','unknown') LIMIT 1").get(`creative:${row.project_id}:%`));
     const outputRows = database.prepare("SELECT o.role,o.agent_id,o.model,o.provider_mode,o.output_hash,o.output_json,o.created_at_ms FROM studio_model_outputs o JOIN studio_external_operations e ON e.id=o.operation_id WHERE o.project_id = ? AND e.status = 'finalized' ORDER BY o.created_at_ms, o.operation_id LIMIT 12").all(row.project_id) as unknown as OutputRow[];
     const steps = outputRows.flatMap((output) => {
@@ -76,6 +77,6 @@ export function guestSnapshot(accountId: string, projectId?: string) {
       } catch { return []; }
     });
     const work = row.work_id ? database.prepare("SELECT v.version, v.state, v.asset_hash, a.duration_ms, p.chain_tx_hash FROM studio_work_versions v JOIN studio_assets a ON a.hash = v.asset_hash LEFT JOIN studio_publications p ON p.work_id = v.work_id AND p.work_version = v.version AND p.unpublished_at_ms IS NULL WHERE v.work_id = ? ORDER BY v.version DESC LIMIT 1").get(row.work_id) as { version: number; state: string; asset_hash: string; duration_ms: number | null; chain_tx_hash: string | null } | undefined : undefined;
-    return { projectId: row.project_id, title: row.title, brief: row.brief, sessionId: row.session_id, status: job?.state ?? "reserved", error: uncertain ? "ERR_CREATIVE_OUTCOME_UNKNOWN" : job?.error_code ?? null, steps, song: work ? { workId: row.work_id, version: work.version, state: work.state, published: Boolean(work.chain_tx_hash), durationMs: work.duration_ms, assetHash: work.asset_hash } : null };
+    return { projectId: row.project_id, title: row.title, brief: row.brief, sessionId: row.session_id, autoGenerate: row.auto_generate === 1, status: job?.state === "awaiting_human" && outcome === "unresolved" ? "unresolved" : job?.state ?? "reserved", error: uncertain ? "ERR_CREATIVE_OUTCOME_UNKNOWN" : job?.error_code ?? null, steps, song: work ? { workId: row.work_id, version: work.version, state: work.state, published: Boolean(work.chain_tx_hash), durationMs: work.duration_ms, assetHash: work.asset_hash } : null };
   } finally { database.close(); }
 }

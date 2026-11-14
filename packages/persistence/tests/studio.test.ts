@@ -9,6 +9,25 @@ import { acceptStudioSplit, addAlbumTracks, addStudioAgent, addStudioAsset, addS
 function path(): string { return join(mkdtempSync(join(tmpdir(), "studio-test-")), "db.sqlite"); }
 const work = { workId: "song-a", studioId: "studio-a", version: 1, kind: "song" as const, state: "draft" as const, title: "First", assetHash: "a".repeat(64), metadataHash: "b".repeat(64), priceYocto: "100", split: [{ agentId: "agent-a", basisPoints: 10000 }] };
 
+test("DOM-01 upgrades existing guest reservations without enabling paid auto generation", () => {
+  const databasePath = path();
+  const old = openDatabase(databasePath);
+  createStudio(old, "studio-a", "admin.testnet");
+  createStudioProject(old, { id: "project-old", studioId: "studio-a", title: "Earlier song" });
+  for (const role of ["lyricist", "composer", "reviewer"] as const) addStudioAgent(old, { id: role, studioId: "studio-a", accountId: `${role}.testnet`, controllerAccountId: "admin.testnet", role, active: true });
+  old.prepare("INSERT INTO studio_guest_songs(project_id,account_id,studio_id,brief,title,lyricist_id,composer_id,reviewer_id,deadline_at_ms,created_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .run("project-old", "guest.testnet", "studio-a", "Original song about a river", "Earlier song", "lyricist", "composer", "reviewer", Date.now() + 60_000, Date.now());
+  old.exec("ALTER TABLE studio_guest_songs DROP COLUMN auto_generate; UPDATE schema_migrations SET version = 16");
+  old.close();
+  const upgraded = openDatabase(databasePath);
+  try {
+    const column = upgraded.prepare("SELECT name FROM pragma_table_info('studio_guest_songs') WHERE name = 'auto_generate'").get() as { name: string } | undefined;
+    assert.equal(column?.name, "auto_generate");
+    assert.equal((upgraded.prepare("SELECT auto_generate AS enabled FROM studio_guest_songs WHERE project_id = 'project-old'").get() as { enabled: number }).enabled, 0);
+    assert.equal((upgraded.prepare("SELECT MAX(version) AS version FROM schema_migrations").get() as { version: number }).version, CURRENT_SCHEMA_VERSION);
+  } finally { upgraded.close(); }
+});
+
 test("DOM-01/04 migrates, persists versions, rejects stale and duplicate IDs", () => {
   const db = openDatabase(path());
   createStudio(db, "studio-a", "admin.testnet");

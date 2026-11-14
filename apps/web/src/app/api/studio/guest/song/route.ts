@@ -19,19 +19,21 @@ export async function POST(request: Request): Promise<Response> {
     requireOrigin(request);
     const accountId = await guestAccountId();
     const rawBody = await request.text();
-    const body = rawBody ? JSON.parse(rawBody) as { projectId?: unknown } : {};
+    const body = rawBody ? JSON.parse(rawBody) as { projectId?: unknown; action?: unknown } : {};
     if (body.projectId !== undefined && typeof body.projectId !== "string") return Response.json({ error: "ERR_GUEST_PROJECT_ID" }, { status: 400, headers });
+    if (body.action !== undefined && body.action !== "publish") return Response.json({ error: "ERR_GUEST_SONG_ACTION" }, { status: 400, headers });
     const row = guestSong(accountId, body.projectId);
     if (!row) return Response.json({ error: "ERR_GUEST_NOT_STARTED" }, { status: 404, headers });
     if (row.work_id) {
       const state = guestSnapshot(accountId, row.project_id);
-      if (state?.song?.published) return Response.json({ demo: state }, { headers });
+      if (body.action !== "publish" || state?.song?.published) return Response.json({ demo: state }, { headers });
       return finalizeGuestSong(accountId, row.project_id, row.work_id, row.reviewer_id);
     }
+    if (body.action === "publish") return Response.json({ error: "ERR_GUEST_RECORDING_MISSING" }, { status: 409, headers });
     if ((await studioContractClient().policy()).paused) return Response.json({ error: "ERR_STUDIO_PAUSED" }, { status: 409, headers });
     const database = openStudioCatalogueDatabase();
     let ready = false;
-    try { ready = Boolean(row.session_id && database.prepare("SELECT 1 FROM jobs WHERE id = ? AND state = 'awaiting_human'").get(row.session_id)); }
+    try { ready = Boolean(row.session_id && database.prepare("SELECT 1 FROM jobs WHERE id = ? AND state = 'awaiting_human' AND json_extract(result_json, '$.status') = 'awaiting_acceptance'").get(row.session_id)); }
     finally { database.close(); }
     if (!ready) return Response.json({ error: "ERR_GUEST_AGENTS_NOT_READY", demo: guestSnapshot(accountId, row.project_id) }, { status: 409, headers });
     const token = process.env.STUDIO_WORKER_TOKEN;
@@ -44,8 +46,9 @@ export async function POST(request: Request): Promise<Response> {
     try {
       const stored = updated.prepare("UPDATE studio_guest_songs SET work_id = ? WHERE account_id = ? AND project_id = ? AND (work_id IS NULL OR work_id = ?)").run(result.workId, accountId, row.project_id, result.workId);
       if (stored.changes !== 1) throw new Error("ERR_GUEST_WORK_MISMATCH");
+      updated.prepare("UPDATE jobs SET error_code = NULL WHERE id = ?").run(row.session_id);
     } finally { updated.close(); }
-    return finalizeGuestSong(accountId, row.project_id, result.workId, row.reviewer_id);
+    return Response.json({ demo: guestSnapshot(accountId, row.project_id) }, { headers });
   } catch (error) {
     const message = error instanceof Error ? error.message : "ERR_GUEST_AUDIO";
     return Response.json({ error: message }, { status: message === "ERR_UNAUTHORIZED" ? 401 : 409, headers });

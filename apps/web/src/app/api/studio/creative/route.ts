@@ -25,8 +25,8 @@ export async function POST(request: Request): Promise<Response> {
     const created = await createdResponse.json() as { sessionId?: string; error?: string };
     if (!createdResponse.ok || !created.sessionId) return Response.json({ error: created.error ?? "ERR_CREATIVE_SESSION" }, { status: 502 });
     const runResponse = await fetch(`${workerUrl}/studio/sessions/${created.sessionId}/run`, { method: "POST", headers, body: JSON.stringify(input), cache: "no-store" });
-    const run = await runResponse.json() as { status?: string; error?: string };
-    return Response.json({ sessionId: created.sessionId, status: run.status ?? null, ...(run.error ? { error: run.error } : {}) }, { status: runResponse.ok ? 200 : 502, headers: { "cache-control": "no-store" } });
+    const run = await runResponse.json() as { status?: string; outcome?: string; error?: string };
+    return Response.json({ sessionId: created.sessionId, status: run.status ?? null, outcome: run.outcome ?? null, ...(run.error ? { error: run.error } : {}) }, { status: runResponse.ok ? 200 : 502, headers: { "cache-control": "no-store" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "CREATIVE_RUN_FAILED";
     return Response.json({ error: message }, { status: message === "ERR_UNAUTHORIZED" ? 401 : message === "ERR_FORBIDDEN" ? 403 : 409 });

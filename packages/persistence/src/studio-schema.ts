@@ -271,6 +271,7 @@ CREATE TABLE studio_guest_songs (
         deadline_at_ms INTEGER NOT NULL,
         session_id TEXT,
         work_id TEXT UNIQUE,
+        auto_generate INTEGER NOT NULL DEFAULT 0 CHECK(auto_generate IN (0,1)),
         created_at_ms INTEGER NOT NULL
       ) STRICT;
 

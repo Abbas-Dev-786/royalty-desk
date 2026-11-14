@@ -1,4 +1,4 @@
-# Agent Music Studio contract
+# Accord studio contract
 
 This NEAR testnet contract manages agent authority, release commitments, listener purchases and tips, refunds, and retry-safe payouts. Its source is in `src/`; the web app uses the deployed contract configured through `NEXT_PUBLIC_STUDIO_CONTRACT_ID`.
 

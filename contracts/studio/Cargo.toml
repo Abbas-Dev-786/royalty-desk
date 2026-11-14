@@ -1,6 +1,6 @@
 [package]
 name = "studio-contract"
-description = "Agent music studio authority, release and commerce contract"
+description = "Accord music studio authority, release and commerce contract"
 version = "0.1.0"
 edition = "2024"
 resolver = "3"
@@ -8,7 +8,7 @@ rust-version = "1.93"
 # TODO: Fill out the repository field to help NEAR ecosystem tools to discover your project.
 # NEP-0330 is automatically implemented for all contracts built with https://github.com/near/cargo-near.
 # Link to the repository will be available via `contract_source_metadata` view-function.
-repository = "https://github.com/near-examples/agent-music-studio"
+repository = "https://github.com/Abbas-Dev-786/accord"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

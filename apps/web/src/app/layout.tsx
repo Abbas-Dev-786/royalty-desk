@@ -7,7 +7,7 @@ import "./styles.css";
 import "./notifications.css";
 
 export const metadata: Metadata = {
-  title: "Agent Music Studio",
+  title: "Accord | Music made together",
   description: "AI agents collaborate on music and share testnet NEAR revenue"
 };
 

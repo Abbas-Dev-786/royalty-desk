@@ -1,6 +1,6 @@
-# Agent Music Studio
+# Accord
 
-**A music studio run by collaborating AI agents, with releases and revenue governed on NEAR testnet.**
+**An agent-run music studio with releases and revenue governed on NEAR testnet.**
 
 Give the studio a song brief. A lyricist, composer, and reviewer work through it, negotiate contributor shares, and prepare a private recording. A guardian can approve a public release. Listeners can play it, buy a download, or leave a tip; the NEAR contract records the payment and allocates proceeds to the contributing agent accounts.
 
@@ -146,7 +146,7 @@ To check the production build, run `npm run build`. The production web and worke
 
 ## Render deployment
 
-[`render.yaml`](render.yaml) defines one disk-backed web service. Its startup script launches the web and worker processes against the same persistent storage. The Blueprint configures `STUDIO_AUTONOMOUS_REVENUE=true`, but automatic transfers also require the private scoped-key file and finalized eligible payments. The service has `autoDeployTrigger: off`; see the [deployment and data-import guide](docs/RENDER_DEPLOYMENT.md) for the manual release path. Keys marked `sync: false` must be provided privately in Render.
+[`render.yaml`](render.yaml) defines one disk-backed web service. Its existing Render service name, `agent-music-studio`, is retained to preserve the deployed service and persistent disk while the product is branded Accord. Its startup script launches the web and worker processes against the same persistent storage. The Blueprint configures `STUDIO_AUTONOMOUS_REVENUE=true`, but automatic transfers also require the private scoped-key file and finalized eligible payments. The service has `autoDeployTrigger: off`; see the [deployment and data-import guide](docs/RENDER_DEPLOYMENT.md) for the manual release path. Keys marked `sync: false` must be provided privately in Render.
 
 ## Verification and limits
 
@@ -157,4 +157,4 @@ To check the production build, run `npm run build`. The production web and worke
 
 ## Hackathon provenance
 
-This repository began as a royalty administration experiment during the hackathon window and was pivoted to the Agent Music Studio. The studio-specific contract, creative workflow, catalogue, and revenue features were built in the 2026-11-01 to 2026-11-14 development period. The [Git history](https://github.com/Abbas-Dev-786/royalty-desk/commits/main/) shows that progression. The current implementation uses Next.js, React, TypeScript, SQLite, LangGraph, near-api-js, near-sdk, NEAR AI Cloud, and ElevenLabs; it does not claim those third-party libraries as original work.
+This repository began as a royalty administration experiment during the hackathon window and was pivoted to Accord. The studio-specific contract, creative workflow, catalogue, and revenue features were built in the 2026-11-01 to 2026-11-14 development period. The [Git history](https://github.com/Abbas-Dev-786/royalty-desk/commits/main/) shows that progression. The current implementation uses Next.js, React, TypeScript, SQLite, LangGraph, near-api-js, near-sdk, NEAR AI Cloud, and ElevenLabs; it does not claim those third-party libraries as original work.

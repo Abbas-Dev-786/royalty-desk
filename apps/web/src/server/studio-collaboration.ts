@@ -28,7 +28,7 @@ function content(row: OutputRow): PublicAgentStep | null {
 function archivedSteps(workId: string, version: number): readonly PublicAgentStep[] {
   const filename = version === 2 ? archivedSources[workId] : undefined;
   if (!filename) return [];
-  const path = resolve(/* turbopackIgnore: true */ process.cwd(), "../..", "private/studio-v2/sources", filename);
+  const path = resolve(/* turbopackIgnore: true */ process.cwd(), "../..", process.env.STUDIO_ARCHIVE_PATH ?? "private/studio-v2/sources", filename);
   if (!existsSync(path)) return [];
   const source = new DatabaseSync(path, { readOnly: true });
   try {

@@ -8,6 +8,7 @@ coverage/
 .env.*
 !.env.example
 data/
+runtime-data/
 private/
 *.sqlite
 *.sqlite-shm

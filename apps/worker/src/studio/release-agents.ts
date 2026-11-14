@@ -31,7 +31,7 @@ export class StudioReleaseAgentService {
   static fromEnvironment(databasePath: string): StudioReleaseAgentService | null {
     const contractId = process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID;
     if (!contractId) return null;
-    return new StudioReleaseAgentService(databasePath, contractId, process.env.NEAR_RPC_URL ?? "https://testnet-rpc.intea.rs", resolve(process.cwd(), "../..", "private/studio-v2/testnet/journey.json"));
+    return new StudioReleaseAgentService(databasePath, contractId, process.env.NEAR_RPC_URL ?? "https://testnet-rpc.intea.rs", process.env.STUDIO_JOURNEY_PATH ?? resolve(process.cwd(), "../..", "private/studio-v2/testnet/journey.json"));
   }
 
   #scopedKey(role: string, accountId: string, method: "accept_split" | "create_release" | "publish_release"): ScopedKey {

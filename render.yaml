@@ -1,0 +1,58 @@
+services:
+  - type: web
+    name: agent-music-studio
+    runtime: node
+    region: singapore
+    plan: 1c-2g
+    numInstances: 1
+    buildCommand: npm ci && npm run build --workspace @studio/web && npm run build --workspace @studio/worker
+    startCommand: node scripts/render/start.mjs
+    healthCheckPath: /api/health
+    autoDeployTrigger: 'off'
+    disk:
+      name: studio-data
+      mountPath: /opt/render/project/src/runtime-data
+      sizeGB: 10
+    envVars:
+      - key: NODE_VERSION
+        value: 24.22.1
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_NEAR_NETWORK
+        value: testnet
+      - key: NEXT_PUBLIC_STUDIO_CONTRACT_ID
+        value: studio-rd-fa315759.testnet
+      - key: STUDIO_APP_DB_PATH
+        value: /opt/render/project/src/runtime-data/app.sqlite
+      - key: STUDIO_CATALOGUE_DB_PATH
+        value: /opt/render/project/src/runtime-data/catalogue.sqlite
+      - key: STUDIO_MEDIA_PATH
+        value: /opt/render/project/src/runtime-data/media
+      - key: STUDIO_ARCHIVE_PATH
+        value: /opt/render/project/src/runtime-data/archive
+      - key: STUDIO_BACKUP_PATH
+        value: /opt/render/project/src/runtime-data/backups
+      - key: STUDIO_WORKER_HOST
+        value: 127.0.0.1
+      - key: STUDIO_WORKER_PORT
+        value: '3101'
+      - key: STUDIO_WORKER_URL
+        value: http://127.0.0.1:3101
+      - key: STUDIO_WORKER_TOKEN
+        generateValue: true
+      - key: STUDIO_JOURNEY_PATH
+        value: /etc/secrets/studio-journey.json
+      - key: NEAR_RPC_URL
+        value: https://testnet-rpc.intea.rs
+      - key: NEAR_AI_BASE_URL
+        value: https://cloud-api.near.ai/v1
+      - key: NEAR_AI_MODEL
+        sync: false
+      - key: NEAR_AI_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_PERMISSION_REF
+        sync: false
+      - key: STUDIO_AUTONOMOUS_REVENUE
+        value: 'false'

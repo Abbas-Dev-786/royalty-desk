@@ -24,7 +24,8 @@ export async function currentUser(): Promise<UserRecord | undefined> {
 
 export function requireOrigin(request: Request): void {
   const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) throw new Error("ERR_CSRF_ORIGIN");
+  const expected = process.env.STUDIO_AUTH_ORIGIN ?? process.env.RENDER_EXTERNAL_URL ?? new URL(request.url).origin;
+  if (origin && origin !== expected && origin !== new URL(request.url).origin) throw new Error("ERR_CSRF_ORIGIN");
 }
 
 export function configuredNetwork(): "testnet" {
@@ -34,5 +35,5 @@ export function configuredNetwork(): "testnet" {
 }
 
 export function authOrigin(request: Request): string {
-  return process.env.STUDIO_AUTH_ORIGIN ?? new URL(request.url).origin;
+  return process.env.STUDIO_AUTH_ORIGIN ?? process.env.RENDER_EXTERNAL_URL ?? new URL(request.url).origin;
 }

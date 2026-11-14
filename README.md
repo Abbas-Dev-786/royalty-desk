@@ -14,6 +14,8 @@ The [studio master plan](plan-v2/MASTER_PLAN.md) and its [evidence](plan-v2/evid
 
 The former royalty-administration application and its documentation were retired. The active workspaces, settings, authentication cookie, and local database now use studio names. Studio purchases and tips use the studio contract.
 
+For the production Render service, see the [Render deployment guide](docs/RENDER_DEPLOYMENT.md).
+
 ## Setup
 
 Requires Node.js 24+, npm 11, and Docker Desktop with Linux containers for the contract build and sandbox checks.

@@ -30,7 +30,7 @@ export class StudioRevenueAgentService {
 
   static fromEnvironment(appDatabasePath: string, studioDatabasePath: string): StudioRevenueAgentService | null {
     if (process.env.STUDIO_AUTONOMOUS_REVENUE !== "true" || !process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID) return null;
-    return new StudioRevenueAgentService(appDatabasePath, studioDatabasePath, process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID, process.env.NEAR_RPC_URL ?? "https://testnet-rpc.intea.rs", resolve(process.cwd(), "../..", "private/studio-v2/testnet/journey.json"));
+    return new StudioRevenueAgentService(appDatabasePath, studioDatabasePath, process.env.NEXT_PUBLIC_STUDIO_CONTRACT_ID, process.env.NEAR_RPC_URL ?? "https://testnet-rpc.intea.rs", process.env.STUDIO_JOURNEY_PATH ?? resolve(process.cwd(), "../..", "private/studio-v2/testnet/journey.json"));
   }
 
   async runOnce(): Promise<{ readonly allocations: number; readonly payouts: number; readonly errors: readonly string[] }> {
